@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { demoArticles, demoCustomers, demoSuppliers } from './demo-data'
-import './App.css'
+import { demoArticles, demoCustomers, demoSuppliers } from '../demo-data'
+import '../App.css'
 
 type Section = 'inicio' | 'ventas' | 'articulos' | 'rubros' | 'clientes' | 'compras' | 'proveedores' | 'caja' | 'informes' | 'tienda' | 'usuarios'
 

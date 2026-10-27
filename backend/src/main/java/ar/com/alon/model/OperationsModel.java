@@ -1,4 +1,4 @@
-package ar.com.alon.api.operations;
+package ar.com.alon.model;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -18,11 +18,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class OperationsService {
+public class OperationsModel {
     private static final long STORE_ID = 1L;
     private final JdbcTemplate jdbc;
 
-    public OperationsService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    public OperationsModel(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
     @Transactional
     public Map<String, Object> createCustomer(CustomerInput input) {

@@ -9,6 +9,10 @@ Sistema web de gestión comercial para pequeños comercios argentinos, ofrecido 
 - Frontend: React, TypeScript y Vite.
 - Moneda y zona horaria: ARS y `America/Argentina/Buenos_Aires`.
 
+## Arquitectura
+
+El proyecto organiza la interfaz, los controladores y los modelos siguiendo MVC. La vista React se comunica con los controladores REST de Spring MVC, que delegan las operaciones al modelo. Más detalles en [`docs/arquitectura-mvc.md`](docs/arquitectura-mvc.md).
+
 ## Estado actual
 
 La aplicación permite registrar clientes, proveedores, artículos, ventas, compras, gastos, aperturas y cierres de caja, y pedidos web en el comercio de demostración. Las ventas descuentan stock en una transacción y pueden actualizar cuenta corriente; las compras reciben stock, actualizan costos y saldos de proveedor, y sus pagos se reflejan en caja. La base `alon_demo` conserva además los datos ficticios iniciales (100 artículos, 20 clientes, 20 proveedores, 10 compras y 1.000 ventas). Las ventas nuevas también son comprobantes internos no fiscales; no se emiten comprobantes ante ARCA.
