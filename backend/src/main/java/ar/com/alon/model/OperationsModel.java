@@ -34,12 +34,44 @@ public class OperationsModel {
     }
 
     @Transactional
+    public Map<String, Object> updateCustomer(long id, CustomerInput input) {
+        jdbc.queryForObject("SELECT id FROM clientes WHERE id=? AND comercio_id=? FOR UPDATE", Long.class, id, STORE_ID);
+        String name = required(input.name(), "El nombre del cliente es obligatorio.");
+        jdbc.update("UPDATE clientes SET nombre=?,telefono=?,email=?,limite_credito=? WHERE id=? AND comercio_id=?",
+                name, value(input.phone()), value(input.email()), nonNegative(input.creditLimit(), "El límite de crédito no puede ser negativo."), id, STORE_ID);
+        return Map.of("id", id, "nombre", name);
+    }
+
+    @Transactional
+    public Map<String, Object> setCustomerActive(long id, boolean active) {
+        int changed = jdbc.update("UPDATE clientes SET estado=? WHERE id=? AND comercio_id=?", active ? "ACTIVO" : "INACTIVO", id, STORE_ID);
+        if (changed == 0) throw new IllegalArgumentException("No se encontró el cliente.");
+        return Map.of("id", id, "estado", active ? "ACTIVO" : "INACTIVO");
+    }
+
+    @Transactional
     public Map<String, Object> createSupplier(SupplierInput input) {
         String name = required(input.name(), "El nombre del proveedor es obligatorio.");
         String code = "PROV-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         long id = insert("INSERT INTO proveedores (comercio_id,codigo,nombre,cuit,especialidad,telefono,email) VALUES (?,?,?,?,?,?,?)",
                 STORE_ID, code, name, value(input.taxId()), value(input.specialty()), value(input.phone()), value(input.email()));
         return Map.of("id", id, "codigo", code, "nombre", name);
+    }
+
+    @Transactional
+    public Map<String, Object> updateSupplier(long id, SupplierInput input) {
+        jdbc.queryForObject("SELECT id FROM proveedores WHERE id=? AND comercio_id=? FOR UPDATE", Long.class, id, STORE_ID);
+        String name = required(input.name(), "El nombre del proveedor es obligatorio.");
+        jdbc.update("UPDATE proveedores SET nombre=?,cuit=?,especialidad=?,telefono=?,email=? WHERE id=? AND comercio_id=?",
+                name, value(input.taxId()), value(input.specialty()), value(input.phone()), value(input.email()), id, STORE_ID);
+        return Map.of("id", id, "nombre", name);
+    }
+
+    @Transactional
+    public Map<String, Object> setSupplierActive(long id, boolean active) {
+        int changed = jdbc.update("UPDATE proveedores SET estado=? WHERE id=? AND comercio_id=?", active ? "ACTIVO" : "INACTIVO", id, STORE_ID);
+        if (changed == 0) throw new IllegalArgumentException("No se encontró el proveedor.");
+        return Map.of("id", id, "estado", active ? "ACTIVO" : "INACTIVO");
     }
 
     @Transactional
@@ -235,6 +267,77 @@ public class OperationsModel {
             addCashMovement(cashId, "EGRESO", "PAGO_PROVEEDOR", paymentMethod, date, paid, receipt, "Pago de compra " + docNumber);
         }
         return Map.of("id", purchaseId, "numero_documento", docNumber, "articulos", lines.size(), "subtotal", subtotal, "total", total, "saldo", total.subtract(paid));
+    }
+
+    @Transactional
+    public Map<String, Object> updatePurchase(long id, PurchaseInput input) {
+        Map<String, Object> current = jdbc.queryForMap("SELECT proveedor_id,fecha,total,pagado,numero_documento FROM compras WHERE id=? AND comercio_id=? FOR UPDATE", id, STORE_ID);
+        long supplierId = ((Number) current.get("proveedor_id")).longValue();
+        if (input.supplierId() != supplierId) throw new IllegalArgumentException("No se puede cambiar el proveedor de una factura existente.");
+        if (input.lines() == null || input.lines().isEmpty()) throw new IllegalArgumentException("Ingresá al menos un artículo en la factura.");
+        BigDecimal extras = nonNegative(input.extraCosts() == null ? BigDecimal.ZERO : input.extraCosts(), "Los gastos adicionales no pueden ser negativos.");
+        Map<Long, BigDecimal[]> newLines = new java.util.LinkedHashMap<>();
+        BigDecimal subtotal = BigDecimal.ZERO;
+        int row = 1;
+        for (PurchaseLineInput line : input.lines()) {
+            BigDecimal qty = positiveQuantity(line.quantity(), "La cantidad comprada debe ser mayor a cero.");
+            BigDecimal cost = nonNegative(line.unitCost(), "El costo unitario no puede ser negativo.");
+            lockArticle(line.articleId());
+            BigDecimal lineTotal = qty.multiply(cost).setScale(2, RoundingMode.HALF_UP);
+            subtotal = subtotal.add(lineTotal);
+            BigDecimal[] previous = newLines.get(line.articleId());
+            if (previous == null) newLines.put(line.articleId(), new BigDecimal[]{qty, cost, lineTotal});
+            else {
+                BigDecimal mergedQuantity = previous[0].add(qty);
+                BigDecimal mergedTotal = previous[2].add(lineTotal);
+                newLines.put(line.articleId(), new BigDecimal[]{mergedQuantity, mergedTotal.divide(mergedQuantity, 8, RoundingMode.HALF_UP), mergedTotal});
+            }
+            row++;
+        }
+        BigDecimal total = subtotal.add(extras).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal paid = new BigDecimal(current.get("pagado").toString());
+        if (total.compareTo(paid) < 0) throw new IllegalArgumentException("El total no puede ser menor a lo que ya se pagó de esta factura.");
+        List<Map<String,Object>> oldLines = jdbc.queryForList("SELECT articulo_id,cantidad FROM compra_detalle WHERE compra_id=?", id);
+        Map<Long, BigDecimal> oldQuantities = new java.util.HashMap<>();
+        oldLines.forEach(line -> oldQuantities.put(((Number)line.get("articulo_id")).longValue(), new BigDecimal(line.get("cantidad").toString())));
+        java.util.Set<Long> articleIds = new java.util.LinkedHashSet<>(oldQuantities.keySet()); articleIds.addAll(newLines.keySet());
+        for (Long articleId : articleIds) {
+            BigDecimal before = oldQuantities.getOrDefault(articleId, BigDecimal.ZERO);
+            BigDecimal after = newLines.containsKey(articleId) ? newLines.get(articleId)[0] : BigDecimal.ZERO;
+            BigDecimal delta = after.subtract(before);
+            Map<String,Object> article = lockArticle(articleId);
+            BigDecimal stock = new BigDecimal(article.get("stock").toString());
+            if (stock.add(delta).signum() < 0) throw new IllegalArgumentException("No se puede reducir la cantidad: el stock actual ya fue vendido o ajustado.");
+            if (delta.signum() > 0) {
+                BigDecimal cost = newLines.get(articleId)[1];
+                BigDecimal oldCost = new BigDecimal(article.get("costo").toString());
+                BigDecimal weighted = stock.add(delta).signum() == 0 ? cost : stock.multiply(oldCost).add(delta.multiply(cost)).divide(stock.add(delta), 2, RoundingMode.HALF_UP);
+                BigDecimal freight = new BigDecimal(article.get("flete_unitario").toString());
+                BigDecimal freightPercent = new BigDecimal(article.get("flete_porcentaje").toString());
+                BigDecimal margin = new BigDecimal(article.get("margen_porcentaje").toString());
+                Object roundFlag = article.get("redondeo_precio");
+                boolean roundPrice = roundFlag instanceof Boolean flag ? flag : roundFlag instanceof Number number && number.intValue() != 0;
+                jdbc.update("UPDATE articulos SET stock=?,costo=?,precio_venta=? WHERE id=? AND comercio_id=?", stock.add(delta), weighted, calculateSalePrice(weighted, freight, freightPercent, margin, roundPrice), articleId, STORE_ID);
+            } else jdbc.update("UPDATE articulos SET stock=? WHERE id=? AND comercio_id=?", stock.add(delta), articleId, STORE_ID);
+            if (delta.signum() != 0) addStockMovement(articleId, "AJUSTE_COMPRA", delta, current.get("numero_documento").toString(), "Ajuste por modificación de factura");
+        }
+        jdbc.update("DELETE FROM compra_detalle WHERE compra_id=?", id);
+        BigDecimal allocatedExtras = BigDecimal.ZERO; row = 1;
+        for (Map.Entry<Long,BigDecimal[]> entry : newLines.entrySet()) {
+            BigDecimal[] values = entry.getValue();
+            BigDecimal lineTotal = values[2];
+            BigDecimal allocated = row == newLines.size() ? extras.subtract(allocatedExtras) : subtotal.signum() > 0 ? extras.multiply(lineTotal).divide(subtotal, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+            allocatedExtras = allocatedExtras.add(allocated);
+            jdbc.update("INSERT INTO compra_detalle (compra_id,renglon,articulo_id,cantidad,costo_unitario,total_linea) VALUES (?,?,?,?,?,?)", id, row++, entry.getKey(), values[0], values[1], lineTotal);
+        }
+        BigDecimal saldo = total.subtract(paid);
+        String status = saldo.signum() == 0 ? "PAGADA" : paid.signum() > 0 ? "PARCIAL" : "PENDIENTE";
+        jdbc.update("UPDATE compras SET tipo_documento=?,numero_documento=?,fecha=?,subtotal=?,gastos_adicionales=?,total=?,saldo=?,estado=? WHERE id=? AND comercio_id=?",
+                enumValue(input.documentType(), "FACTURA", "FACTURA", "REMITO"), required(input.documentNumber(), "El número de comprobante es obligatorio."),
+                Date.valueOf(input.date() == null ? LocalDate.now() : input.date()), subtotal, extras, total, saldo, status, id, STORE_ID);
+        BigDecimal oldBalance = new BigDecimal(current.get("total").toString()).subtract(paid);
+        jdbc.update("UPDATE proveedores SET saldo_actual=saldo_actual+? WHERE id=? AND comercio_id=?", saldo.subtract(oldBalance), supplierId, STORE_ID);
+        return Map.of("id", id, "total", total, "pagado", paid, "saldo", saldo);
     }
 
     @Transactional

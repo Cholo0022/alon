@@ -93,7 +93,7 @@ function SearchableEntryField({ field, autoFocus = false }: { field: EntryField;
   return <div className="searchable-field" ref={rootRef}>
     <input type="hidden" name={field.name} value={selected?.value ?? ''} />
     <input type="search" role="combobox" aria-label={field.label} aria-expanded={expanded} aria-autocomplete="list" placeholder={`Buscar ${field.label.toLocaleLowerCase('es-AR')}…`} value={focused ? query : selected?.label ?? ''} onFocus={() => { setFocused(true); setQuery(''); setExpanded(false) }} onChange={(event) => { const next = event.target.value; setQuery(next); setSelected(null); setExpanded(Boolean(next.trim() && (field.options ?? []).some((option) => `${option.label} ${option.value}`.toLocaleLowerCase('es-AR').includes(next.toLocaleLowerCase('es-AR'))))) }} onBlur={() => window.setTimeout(() => { setExpanded(false); setFocused(false) }, 120)} />
-    {expanded && filtered.length > 0 && <div className="searchable-options" role="listbox">{filtered.map((option) => <button type="button" role="option" aria-selected={selected?.value === option.value} key={option.value} onMouseDown={(event) => event.preventDefault()} onClick={() => { setSelected(option); setQuery(''); setExpanded(false) }}>{option.label}</button>)}</div>}
+    {expanded && filtered.length > 0 && <div className="searchable-options" role="listbox">{filtered.map((option) => <button type="button" role="option" aria-selected={selected?.value === option.value} key={option.value} onMouseDown={(event) => event.preventDefault()} onClick={() => { setSelected(option); setQuery(''); setExpanded(false); setFocused(false) }}>{option.label}</button>)}</div>}
   </div>
 }
 
@@ -271,17 +271,26 @@ function CategoriesPage() {
 
 function CustomerList() {
   const [query, setQuery] = useState('')
-  const apiRows = useDemoApiRows('/api/v1/demo/customers')
+  const [showInactive, setShowInactive] = useState(false)
+  const [editing, setEditing] = useState<ApiRow | null>(null)
+  const apiRows = useDemoApiRows('/api/v1/demo/customers?inactive=' + showInactive)
   const customers = apiRows.length ? apiRows.map((row) => ({
-    code: textValue(row.codigo), name: textValue(row.nombre), phone: textValue(row.telefono), email: textValue(row.email),
+    id: numberValue(row.id), raw: row, code: textValue(row.codigo), name: textValue(row.nombre), phone: textValue(row.telefono), email: textValue(row.email),
     currentAccount: numberValue(row.saldo_cuenta_corriente), creditLimit: numberValue(row.limite_credito), status: textValue(row.estado) === 'ACTIVO' ? 'Activo' : 'Inactivo',
-  })) : demoCustomers
+  })) : demoCustomers.map((row) => ({ ...row, id: 0, raw: {} as ApiRow }))
   const filtered = customers.filter((customer) => `${customer.code} ${customer.name} ${customer.email}`.toLocaleLowerCase('es-AR').includes(query.toLocaleLowerCase('es-AR')))
+  const refresh = () => window.dispatchEvent(new Event('alon:refresh'))
+  const setActive = async (id: number, active: boolean) => {
+    const response = await fetch(`/api/v1/operations/customers/${id}/${active ? 'activate' : 'deactivate'}`, { method: 'POST' })
+    if (!response.ok) { const body = await response.json().catch(() => ({})); window.alert(body.error ?? 'No se pudo cambiar el estado del cliente.'); return }
+    refresh()
+  }
   return <>
-    <LocalEntryPanel title="Nuevo cliente" action="Cargar cliente" endpoint="/api/v1/operations/customers" fields={[{ name: 'name', label: 'Nombre y apellido' }, { name: 'phone', label: 'Teléfono' }, { name: 'email', label: 'Email', type: 'email' }, { name: 'creditLimit', label: 'Límite de crédito', type: 'number' }]} />
+    {editing ? <LocalEntryPanel key={'customer-' + textValue(editing.id)} title={'Modificar cliente · ' + textValue(editing.nombre)} action="Guardar cambios" endpoint={'/api/v1/operations/customers/' + textValue(editing.id)} method="PUT" initialOpen panelId="customer-editor" onSaved={() => setEditing(null)} fields={[{ name: 'name', label: 'Nombre y apellido', defaultValue: textValue(editing.nombre) }, { name: 'phone', label: 'Teléfono', defaultValue: textValue(editing.telefono) }, { name: 'email', label: 'Email', type: 'email', defaultValue: textValue(editing.email) }, { name: 'creditLimit', label: 'Límite de crédito', type: 'number', defaultValue: textValue(editing.limite_credito) }]} /> : <LocalEntryPanel title="Nuevo cliente" action="Cargar cliente" endpoint="/api/v1/operations/customers" fields={[{ name: 'name', label: 'Nombre y apellido' }, { name: 'phone', label: 'Teléfono' }, { name: 'email', label: 'Email', type: 'email' }, { name: 'creditLimit', label: 'Límite de crédito', type: 'number' }]} />}
+    {editing && <button className="secondary-button article-cancel-edit" type="button" onClick={() => setEditing(null)}>Volver al listado</button>}
     <section className="directory-panel">
-      <div className="directory-toolbar"><div><span className="demo-tag">DATOS FICTICIOS</span><strong>{filtered.length} clientes</strong></div><div className="directory-filters"><input aria-label="Buscar clientes" placeholder="Buscar por nombre, código o email" value={query} onChange={(event) => setQuery(event.target.value)} /></div></div>
-      <div className="table-scroll"><table><thead><tr><th>CÓDIGO</th><th>CLIENTE</th><th>CONTACTO</th><th>CUENTA CORRIENTE</th><th>LÍMITE DE CRÉDITO</th><th>ESTADO</th></tr></thead><tbody>{filtered.map((customer) => <tr key={customer.code}><td className="mono-cell">{customer.code}</td><td className="strong-cell">{customer.name}</td><td><span className="contact-cell">{customer.phone}<small>{customer.email}</small></span></td><td className={customer.currentAccount > 0 ? 'balance-due' : ''}>{currency.format(customer.currentAccount)}</td><td>{currency.format(customer.creditLimit)}</td><td><StatusPill active={customer.status === 'Activo'} /></td></tr>)}</tbody></table>{filtered.length === 0 && <div className="no-results">No hay clientes que coincidan con la búsqueda.</div>}</div>
+      <div className="directory-toolbar"><div><span className="demo-tag">{showInactive ? 'CLIENTES DESACTIVADOS' : 'CLIENTES ACTIVOS'}</span><strong>{filtered.length} clientes</strong></div><div className="directory-filters"><input aria-label="Buscar clientes" placeholder="Buscar por nombre, código o email" value={query} onChange={(event) => setQuery(event.target.value)} /><button className="secondary-button" type="button" onClick={() => { setShowInactive((value) => !value); setQuery(''); setEditing(null) }}>{showInactive ? 'Ver activos' : 'Ver desactivados'}</button></div></div>
+      <div className="table-scroll"><table><thead><tr><th>CÓDIGO</th><th>CLIENTE</th><th>CONTACTO</th><th>CUENTA CORRIENTE</th><th>LÍMITE DE CRÉDITO</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody>{filtered.map((customer) => <tr key={customer.code}><td className="mono-cell">{customer.code}</td><td className="strong-cell">{customer.name}</td><td><span className="contact-cell">{customer.phone}<small>{customer.email}</small></span></td><td className={customer.currentAccount > 0 ? 'balance-due' : ''}>{currency.format(customer.currentAccount)}</td><td>{currency.format(customer.creditLimit)}</td><td><StatusPill active={customer.status === 'Activo'} /></td><td className="article-actions">{customer.id > 0 && <>{!showInactive && <button className="secondary-button" type="button" onClick={() => setEditing(customer.raw)}>Modificar</button>}<button className="secondary-button" type="button" onClick={() => void setActive(customer.id, showInactive)}>{showInactive ? 'Activar' : 'Desactivar'}</button></>}</td></tr>)}</tbody></table>{filtered.length === 0 && <div className="no-results">{showInactive ? 'No hay clientes desactivados.' : 'No hay clientes que coincidan con la búsqueda.'}</div>}</div>
       <div className="table-footer">Nombres, teléfonos, emails y saldos inventados para pruebas. Los emails usan el dominio reservado example.test.</div>
     </section>
   </>
@@ -289,6 +298,8 @@ function CustomerList() {
 
 function SupplierList() {
   const [query, setQuery] = useState('')
+  const [showInactive, setShowInactive] = useState(false)
+  const [editing, setEditing] = useState<ApiRow | null>(null)
   const [showDebtList, setShowDebtList] = useState(false)
   const [selectedSupplier, setSelectedSupplier] = useState<{ id: number; name: string; balance: number } | null>(null)
   const [amount, setAmount] = useState('0')
@@ -297,13 +308,18 @@ function SupplierList() {
   const [message, setMessage] = useState('')
   const receiptFlowRef = useRef<HTMLElement>(null)
   const debtListRef = useRef<HTMLElement>(null)
-  const apiRows = useDemoApiRows('/api/v1/demo/suppliers')
+  const apiRows = useDemoApiRows('/api/v1/demo/suppliers?inactive=' + showInactive)
   const suppliers = apiRows.length ? apiRows.map((row) => ({
-    id: numberValue(row.id), code: textValue(row.codigo), name: textValue(row.nombre), specialty: textValue(row.especialidad), phone: textValue(row.telefono),
+    id: numberValue(row.id), raw: row, code: textValue(row.codigo), name: textValue(row.nombre), specialty: textValue(row.especialidad), phone: textValue(row.telefono),
     email: textValue(row.email), balance: numberValue(row.saldo_pendiente), status: textValue(row.estado) === 'ACTIVO' ? 'Activo' : 'Inactivo',
-  })) : demoSuppliers.map((supplier) => ({ ...supplier, id: 0 }))
+  })) : demoSuppliers.map((supplier) => ({ ...supplier, id: 0, raw: {} as ApiRow }))
   const filtered = suppliers.filter((supplier) => `${supplier.code} ${supplier.name} ${supplier.specialty} ${supplier.email}`.toLocaleLowerCase('es-AR').includes(query.toLocaleLowerCase('es-AR')))
-  const owedSuppliers = filtered.filter((supplier) => supplier.balance > 0)
+  const owedSuppliers = filtered.filter((supplier) => supplier.balance > 0 && supplier.status === 'Activo')
+  const setSupplierActive = async (id: number, active: boolean) => {
+    const response = await fetch(`/api/v1/operations/suppliers/${id}/${active ? 'activate' : 'deactivate'}`, { method: 'POST' })
+    if (!response.ok) { const body = await response.json().catch(() => ({})); window.alert(body.error ?? 'No se pudo cambiar el estado del proveedor.'); return }
+    window.dispatchEvent(new Event('alon:refresh'))
+  }
   const startReceipt = (supplier: { id: number; name: string; balance: number }) => { setShowDebtList(true); setSelectedSupplier(supplier); setAmount(supplier.balance.toFixed(2)); setMessage(''); setReceipt(null); window.setTimeout(() => receiptFlowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60) }
   const finishReceipt = () => { setReceipt(null); setSelectedSupplier(null); setAmount('0'); setMessage(''); setShowDebtList(true); window.setTimeout(() => debtListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60) }
   const printReceipt = () => { window.print(); finishReceipt() }
@@ -325,15 +341,16 @@ function SupplierList() {
     finally { setBusy(false) }
   }
   return <>
-    <LocalEntryPanel title="Nuevo proveedor" action="Cargar proveedor" endpoint="/api/v1/operations/suppliers" fields={[{ name: 'name', label: 'Razón social o nombre' }, { name: 'taxId', label: 'CUIT' }, { name: 'specialty', label: 'Rubro o especialidad' }, { name: 'phone', label: 'Teléfono' }, { name: 'email', label: 'Email', type: 'email' }]} />
+    {editing ? <LocalEntryPanel key={'supplier-' + textValue(editing.id)} title={'Modificar proveedor · ' + textValue(editing.nombre)} action="Guardar cambios" endpoint={'/api/v1/operations/suppliers/' + textValue(editing.id)} method="PUT" initialOpen panelId="supplier-editor" onSaved={() => setEditing(null)} fields={[{ name: 'name', label: 'Razón social o nombre', defaultValue: textValue(editing.nombre) }, { name: 'taxId', label: 'CUIT', defaultValue: textValue(editing.cuit) }, { name: 'specialty', label: 'Rubro o especialidad', defaultValue: textValue(editing.especialidad) }, { name: 'phone', label: 'Teléfono', defaultValue: textValue(editing.telefono) }, { name: 'email', label: 'Email', type: 'email', defaultValue: textValue(editing.email) }]} /> : <LocalEntryPanel title="Nuevo proveedor" action="Cargar proveedor" endpoint="/api/v1/operations/suppliers" fields={[{ name: 'name', label: 'Razón social o nombre' }, { name: 'taxId', label: 'CUIT' }, { name: 'specialty', label: 'Rubro o especialidad' }, { name: 'phone', label: 'Teléfono' }, { name: 'email', label: 'Email', type: 'email' }]} />}
+    {editing && <button className="secondary-button article-cancel-edit" type="button" onClick={() => setEditing(null)}>Volver al listado</button>}
     <section className="supplier-debt-toolbar"><div><span className="demo-tag">CUENTAS A PAGAR</span><strong>{suppliers.filter((supplier) => supplier.balance > 0).length} proveedores con saldo pendiente</strong></div><button className="primary-button" type="button" onClick={() => setShowDebtList((current) => !current)}>{showDebtList ? 'Ocultar saldos pendientes' : 'Ver proveedores a los que debo'}</button></section>
     {showDebtList && <section className="directory-panel supplier-debt-list" ref={debtListRef}><div className="panel-heading"><div><h2>Proveedores con saldo pendiente</h2><p>Elegí un proveedor para revisar y confirmar el recibo de pago.</p></div></div><div className="table-scroll"><table><thead><tr><th>PROVEEDOR</th><th>SALDO PENDIENTE</th><th></th></tr></thead><tbody>{owedSuppliers.map((supplier) => <tr key={supplier.id || supplier.code}><td className="strong-cell">{supplier.name}</td><td className="balance-due">{currency.format(supplier.balance)}</td><td><button type="button" className="primary-button" disabled={!supplier.id} onClick={() => startReceipt(supplier)}>Hacer recibo</button></td></tr>)}</tbody></table>{owedSuppliers.length === 0 && <div className="no-results">No hay proveedores con saldo pendiente.</div>}</div></section>}
     {selectedSupplier && <section className="entry-panel supplier-receipt-form" ref={receiptFlowRef}><div className="entry-heading"><div><span className="demo-tag">CONFIRMAR RECIBO</span><strong>{selectedSupplier.name}</strong><small>Saldo pendiente: {currency.format(selectedSupplier.balance)}</small></div><button className="select-button" type="button" onClick={() => setSelectedSupplier(null)}>Volver al listado</button></div><p>Revisá el importe y el medio de pago antes de confirmar. Al confirmar, el pago se aplicará a las facturas pendientes más antiguas.</p><form className="entry-form" onSubmit={saveReceipt}><label>Fecha<DateTextInput name="date" /></label><label>Importe a pagar<input aria-label="Importe a pagar" type="number" min="0.01" max={selectedSupplier.balance} step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required /></label><label>Medio de pago<select name="paymentMethod" defaultValue="EFECTIVO"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="MERCADO_PAGO">Mercado Pago</option></select></label><div className="entry-actions"><span>El saldo se actualizará al confirmar.</span><button className="primary-button" type="submit" disabled={busy}>{busy ? 'Confirmando…' : 'Confirmar recibo y pago'}</button></div></form></section>}
     {receipt && <section className="supplier-receipt-print"><div className="receipt-heading"><span className="brand-name">alon<span>.</span></span><span>RECIBO DE PAGO</span></div><h2>Recibo {textValue(receipt.recibo)}</h2><p>Proveedor: <strong>{textValue(receipt.proveedor)}</strong></p><p>Fecha: <strong>{formatDateDisplay(receipt.fecha)}</strong></p><p>Medio de pago: <strong>{textValue(receipt.medio_pago)}</strong></p><p>Importe recibido: <strong>{currency.format(numberValue(receipt.importe))}</strong></p><p>Saldo anterior: {currency.format(numberValue(receipt.saldo_anterior))}</p><p>Saldo pendiente: <strong>{currency.format(numberValue(receipt.saldo_restante))}</strong></p><p>Facturas alcanzadas: {textValue(receipt.facturas_aplicadas)}</p><div className="receipt-actions no-print"><button className="primary-button" type="button" onClick={printReceipt}>Imprimir recibo</button><button className="select-button" type="button" onClick={finishReceipt}>No imprimir</button></div></section>}
     {message && <p className="entry-message" role="status">{message}</p>}
     <section className="directory-panel">
-      <div className="directory-toolbar"><div><span className="demo-tag">DATOS FICTICIOS</span><strong>{filtered.length} proveedores</strong></div><div className="directory-filters"><input aria-label="Buscar proveedores" placeholder="Buscar por nombre, rubro o código" value={query} onChange={(event) => setQuery(event.target.value)} /></div></div>
-      <div className="table-scroll"><table><thead><tr><th>CÓDIGO</th><th>PROVEEDOR</th><th>ESPECIALIDAD</th><th>CONTACTO</th><th>SALDO PENDIENTE</th><th>ESTADO</th><th></th></tr></thead><tbody>{filtered.map((supplier) => <tr key={supplier.code}><td className="mono-cell">{supplier.code}</td><td className="strong-cell">{supplier.name}</td><td><span className="category-chip">{supplier.specialty}</span></td><td><span className="contact-cell">{supplier.phone}<small>{supplier.email}</small></span></td><td className={supplier.balance > 0 ? 'balance-due' : ''}>{currency.format(supplier.balance)}</td><td><StatusPill active={supplier.status === 'Activo'} /></td><td><button className="select-button" type="button" disabled={!supplier.id || supplier.balance <= 0} onClick={() => startReceipt(supplier)}>Recibo</button></td></tr>)}</tbody></table>{filtered.length === 0 && <div className="no-results">No hay proveedores que coincidan con la búsqueda.</div>}</div>
+      <div className="directory-toolbar"><div><span className="demo-tag">{showInactive ? 'PROVEEDORES DESACTIVADOS' : 'PROVEEDORES ACTIVOS'}</span><strong>{filtered.length} proveedores</strong></div><div className="directory-filters"><input aria-label="Buscar proveedores" placeholder="Buscar por nombre, rubro o código" value={query} onChange={(event) => setQuery(event.target.value)} /><button className="secondary-button" type="button" onClick={() => { setShowInactive((value) => !value); setQuery(''); setEditing(null) }}>{showInactive ? 'Ver activos' : 'Ver desactivados'}</button></div></div>
+      <div className="table-scroll"><table><thead><tr><th>CÓDIGO</th><th>PROVEEDOR</th><th>ESPECIALIDAD</th><th>CONTACTO</th><th>SALDO PENDIENTE</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody>{filtered.map((supplier) => <tr key={supplier.code}><td className="mono-cell">{supplier.code}</td><td className="strong-cell">{supplier.name}</td><td><span className="category-chip">{supplier.specialty}</span></td><td><span className="contact-cell">{supplier.phone}<small>{supplier.email}</small></span></td><td className={supplier.balance > 0 ? 'balance-due' : ''}>{currency.format(supplier.balance)}</td><td><StatusPill active={supplier.status === 'Activo'} /></td><td className="article-actions">{supplier.id > 0 && <>{!showInactive && <><button className="secondary-button" type="button" onClick={() => setEditing(supplier.raw)}>Modificar</button><button className="select-button" type="button" disabled={supplier.balance <= 0} onClick={() => startReceipt(supplier)}>Recibo</button></>}<button className="secondary-button" type="button" onClick={() => void setSupplierActive(supplier.id, showInactive)}>{showInactive ? 'Activar' : 'Desactivar'}</button></>}</td></tr>)}</tbody></table>{filtered.length === 0 && <div className="no-results">{showInactive ? 'No hay proveedores desactivados.' : 'No hay proveedores que coincidan con la búsqueda.'}</div>}</div>
       <div className="table-footer">Datos de contacto y saldos inventados únicamente para pruebas.</div>
     </section>
   </>
@@ -341,7 +358,7 @@ function SupplierList() {
 
 type ApiColumn = { key: string; label: string; money?: boolean; date?: boolean; dateTime?: boolean; month?: boolean }
 
-function ApiTable({ title, endpoint, columns, note }: { title: string; endpoint: string; columns: ApiColumn[]; note?: string }) {
+function ApiTable({ title, endpoint, columns, note, onRowClick }: { title: string; endpoint: string; columns: ApiColumn[]; note?: string; onRowClick?: (row: ApiRow) => void }) {
   const [rows, setRows] = useState<ApiRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -365,7 +382,7 @@ function ApiTable({ title, endpoint, columns, note }: { title: string; endpoint:
   return (
     <section className="directory-panel report-table">
       <div className="directory-toolbar"><div><span className="demo-tag">MYSQL DEMO</span><strong>{title}</strong></div><span className="row-count">{loading ? 'Cargando…' : `${rows.length} registros`}</span></div>
-      {error ? <div className="no-results">No se pudo conectar con la API local. Revisá que el backend esté iniciado.</div> : <div className="table-scroll"><table><thead><tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={`${String(row.codigo ?? row.numero ?? row.fecha ?? index)}-${index}`}>{columns.map((column) => <td key={column.key} className={column.money ? 'money-cell' : ''}>{column.money ? currency.format(Number(row[column.key] ?? 0)) : column.dateTime ? formatDateTimeDisplay(row[column.key]) : column.date ? formatDateDisplay(row[column.key]) : column.month ? formatMonthDisplay(row[column.key]) : String(row[column.key] ?? '—')}</td>)}</tr>)}</tbody></table>{!loading && rows.length === 0 && <div className="no-results">Este reporte no tiene registros.</div>}</div>}
+      {error ? <div className="no-results">No se pudo conectar con la API local. Revisá que el backend esté iniciado.</div> : <div className="table-scroll"><table><thead><tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={`${String(row.codigo ?? row.numero ?? row.id ?? row.fecha ?? index)}-${index}`} className={onRowClick ? 'clickable-row' : undefined} onClick={onRowClick ? () => onRowClick(row) : undefined} onKeyDown={onRowClick ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onRowClick(row) } } : undefined} tabIndex={onRowClick ? 0 : undefined}>{columns.map((column) => <td key={column.key} className={column.money ? 'money-cell' : ''}>{column.money ? currency.format(Number(row[column.key] ?? 0)) : column.dateTime ? formatDateTimeDisplay(row[column.key]) : column.date ? formatDateDisplay(row[column.key]) : column.month ? formatMonthDisplay(row[column.key]) : String(row[column.key] ?? '—')}</td>)}</tr>)}</tbody></table>{!loading && rows.length === 0 && <div className="no-results">Este reporte no tiene registros.</div>}</div>}
       {note && <div className="table-footer">{note}</div>}
     </section>
   )
@@ -464,6 +481,7 @@ function SalesPage({ onOpenCash }: { onOpenCash: () => void }) {
 }
 
 function PurchasesPage() {
+  const [selectedPurchase, setSelectedPurchase] = useState<number | null>(null)
   const suppliers = useDemoApiRows('/api/v1/demo/suppliers')
   const articles = useDemoApiRows('/api/v1/demo/articles')
   const [open, setOpen] = useState(false)
@@ -523,6 +541,7 @@ function PurchasesPage() {
     finally { setBusy(false) }
   }
   const invoiceTotal = lines.reduce((sum, line) => sum + line.quantity * line.unitCost, 0) + Number(extraCosts)
+  if (selectedPurchase !== null) return <PurchaseReceipt purchaseId={selectedPurchase} onBack={() => setSelectedPurchase(null)} />
   return <><section className="entry-panel purchase-entry">
     <div className="entry-heading"><div><span className="demo-tag">MODO DEMOSTRACIÓN</span><strong>Cargar factura o remito de proveedor</strong></div><button className="primary-button" type="button" onClick={() => { setOpen((value) => { if (!value) setPaymentType('CONTADO'); return !value }); setMessage('') }}>{open ? 'Cerrar' : '＋ Cargar factura'}</button></div>
     {open && <form className="entry-form" ref={purchaseFormRef} onSubmit={submitPurchase}>
@@ -548,7 +567,56 @@ function PurchasesPage() {
     { key: 'proveedor', label: 'PROVEEDOR' }, { key: 'articulos', label: 'ARTÍCULOS' },
     { key: 'subtotal', label: 'SUBTOTAL', money: true }, { key: 'gastos_adicionales', label: 'GASTOS EXTRA', money: true },
     { key: 'total', label: 'TOTAL', money: true }, { key: 'pagado', label: 'PAGADO', money: true }, { key: 'saldo', label: 'SALDO', money: true },
-  ]} note="Una factura puede reunir varios artículos; el stock y los costos se actualizan al guardar." /></>
+  ]} onRowClick={(row) => setSelectedPurchase(numberValue(row.id))} note="Hacé clic en una compra para abrir su comprobante y modificarlo." /></>
+}
+
+function PurchaseReceipt({ purchaseId, onBack }: { purchaseId: number; onBack: () => void }) {
+  const [purchase, setPurchase] = useState<ApiRow | null>(null)
+  const [lines, setLines] = useState<{ articleId: number; code: string; name: string; quantity: string; unitCost: string }[]>([])
+  const [editing, setEditing] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const articles = useDemoApiRows('/api/v1/demo/articles')
+  const loadPurchase = () => fetch(`/api/v1/demo/purchases/${purchaseId}`).then((response) => { if (!response.ok) throw new Error('No se pudo cargar el comprobante.'); return response.json() as Promise<ApiRow> }).then((data) => {
+    setPurchase(data)
+    const detail = Array.isArray(data.lineas) ? data.lineas as ApiRow[] : []
+    setLines(detail.map((line) => ({ articleId: numberValue(line.articulo_id), code: textValue(line.codigo), name: textValue(line.articulo), quantity: String(line.cantidad), unitCost: String(line.costo_unitario) })))
+  }).catch((error) => setMessage(error instanceof Error ? error.message : 'Error al cargar el comprobante.'))
+  useEffect(() => { void loadPurchase() }, [purchaseId])
+  const save = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); if (!purchase) return
+    const values = new FormData(event.currentTarget)
+    const date = dateDisplayToIso(values.get('date'))
+    if (!date || lines.length === 0) { setMessage(!date ? 'Ingresá una fecha válida dd/mm/aaaa.' : 'El comprobante debe tener al menos un artículo.'); return }
+    setBusy(true); setMessage('')
+    try {
+      const response = await fetch(`/api/v1/operations/purchases/${purchaseId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ supplierId: numberValue(purchase.proveedor_id), documentType: values.get('documentType'), documentNumber: values.get('documentNumber'), date, lines: lines.map((line) => ({ articleId: line.articleId, quantity: Number(line.quantity), unitCost: Number(line.unitCost) })), extraCosts: Number(values.get('extraCosts') ?? 0), paid: numberValue(purchase.pagado), paymentType: 'CUENTA_CORRIENTE', paymentMethod: 'EFECTIVO' }) })
+      const result = await response.json().catch(() => ({})) as { error?: string; message?: string }
+      if (!response.ok) throw new Error(result.error ?? result.message ?? 'No se pudo guardar el comprobante.')
+      await loadPurchase(); setEditing(false); setMessage('Comprobante modificado correctamente.'); window.dispatchEvent(new Event('alon:refresh'))
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'No se pudo conectar con el servidor.') }
+    finally { setBusy(false) }
+  }
+  if (!purchase) return <section className="entry-panel"><button className="secondary-button" type="button" onClick={onBack}>← Volver al listado</button><p>{message || 'Cargando comprobante…'}</p></section>
+  const displayLines = lines
+  return <section className="entry-panel purchase-receipt-view">
+    <div className="entry-heading"><div><span className="demo-tag">COMPROBANTE DE COMPRA</span><strong>{textValue(purchase.tipo_documento)} {textValue(purchase.numero_documento)}</strong><small>{textValue(purchase.proveedor)} · {formatDateDisplay(purchase.fecha)}</small></div><button className="secondary-button" type="button" onClick={onBack}>← Volver al listado</button></div>
+    {editing ? <form className="entry-form" onSubmit={save}>
+      <label>Tipo de comprobante<select name="documentType" defaultValue={textValue(purchase.tipo_documento)}><option value="FACTURA">Factura</option><option value="REMITO">Remito</option></select></label>
+      <label>Número de comprobante<input name="documentNumber" required defaultValue={textValue(purchase.numero_documento)} /></label>
+      <label>Fecha<input name="date" type="text" inputMode="numeric" placeholder="dd/mm/aaaa" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" maxLength={10} required defaultValue={formatDateDisplay(purchase.fecha)} /></label>
+      <div className="purchase-lines"><strong>Artículos</strong>{displayLines.map((line, index) => <div className="purchase-edit-line" key={`${line.articleId}-${index}`}><span>{line.code} · {line.name}</span><label>Cantidad<input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => setLines((current) => current.map((item, i) => i === index ? { ...item, quantity: event.target.value } : item))} /></label><label>Costo unitario<input type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => setLines((current) => current.map((item, i) => i === index ? { ...item, unitCost: event.target.value } : item))} /></label><button type="button" className="purchase-remove-button" onClick={() => setLines((current) => current.filter((_, i) => i !== index))}>Quitar</button></div>)}
+        <label>Agregar artículo<select value="" onChange={(event) => { const article = articles.find((row) => numberValue(row.id) === Number(event.target.value)); if (article) setLines((current) => [...current, { articleId: numberValue(article.id), code: textValue(article.codigo), name: textValue(article.nombre), quantity: '1', unitCost: '0' }]) }}><option value="">Seleccionar artículo…</option>{articles.map((article) => <option key={String(article.id)} value={String(article.id)}>{textValue(article.codigo)} · {textValue(article.nombre)}</option>)}</select></label>
+      </div>
+      <label>Gastos adicionales<input name="extraCosts" type="number" min="0" step="0.01" defaultValue={String(purchase.gastos_adicionales ?? 0)} /></label>
+      <div className="entry-actions"><button className="secondary-button" type="button" onClick={() => { setEditing(false); void loadPurchase() }}>Cancelar</button><button className="primary-button" type="submit" disabled={busy}>{busy ? 'Guardando…' : 'Guardar cambios'}</button></div>
+    </form> : <>
+      <div className="table-scroll"><table><thead><tr><th>ARTÍCULO</th><th>CANTIDAD</th><th>COSTO UNITARIO</th><th>SUBTOTAL</th></tr></thead><tbody>{displayLines.map((line, index) => <tr key={`${line.articleId}-${index}`}><td>{line.code} · {line.name}</td><td>{line.quantity}</td><td>{currency.format(Number(line.unitCost))}</td><td>{currency.format(Number(line.quantity) * Number(line.unitCost))}</td></tr>)}</tbody></table></div>
+      <div className="purchase-total">Subtotal <strong>{currency.format(numberValue(purchase.subtotal))}</strong></div><div className="purchase-total">Gastos adicionales <strong>{currency.format(numberValue(purchase.gastos_adicionales))}</strong></div><div className="purchase-total">Total <strong>{currency.format(numberValue(purchase.total))}</strong></div><div className="purchase-total">Pagado / saldo <strong>{currency.format(numberValue(purchase.pagado))} / {currency.format(numberValue(purchase.saldo))}</strong></div>
+      <div className="entry-actions"><span>La factura conserva sus pagos registrados.</span><button className="primary-button" type="button" onClick={() => { setEditing(true); setMessage('') }}>Modificar comprobante</button></div>
+    </>}
+    {message && <p className="entry-message" role="status">{message}</p>}
+  </section>
 }
 
 function CashPage() {

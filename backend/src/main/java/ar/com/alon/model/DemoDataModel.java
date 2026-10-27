@@ -61,18 +61,18 @@ public class DemoDataModel {
         return jdbc.queryForList("SELECT id, codigo, nombre FROM rubros WHERE comercio_id = ? ORDER BY nombre", DEMO_STORE_ID);
     }
 
-    public List<Map<String, Object>> customers() {
+    public List<Map<String, Object>> customers(boolean inactive) {
         return jdbc.queryForList("""
                 SELECT id, codigo, nombre, telefono, email, saldo_cuenta_corriente, limite_credito, estado
-                FROM clientes WHERE comercio_id = ? ORDER BY id
-                """, DEMO_STORE_ID);
+                FROM clientes WHERE comercio_id = ? AND estado=? ORDER BY nombre,id
+                """, DEMO_STORE_ID, inactive ? "INACTIVO" : "ACTIVO");
     }
 
-    public List<Map<String, Object>> suppliers() {
+    public List<Map<String, Object>> suppliers(boolean inactive) {
         return jdbc.queryForList("""
                 SELECT id, codigo, nombre, cuit, especialidad, telefono, email, saldo_actual AS saldo_pendiente, estado
-                FROM proveedores WHERE comercio_id = ? ORDER BY id
-                """, DEMO_STORE_ID);
+                FROM proveedores WHERE comercio_id = ? AND estado=? ORDER BY nombre,id
+                """, DEMO_STORE_ID, inactive ? "INACTIVO" : "ACTIVO");
     }
 
     public List<Map<String, Object>> storeOrders() {
@@ -103,7 +103,7 @@ public class DemoDataModel {
 
     public List<Map<String, Object>> purchases() {
         return jdbc.queryForList("""
-                SELECT c.numero_documento, c.tipo_documento, c.fecha, p.codigo AS proveedor_codigo,
+                SELECT c.id, c.proveedor_id, c.numero_documento, c.tipo_documento, c.fecha, p.codigo AS proveedor_codigo,
                        p.nombre AS proveedor, COUNT(d.articulo_id) AS articulos,
                        c.subtotal, c.gastos_adicionales, c.total, c.pagado, c.saldo, c.estado
                 FROM compras c JOIN proveedores p ON p.id = c.proveedor_id
@@ -113,6 +113,21 @@ public class DemoDataModel {
                          c.subtotal, c.gastos_adicionales, c.total, c.pagado, c.saldo, c.estado
                 ORDER BY c.fecha, c.id
                 """, DEMO_STORE_ID);
+    }
+
+    public Map<String, Object> purchaseDetails(long id) {
+        Map<String, Object> purchase = jdbc.queryForMap("""
+                SELECT c.id,c.proveedor_id,c.numero_documento,c.tipo_documento,c.fecha,c.subtotal,c.gastos_adicionales,
+                       c.total,c.pagado,c.saldo,c.estado,p.nombre AS proveedor
+                FROM compras c JOIN proveedores p ON p.id=c.proveedor_id
+                WHERE c.id=? AND c.comercio_id=?
+                """, id, DEMO_STORE_ID);
+        purchase.put("lineas", jdbc.queryForList("""
+                SELECT d.renglon,d.articulo_id,a.codigo,a.nombre AS articulo,d.cantidad,d.costo_unitario,d.total_linea
+                FROM compra_detalle d JOIN articulos a ON a.id=d.articulo_id
+                WHERE d.compra_id=? ORDER BY d.renglon
+                """, id));
+        return purchase;
     }
 
 

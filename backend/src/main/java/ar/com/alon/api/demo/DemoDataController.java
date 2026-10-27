@@ -7,6 +7,7 @@ import java.util.Map;
 import ar.com.alon.model.DemoDataModel;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,10 +34,10 @@ public class DemoDataController {
     public List<Map<String, Object>> categories() { return model.categories(); }
 
     @GetMapping("/customers")
-    public List<Map<String, Object>> customers() { return model.customers(); }
+    public List<Map<String, Object>> customers(@RequestParam(defaultValue = "false") boolean inactive) { return model.customers(inactive); }
 
     @GetMapping("/suppliers")
-    public List<Map<String, Object>> suppliers() { return model.suppliers(); }
+    public List<Map<String, Object>> suppliers(@RequestParam(defaultValue = "false") boolean inactive) { return model.suppliers(inactive); }
 
     @GetMapping("/store-orders")
     public List<Map<String, Object>> storeOrders() { return model.storeOrders(); }
@@ -52,6 +53,9 @@ public class DemoDataController {
 
     @GetMapping("/purchases")
     public List<Map<String, Object>> purchases() { return model.purchases(); }
+
+    @GetMapping("/purchases/{id}")
+    public Map<String, Object> purchaseDetails(@PathVariable long id) { return model.purchaseDetails(id); }
 
     @GetMapping("/reports/daily-sales")
     public List<Map<String, Object>> dailySales() { return model.dailySales(); }
