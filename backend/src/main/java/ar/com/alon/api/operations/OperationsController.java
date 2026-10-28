@@ -64,6 +64,9 @@ public class OperationsController {
     @PostMapping("/sales") @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> createSale(@RequestBody OperationsModel.SaleInput input) { return model.createSale(input); }
 
+    @PostMapping("/sales/{id}/cancel")
+    public Map<String, Object> cancelSale(@PathVariable long id) { return model.cancelSale(id); }
+
     @PostMapping("/purchases") @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> createPurchase(@RequestBody OperationsModel.PurchaseInput input) { return model.createPurchase(input); }
 

@@ -23,10 +23,10 @@ public class DemoDataModel {
                   (SELECT COUNT(*) FROM articulos WHERE comercio_id = ?) AS articulos,
                   (SELECT COUNT(*) FROM clientes WHERE comercio_id = ?) AS clientes,
                   (SELECT COUNT(*) FROM proveedores WHERE comercio_id = ?) AS proveedores,
-                  (SELECT COUNT(*) FROM ventas WHERE comercio_id = ?) AS ventas,
-                  (SELECT COUNT(DISTINCT fecha) FROM ventas WHERE comercio_id = ?) AS dias,
-                  (SELECT COALESCE(SUM(total), 0) FROM ventas WHERE comercio_id = ?) AS facturacion,
-                  (SELECT COALESCE(SUM(total - costo_total), 0) FROM ventas WHERE comercio_id = ?) AS margen_bruto,
+                  (SELECT COUNT(*) FROM ventas WHERE comercio_id = ? AND estado='CONFIRMADA') AS ventas,
+                  (SELECT COUNT(DISTINCT fecha) FROM ventas WHERE comercio_id = ? AND estado='CONFIRMADA') AS dias,
+                  (SELECT COALESCE(SUM(total), 0) FROM ventas WHERE comercio_id = ? AND estado='CONFIRMADA') AS facturacion,
+                  (SELECT COALESCE(SUM(total - costo_total), 0) FROM ventas WHERE comercio_id = ? AND estado='CONFIRMADA') AS margen_bruto,
                   (SELECT COUNT(*) FROM compras WHERE comercio_id = ?) AS compras,
                   (SELECT COUNT(*) FROM cajas WHERE comercio_id = ?) AS cierres_caja,
                   (SELECT COALESCE(SUM(importe), 0) FROM gastos WHERE comercio_id = ?) AS gastos,
@@ -94,8 +94,8 @@ public class DemoDataModel {
         int safeSize = Math.min(200, Math.max(1, size));
         LocalDate salesDate = date == null ? LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")) : date;
         return jdbc.queryForList("""
-                SELECT v.numero, v.fecha, DATE_FORMAT(v.fecha_hora, '%Y-%m-%d %H:%i:%s') AS fecha_hora, c.nombre AS cliente, v.tipo_venta, v.medio_pago,
-                       v.tipo_comprobante, v.total
+                SELECT v.id, v.numero, v.fecha, DATE_FORMAT(v.fecha_hora, '%Y-%m-%d %H:%i:%s') AS fecha_hora, c.nombre AS cliente, v.tipo_venta, v.medio_pago,
+                       v.tipo_comprobante, v.total, v.estado
                 FROM ventas v JOIN clientes c ON c.id = v.cliente_id
                 WHERE v.comercio_id = ? AND v.fecha = ? ORDER BY v.fecha_hora DESC, v.id DESC LIMIT ? OFFSET ?
                 """, DEMO_STORE_ID, Date.valueOf(salesDate), safeSize, safePage * safeSize);
@@ -144,7 +144,7 @@ public class DemoDataModel {
     public List<Map<String, Object>> paymentMethods() {
         return jdbc.queryForList("""
                 SELECT medio_pago, COUNT(*) operaciones, SUM(total) importe
-                FROM ventas WHERE comercio_id = ? GROUP BY medio_pago ORDER BY importe DESC
+                FROM ventas WHERE comercio_id = ? AND estado='CONFIRMADA' GROUP BY medio_pago ORDER BY importe DESC
                 """, DEMO_STORE_ID);
     }
 

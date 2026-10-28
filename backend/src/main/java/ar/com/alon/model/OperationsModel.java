@@ -203,6 +203,44 @@ public class OperationsModel {
     }
 
     @Transactional
+    public Map<String, Object> cancelSale(long id) {
+        Map<String,Object> sale = jdbc.queryForMap("SELECT id,numero,fecha,cliente_id,tipo_venta,medio_pago,total,estado FROM ventas WHERE id=? AND comercio_id=? FOR UPDATE", id, STORE_ID);
+        String status = String.valueOf(sale.get("estado"));
+        if (!"CONFIRMADA".equals(status)) throw new IllegalStateException("Esta venta ya está cancelada o no se puede cancelar.");
+        BigDecimal total = new BigDecimal(sale.get("total").toString());
+        String paymentMethod = String.valueOf(sale.get("medio_pago"));
+        boolean currentAccount = "CUENTA_CORRIENTE".equals(paymentMethod);
+        if (currentAccount) {
+            Map<String,Object> customer = jdbc.queryForMap("SELECT saldo_cuenta_corriente FROM clientes WHERE id=? AND comercio_id=? FOR UPDATE", sale.get("cliente_id"), STORE_ID);
+            BigDecimal balance = new BigDecimal(customer.get("saldo_cuenta_corriente").toString());
+            if (balance.compareTo(total) < 0) throw new IllegalStateException("No se puede cancelar: la deuda de esta venta ya fue saldada total o parcialmente.");
+            jdbc.update("UPDATE clientes SET saldo_cuenta_corriente=saldo_cuenta_corriente-? WHERE id=? AND comercio_id=?", total, sale.get("cliente_id"), STORE_ID);
+        }
+        Long cashId = null;
+        if (!currentAccount) {
+            List<Long> originalCash = jdbc.query("SELECT id FROM movimientos_caja WHERE comercio_id=? AND categoria='VENTA' AND tipo='INGRESO' AND referencia=? AND medio_pago=? ORDER BY id LIMIT 1 FOR UPDATE",
+                    (rs, row) -> rs.getLong(1), STORE_ID, sale.get("numero"), paymentMethod);
+            if (originalCash.isEmpty()) throw new IllegalStateException("No se encontró el movimiento de caja original de esta venta.");
+            LocalDate today = LocalDate.now(java.time.ZoneId.of("America/Argentina/Buenos_Aires"));
+            cashId = requireOpenCash(today);
+        }
+        List<Map<String,Object>> lines = jdbc.queryForList("SELECT articulo_id,cantidad FROM venta_detalle WHERE venta_id=? ORDER BY renglon", id);
+        if (lines.isEmpty()) throw new IllegalStateException("La venta no tiene artículos para devolver al stock.");
+        LocalDate reversalDate = LocalDate.now(java.time.ZoneId.of("America/Argentina/Buenos_Aires"));
+        for (Map<String,Object> line : lines) {
+            long articleId = ((Number)line.get("articulo_id")).longValue();
+            BigDecimal quantity = new BigDecimal(line.get("cantidad").toString());
+            Map<String,Object> article = jdbc.queryForMap("SELECT id FROM articulos WHERE id=? AND comercio_id=? FOR UPDATE", articleId, STORE_ID);
+            jdbc.update("UPDATE articulos SET stock=stock+? WHERE id=? AND comercio_id=?", quantity, articleId, STORE_ID);
+            addStockMovement(articleId, "ANULACION_VENTA", quantity, "ANUL-" + sale.get("numero"), "Devolución de stock por cancelación de venta");
+        }
+        if (!currentAccount) addCashMovement(cashId, "EGRESO", "VENTA_ANULADA", paymentMethod, reversalDate, total,
+                "ANUL-" + sale.get("numero"), "Devolución del cobro por cancelación de venta " + sale.get("numero"));
+        jdbc.update("UPDATE ventas SET estado='CANCELADA' WHERE id=? AND comercio_id=?", id, STORE_ID);
+        return Map.of("id", id, "numero", sale.get("numero"), "estado", "CANCELADA", "total_reintegrado", total, "articulos_devueltos", lines.size());
+    }
+
+    @Transactional
     public Map<String, Object> createPurchase(PurchaseInput input) {
         assertBelongs("proveedores", input.supplierId());
         if (input.lines() == null || input.lines().isEmpty()) throw new IllegalArgumentException("Ingresá al menos un artículo en la factura.");
@@ -403,10 +441,10 @@ public class OperationsModel {
         long id = ((Number) cash.get("id")).longValue();
         BigDecimal opening = new BigDecimal(cash.get("saldo_inicial").toString());
         Map<String, Object> report = jdbc.queryForMap("SELECT " +
-                "COALESCE(SUM(CASE WHEN tipo='INGRESO' AND categoria='VENTA' AND medio_pago='EFECTIVO' THEN importe ELSE 0 END),0) ventas_efectivo," +
-                "COALESCE(SUM(CASE WHEN tipo='INGRESO' AND categoria='VENTA' AND medio_pago='MERCADO_PAGO' THEN importe ELSE 0 END),0) ventas_mercado_pago," +
-                "COALESCE(SUM(CASE WHEN tipo='EGRESO' AND medio_pago='EFECTIVO' THEN importe ELSE 0 END),0) egresos_efectivo," +
-                "COALESCE(SUM(CASE WHEN tipo='EGRESO' AND medio_pago='MERCADO_PAGO' THEN importe ELSE 0 END),0) egresos_mercado_pago," +
+                "COALESCE(SUM(CASE WHEN tipo='INGRESO' AND categoria='VENTA' AND medio_pago='EFECTIVO' THEN importe WHEN tipo='EGRESO' AND categoria='VENTA_ANULADA' AND medio_pago='EFECTIVO' THEN -importe ELSE 0 END),0) ventas_efectivo," +
+                "COALESCE(SUM(CASE WHEN tipo='INGRESO' AND categoria='VENTA' AND medio_pago='MERCADO_PAGO' THEN importe WHEN tipo='EGRESO' AND categoria='VENTA_ANULADA' AND medio_pago='MERCADO_PAGO' THEN -importe ELSE 0 END),0) ventas_mercado_pago," +
+                "COALESCE(SUM(CASE WHEN tipo='EGRESO' AND categoria<>'VENTA_ANULADA' AND medio_pago='EFECTIVO' THEN importe ELSE 0 END),0) egresos_efectivo," +
+                "COALESCE(SUM(CASE WHEN tipo='EGRESO' AND categoria<>'VENTA_ANULADA' AND medio_pago='MERCADO_PAGO' THEN importe ELSE 0 END),0) egresos_mercado_pago," +
                 "COALESCE(SUM(CASE WHEN tipo='INGRESO' AND medio_pago='MERCADO_PAGO' THEN importe WHEN tipo='EGRESO' AND medio_pago='MERCADO_PAGO' THEN -importe ELSE 0 END),0) mercado_pago_esperado " +
                 "FROM movimientos_caja WHERE caja_id=?", id);
         BigDecimal expected = opening.add(jdbc.queryForObject("SELECT COALESCE(SUM(CASE WHEN tipo='INGRESO' AND medio_pago='EFECTIVO' THEN importe WHEN tipo='EGRESO' AND medio_pago='EFECTIVO' THEN -importe ELSE 0 END),0) FROM movimientos_caja WHERE caja_id=?", BigDecimal.class, id));
@@ -425,10 +463,10 @@ public class OperationsModel {
         BigDecimal difference = counted.subtract(expected);
         jdbc.update("UPDATE cajas SET cerrado_en=NOW(),efectivo_esperado=?,efectivo_contado=?,diferencia=?,estado='CERRADA' WHERE id=?", expected, counted, difference, id);
         Map<String, Object> report = jdbc.queryForMap("SELECT " +
-                "COALESCE(SUM(CASE WHEN tipo='INGRESO' AND categoria='VENTA' AND medio_pago='EFECTIVO' THEN importe ELSE 0 END),0) ventas_efectivo," +
-                "COALESCE(SUM(CASE WHEN tipo='INGRESO' AND categoria='VENTA' AND medio_pago='MERCADO_PAGO' THEN importe ELSE 0 END),0) ventas_mercado_pago," +
-                "COALESCE(SUM(CASE WHEN tipo='EGRESO' AND medio_pago='EFECTIVO' THEN importe ELSE 0 END),0) egresos_efectivo," +
-                "COALESCE(SUM(CASE WHEN tipo='EGRESO' AND medio_pago='MERCADO_PAGO' THEN importe ELSE 0 END),0) egresos_mercado_pago," +
+                "COALESCE(SUM(CASE WHEN tipo='INGRESO' AND categoria='VENTA' AND medio_pago='EFECTIVO' THEN importe WHEN tipo='EGRESO' AND categoria='VENTA_ANULADA' AND medio_pago='EFECTIVO' THEN -importe ELSE 0 END),0) ventas_efectivo," +
+                "COALESCE(SUM(CASE WHEN tipo='INGRESO' AND categoria='VENTA' AND medio_pago='MERCADO_PAGO' THEN importe WHEN tipo='EGRESO' AND categoria='VENTA_ANULADA' AND medio_pago='MERCADO_PAGO' THEN -importe ELSE 0 END),0) ventas_mercado_pago," +
+                "COALESCE(SUM(CASE WHEN tipo='EGRESO' AND categoria<>'VENTA_ANULADA' AND medio_pago='EFECTIVO' THEN importe ELSE 0 END),0) egresos_efectivo," +
+                "COALESCE(SUM(CASE WHEN tipo='EGRESO' AND categoria<>'VENTA_ANULADA' AND medio_pago='MERCADO_PAGO' THEN importe ELSE 0 END),0) egresos_mercado_pago," +
                 "COALESCE(SUM(CASE WHEN tipo='INGRESO' AND medio_pago='MERCADO_PAGO' THEN importe WHEN tipo='EGRESO' AND medio_pago='MERCADO_PAGO' THEN -importe ELSE 0 END),0) mercado_pago_esperado " +
                 "FROM movimientos_caja WHERE caja_id=?", id);
         BigDecimal opening = new BigDecimal(cash.get("saldo_inicial").toString());
