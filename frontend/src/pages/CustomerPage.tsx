@@ -160,28 +160,30 @@ export function CustomerList() {
                     <StatusPill active={customer.status === 'Activo'} />
                   </td>
                   <td data-label="Acciones" className="article-actions">
-                    {customer.id > 0 && (
-                      <>
-                        {!showInactive && (
+                    <div className="row-actions">
+                      {customer.id > 0 && (
+                        <>
+                          {!showInactive && (
+                            <button
+                              className="secondary-button"
+                              type="button"
+                              onClick={() => setEditing(customer.raw)}
+                            >
+                              Modificar
+                            </button>
+                          )}
                           <button
                             className="secondary-button"
                             type="button"
-                            onClick={() => setEditing(customer.raw)}
+                            onClick={() =>
+                              void setActive(customer.id, showInactive).catch(() => undefined)
+                            }
                           >
-                            Modificar
+                            {showInactive ? 'Activar' : 'Desactivar'}
                           </button>
-                        )}
-                        <button
-                          className="secondary-button"
-                          type="button"
-                          onClick={() =>
-                            void setActive(customer.id, showInactive).catch(() => undefined)
-                          }
-                        >
-                          {showInactive ? 'Activar' : 'Desactivar'}
-                        </button>
-                      </>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

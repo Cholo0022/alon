@@ -10,6 +10,7 @@ import { Pagination } from './Pagination'
 
 export type ApiColumn = {
   key: string
+  className?: string
   label: string
   money?: boolean
   date?: boolean
@@ -24,7 +25,9 @@ export function ApiTable({
   columns,
   note,
   onRowClick,
+  className = '',
 }: {
+  className?: string
   title: string
   endpoint: string
   columns: ApiColumn[]
@@ -36,7 +39,7 @@ export function ApiTable({
   const error = rows.error
 
   return (
-    <section className="directory-panel report-table">
+    <section className={'directory-panel report-table ' + className}>
       <div className="directory-toolbar">
         <div>
           <span className="demo-tag">DATOS DEL COMERCIO</span>
@@ -54,7 +57,14 @@ export function ApiTable({
             <thead>
               <tr>
                 {columns.map((column) => (
-                  <th key={column.key}>{column.label}</th>
+                  <th
+                    key={column.key}
+                    className={[column.money ? 'money-column' : '', column.className ?? '']
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
+                    {column.label}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -80,7 +90,9 @@ export function ApiTable({
                     <td
                       data-label={column.label}
                       key={column.key}
-                      className={column.money ? 'money-cell' : ''}
+                      className={[column.money ? 'money-cell' : '', column.className ?? '']
+                        .filter(Boolean)
+                        .join(' ')}
                     >
                       {column.render
                         ? column.render(row)

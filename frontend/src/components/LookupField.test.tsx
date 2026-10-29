@@ -21,12 +21,12 @@ it('searches remote records in one field and keeps the selected ID when results 
   )
   const input = screen.getByRole('combobox', { name: 'Artículo' })
   fireEvent.change(input, { target: { value: 'remoto' } })
-  await waitFor(() =>
-    expect(container.querySelector('option')?.getAttribute('value')).toBe('A250 · Artículo remoto'),
-  )
-  fireEvent.change(input, { target: { value: 'A250 · Artículo remoto' } })
+  await waitFor(() => expect(screen.getByRole('option').textContent).toBe('A250 · Artículo remoto'))
+  fireEvent.keyDown(input, { key: 'ArrowDown' })
+  expect(screen.getByRole('option').getAttribute('aria-selected')).toBe('true')
+  fireEvent.keyDown(input, { key: 'Enter' })
   expect(selected).toHaveBeenLastCalledWith(row)
-  await waitFor(() => expect(container.querySelector('option')).toBeNull())
+  await waitFor(() => expect(screen.queryByRole('option')).toBeNull())
   expect(container.querySelector<HTMLInputElement>('input[name="articleId"]')?.value).toBe('250')
   fireEvent.change(input, { target: { value: 'otro' } })
   expect(container.querySelector<HTMLInputElement>('input[name="articleId"]')?.value).toBe('')
@@ -63,4 +63,66 @@ it('removes the external supplier and category controls from the article directo
   expect(screen.getByRole('combobox', { name: 'Rubro' })).toBeTruthy()
   expect(document.querySelector('form nav')).toBeNull()
   await waitFor(() => expect(screen.queryByText('Buscando…')).toBeNull())
+})
+
+it('selects Consumidor final by default and preserves another explicit choice', async () => {
+  const consumer = { id: 21, codigo: 'FINAL', nombre: 'Consumidor final' }
+  const customer = { id: 99, codigo: 'C99', nombre: 'Otro cliente' }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => Response.json(url.includes('Otro') ? [customer] : [consumer])),
+  )
+  const { container } = render(
+    <LookupField
+      name="customerId"
+      label="Cliente"
+      endpoint="/api/v1/demo/lookups/customers"
+      defaultName="Consumidor final"
+    />,
+  )
+  const input = screen.getByRole('combobox', { name: 'Cliente' }) as HTMLInputElement
+  await waitFor(() => expect(input.value).toBe('FINAL · Consumidor final'))
+  expect(container.querySelector<HTMLInputElement>('input[name="customerId"]')?.value).toBe('21')
+  fireEvent.change(input, { target: { value: 'Otro' } })
+  await waitFor(() => expect(screen.getByRole('option').textContent).toBe('C99 · Otro cliente'))
+  const option = screen.getByRole('option')
+  fireEvent.mouseEnter(option)
+  expect(option.getAttribute('aria-selected')).toBe('true')
+  fireEvent.click(option)
+  expect(input.value).toBe('C99 · Otro cliente')
+  expect(container.querySelector<HTMLInputElement>('input[name="customerId"]')?.value).toBe('99')
+  expect(screen.queryByRole('listbox')).toBeNull()
+})
+
+it('offers other database customers when opening the default selection without typing', async () => {
+  const consumer = { id: 21, codigo: 'FINAL', nombre: 'Consumidor final' }
+  const customer = { id: 99, codigo: 'C99', nombre: 'Cliente registrado' }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) =>
+      Response.json(url.includes('Consumidor') ? [consumer] : [consumer, customer]),
+    ),
+  )
+  const { container } = render(
+    <LookupField
+      name="customerId"
+      label="Cliente"
+      endpoint="/api/v1/demo/lookups/customers"
+      defaultName="Consumidor final"
+    />,
+  )
+  const input = screen.getByRole('combobox', { name: 'Cliente' }) as HTMLInputElement
+  await waitFor(() => expect(input.value).toBe('FINAL · Consumidor final'))
+  fireEvent.focus(input)
+  await waitFor(() =>
+    expect(screen.getByRole('option', { name: 'C99 · Cliente registrado' })).toBeTruthy(),
+  )
+  fireEvent.click(screen.getByRole('option', { name: 'C99 · Cliente registrado' }))
+  expect(input.value).toBe('C99 · Cliente registrado')
+  expect(container.querySelector<HTMLInputElement>('input[name="customerId"]')?.value).toBe('99')
+  fireEvent.click(input)
+  await waitFor(() =>
+    expect(screen.getByRole('option', { name: 'FINAL · Consumidor final' })).toBeTruthy(),
+  )
+  expect(input.value).toBe('C99 · Cliente registrado')
 })

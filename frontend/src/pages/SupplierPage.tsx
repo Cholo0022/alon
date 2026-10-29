@@ -411,38 +411,42 @@ export function SupplierList() {
                     <StatusPill active={supplier.status === 'Activo'} />
                   </td>
                   <td data-label="Acciones" className="article-actions">
-                    {supplier.id > 0 && (
-                      <>
-                        {!showInactive && (
-                          <>
-                            <button
-                              className="secondary-button"
-                              type="button"
-                              onClick={() => setEditing(supplier.raw)}
-                            >
-                              Modificar
-                            </button>
-                            <button
-                              className="select-button"
-                              type="button"
-                              disabled={supplier.balance <= 0}
-                              onClick={() => startReceipt(supplier)}
-                            >
-                              Recibo
-                            </button>
-                          </>
-                        )}
-                        <button
-                          className="secondary-button"
-                          type="button"
-                          onClick={() =>
-                            void setSupplierActive(supplier.id, showInactive).catch(() => undefined)
-                          }
-                        >
-                          {showInactive ? 'Activar' : 'Desactivar'}
-                        </button>
-                      </>
-                    )}
+                    <div className="row-actions">
+                      {supplier.id > 0 && (
+                        <>
+                          {!showInactive && (
+                            <>
+                              <button
+                                className="secondary-button"
+                                type="button"
+                                onClick={() => setEditing(supplier.raw)}
+                              >
+                                Modificar
+                              </button>
+                              <button
+                                className="select-button"
+                                type="button"
+                                disabled={supplier.balance <= 0}
+                                onClick={() => startReceipt(supplier)}
+                              >
+                                Recibo
+                              </button>
+                            </>
+                          )}
+                          <button
+                            className="secondary-button"
+                            type="button"
+                            onClick={() =>
+                              void setSupplierActive(supplier.id, showInactive).catch(
+                                () => undefined,
+                              )
+                            }
+                          >
+                            {showInactive ? 'Activar' : 'Desactivar'}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

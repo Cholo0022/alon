@@ -213,6 +213,7 @@ export function SalesPage({
               Cliente
               <LookupField
                 name="customerId"
+                defaultName="Consumidor final"
                 label="Cliente"
                 endpoint="/api/v1/demo/lookups/customers"
               />

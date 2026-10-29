@@ -351,10 +351,24 @@ export function PurchasesPage() {
         )}
       </section>
       <ApiTable
+        className="purchases-table"
         title="Compras registradas"
         endpoint="/api/v1/demo/purchases"
         columns={[
-          { key: 'numero_documento', label: 'DOCUMENTO' },
+          {
+            key: 'numero_documento',
+            label: 'DOCUMENTO',
+            className: 'document-column',
+            render: (row) => (
+              <span
+                className="document-number"
+                title={textValue(row.numero_documento)}
+                tabIndex={0}
+              >
+                {textValue(row.numero_documento)}
+              </span>
+            ),
+          },
           { key: 'tipo_documento', label: 'TIPO' },
           { key: 'fecha', label: 'FECHA', date: true },
           { key: 'proveedor', label: 'PROVEEDOR' },

@@ -1,4 +1,5 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Combobox } from './Combobox'
 import { LookupField } from './LookupField'
 import { apiFetch } from '../lib/http'
 import {
@@ -28,23 +29,21 @@ export type EntryField = {
 }
 
 export function ArticleNameSearch({ field }: { field: EntryField }) {
-  const listId = useId()
+  const [value, setValue] = useState(field.defaultValue ?? '')
+  const options = (field.suggestions ?? [])
+    .filter((name) => name.toLocaleLowerCase('es-AR').includes(value.toLocaleLowerCase('es-AR')))
+    .map((name) => ({ value: name, label: name }))
   return (
-    <>
-      <input
-        name={field.name}
-        type="text"
-        aria-label={field.label}
-        list={listId}
-        placeholder="Escribí uno nuevo o buscá uno existente…"
-        required
-      />
-      <datalist id={listId}>
-        {(field.suggestions ?? []).map((name) => (
-          <option value={name} key={name} />
-        ))}
-      </datalist>
-    </>
+    <Combobox
+      name={field.name}
+      label={field.label}
+      value={value}
+      options={options}
+      onChange={setValue}
+      onChoose={(option) => setValue(option.label)}
+      required
+      placeholder="Escribí uno nuevo o buscá uno existente…"
+    />
   )
 }
 
@@ -55,36 +54,27 @@ export function SearchableEntryField({
   field: EntryField
   autoFocus?: boolean
 }) {
-  const listId = useId()
   const [query, setQuery] = useState<string | null>(null)
   const initial = field.options?.find((option) => option.value === field.defaultValue)
   const display = query ?? initial?.label ?? ''
   const selected = field.options?.find((option) => option.label === display)
+  const options = (field.options ?? []).filter((option) =>
+    option.label.toLocaleLowerCase('es-AR').includes((query ?? '').toLocaleLowerCase('es-AR')),
+  )
   return (
-    <div className="searchable-field">
+    <>
       <input type="hidden" name={field.name} value={selected?.value ?? ''} />
-      <input
-        type="text"
-        list={listId}
-        aria-label={field.label}
-        placeholder={'Buscar ' + field.label.toLocaleLowerCase('es-AR') + '…'}
+      <Combobox
+        label={field.label}
         value={display}
-        autoFocus={autoFocus}
+        options={options}
+        onChange={setQuery}
+        onChoose={(option) => setQuery(option.label)}
         required
-        onChange={(event) => {
-          setQuery(event.target.value)
-          event.target.setCustomValidity('')
-        }}
-        onBlur={(event) =>
-          event.target.setCustomValidity(selected ? '' : 'Elegí una opción del listado.')
-        }
+        valid={!!selected}
+        autoFocus={autoFocus}
       />
-      <datalist id={listId}>
-        {(field.options ?? []).map((option) => (
-          <option value={option.label} key={option.value} />
-        ))}
-      </datalist>
-    </div>
+    </>
   )
 }
 

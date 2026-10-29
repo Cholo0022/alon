@@ -304,28 +304,30 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
                       {article.supplier}
                     </td>
                     <td data-label="Acciones" className="article-actions">
-                      {article.id > 0 && (
-                        <>
-                          {!showInactive && canEditCosts && (
+                      <div className="row-actions">
+                        {article.id > 0 && (
+                          <>
+                            {!showInactive && canEditCosts && (
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                onClick={() => row && setEditing(row)}
+                              >
+                                Modificar
+                              </button>
+                            )}
                             <button
                               type="button"
                               className="secondary-button"
-                              onClick={() => row && setEditing(row)}
+                              onClick={() =>
+                                void setActive(article.id, showInactive).catch(() => undefined)
+                              }
                             >
-                              Modificar
+                              {showInactive ? 'Activar' : 'Desactivar'}
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            className="secondary-button"
-                            onClick={() =>
-                              void setActive(article.id, showInactive).catch(() => undefined)
-                            }
-                          >
-                            {showInactive ? 'Activar' : 'Desactivar'}
-                          </button>
-                        </>
-                      )}
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )

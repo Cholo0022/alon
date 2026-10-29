@@ -2068,7 +2068,7 @@ button:disabled {
 .table-scroll td .article-actions {
   flex-wrap: wrap;
 }
-@media (max-width: 1100px) {
+@container records (max-width: 900px) {
   .table-scroll table,
   .purchase-lines table,
   .purchase-receipt-view table {
@@ -2142,7 +2142,7 @@ button:disabled {
     cursor: pointer;
   }
 }
-@media (max-width: 520px) {
+@container records (max-width: 460px) {
   .table-scroll tbody,
   .purchase-lines tbody,
   .purchase-receipt-view tbody {
@@ -2287,5 +2287,254 @@ button:disabled {
   #root input:not([type='hidden']):not([type='checkbox']):not([type='radio']),
   #root select {
     font-size: 16px;
+  }
+}
+/* Available content width, including the sidebar, drives all directory layouts. */
+#root .page-wrap {
+  width: 100%;
+  max-width: none;
+}
+#root .main-content,
+#root .page-wrap,
+#root .directory-panel {
+  min-width: 0;
+}
+.directory-panel,
+.purchase-lines,
+.purchase-receipt-view {
+  container: records / inline-size;
+}
+.directory-toolbar,
+.directory-toolbar > div:first-child,
+.directory-filters {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.directory-filters {
+  max-width: 100%;
+  flex: 1 1 260px;
+  justify-content: flex-end;
+}
+#root .directory-filters input,
+#root .directory-filters select {
+  min-width: 0;
+  max-width: 100%;
+  width: min(240px, 100%);
+  flex: 1 1 160px;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+.table-scroll td > *,
+.contact-cell,
+.pagination {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.pagination {
+  flex-wrap: wrap;
+}
+.combo-options {
+  position: absolute;
+  z-index: 50;
+  inset: calc(100% + 4px) 0 auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #65778a;
+  border-radius: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 5px 18px #10243a26;
+}
+.combo-options [role='option'] {
+  padding: 8px 10px;
+  color: #10243a;
+  background: #fff;
+  border-radius: 3px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.combo-options [role='option']:hover,
+.combo-options [role='option'][aria-selected='true'] {
+  background: #173f59;
+  color: #fff;
+}
+.searchable-field {
+  position: relative;
+}
+@media (max-width: 600px) {
+  #root .page-wrap {
+    padding-inline: 12px;
+  }
+  .directory-toolbar {
+    align-items: stretch;
+  }
+  .directory-filters {
+    justify-content: flex-start;
+  }
+}
+.entry-panel {
+  overflow: visible;
+}
+/* Action groups wrap inside table cells instead of making the cell a flex box. */
+td.article-actions {
+  display: table-cell;
+  vertical-align: middle;
+}
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+#root .row-actions button,
+#root .purchase-remove-button,
+#root .entry-actions button,
+#root .entry-heading button,
+#root .purchase-receipt-view > .secondary-button {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  min-height: 30px;
+  padding: 6px 9px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+  text-align: center;
+  flex-shrink: 1;
+}
+#root .row-actions button {
+  font-size: 12px;
+  flex: 0 1 auto;
+}
+.entry-heading,
+.entry-actions {
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+.entry-heading > div,
+.entry-actions > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#root .purchase-entry .entry-form,
+#root .purchase-receipt-view .entry-form {
+  font-size: 12px;
+}
+#root .purchase-entry .entry-form label,
+#root .purchase-receipt-view .entry-form label {
+  font-size: 12px;
+}
+#root .purchases-table table,
+#root .purchase-lines table,
+#root .purchase-receipt-view table {
+  font-size: 12px;
+  table-layout: auto;
+}
+#root .purchases-table th,
+#root .purchases-table td {
+  padding: 8px 5px;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+#root .purchases-table th {
+  font-size: 10px;
+  letter-spacing: 0;
+}
+#root .purchases-table .money-cell,
+#root .purchase-lines td[data-label='Costo unitario'],
+#root .purchase-lines td[data-label='Subtotal'],
+#root .purchase-receipt-view td[data-label='Costo unitario'],
+#root .purchase-receipt-view td[data-label='Subtotal'] {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+#root .purchases-table .money-column {
+  text-align: right;
+}
+.purchase-total {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.purchase-total strong {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+@container records (max-width: 900px) {
+  #root .purchases-table td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  #root .purchases-table td.money-cell {
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+  .row-actions {
+    width: 100%;
+  }
+}
+@media (max-width: 520px) {
+  .entry-heading {
+    align-items: flex-start;
+  }
+  .entry-heading > div {
+    flex: 1 1 100%;
+  }
+  .entry-actions button {
+    flex: 1 1 auto;
+  }
+}
+/* Uniform numerical typography across directories, details, and reports. */
+#root .table-scroll table,
+#root .purchase-lines table,
+#root .purchase-receipt-view table,
+#root .table-scroll td,
+#root .table-scroll td .contact-cell,
+#root .table-scroll td .mono-cell,
+#root .table-scroll td .stock-low,
+#root .table-scroll td .stock-ok {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+#root .purchases-table .document-column {
+  width: calc(8ch + 12px);
+  padding-inline: 5px;
+}
+#root .purchases-table th.document-column {
+  font-size: 9px;
+}
+.document-number {
+  display: inline-block;
+  width: 8ch;
+  max-width: 100%;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.document-number:focus {
+  outline: 2px solid #006b73;
+  outline-offset: 2px;
+}
+@container records (max-width: 900px) {
+  #root .purchases-table td.document-column {
+    width: auto;
+  }
+  .document-number {
+    width: auto;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    overflow: visible;
   }
 }
