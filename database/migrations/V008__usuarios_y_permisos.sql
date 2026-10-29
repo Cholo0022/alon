@@ -1,4 +1,5 @@
-CREATE TABLE usuarios (
+-- Seleccionar explícitamente la base de destino antes de ejecutar este script de compatibilidad.
+CREATE TABLE IF NOT EXISTS usuarios (
   id BIGINT NOT NULL AUTO_INCREMENT,
   comercio_id BIGINT NOT NULL,
   usuario VARCHAR(80) NOT NULL,

@@ -4,13 +4,13 @@ services:
     container_name: alon-mysql
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-alon}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-alon_demo}
       MYSQL_USER: ${MYSQL_USER:-alon}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-alon_local}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_local}
       TZ: America/Argentina/Buenos_Aires
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - alon_mysql_data:/var/lib/mysql
     healthcheck:

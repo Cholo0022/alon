@@ -6,7 +6,7 @@ Monolito modular con API REST. Para el MVP evita costos y complejidad operativa 
 
 ## Aislamiento multi comercio
 
-El modelo inicial usa una base compartida con columna `tenant_id` obligatoria en cada agregado de negocio. Todas las claves únicas de negocio incluyen el comercio; consultas y restricciones filtran por tenant desde el servidor. Añadir pruebas de aislamiento antes de exponer datos reales. Mantener la opción de migrar comercios de alto volumen a esquemas o bases dedicadas.
+El modelo inicial usa una base compartida con columna `comercio_id` obligatoria en cada agregado de negocio. Todas las claves únicas de negocio incluyen el comercio; consultas y restricciones filtran por tenant desde el servidor. Las pruebas MySQL comprueban aislamiento en consultas, escrituras y referencias principales. Ampliar esas pruebas junto con cada módulo nuevo. Mantener la opción de migrar comercios de alto volumen a esquemas o bases dedicadas.
 
 ## Dinero e impuestos
 

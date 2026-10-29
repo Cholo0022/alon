@@ -1,6 +1,5 @@
+-- Seleccionar explícitamente la base de destino antes de ejecutar este script de compatibilidad.
 -- Configuración de precio de venta por artículo.
-USE alon_demo;
-
 ALTER TABLE articulos
   ADD COLUMN flete_unitario DECIMAL(15,2) NOT NULL DEFAULT 0 AFTER costo,
   ADD COLUMN margen_porcentaje DECIMAL(7,2) NOT NULL DEFAULT 0 AFTER flete_unitario,

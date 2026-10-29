@@ -1,0 +1,43 @@
+package ar.com.alon.sales;
+
+import ar.com.alon.sales.dto.SaleInput;
+import ar.com.alon.shared.commands.CommandExecutor;
+import jakarta.validation.Valid;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1")
+public class SalesController {
+    private final SalesService service;
+    private final SalesQueries queries;
+    private final CommandExecutor commands;
+
+    public SalesController(SalesService service, SalesQueries queries, CommandExecutor commands) {
+        this.service = service;
+        this.queries = queries;
+        this.commands = commands;
+    }
+
+    @PostMapping("/operations/sales")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Map<String, Object> createSale(@Valid @RequestBody SaleInput input) {
+        return commands.execute("createSale", input, () -> service.createSale(input));
+    }
+
+    @PostMapping("/operations/sales/{id}/cancel")
+    public Map<String, Object> cancelSale(@PathVariable long id) {
+        return commands.execute("cancelSale", java.util.List.of(id), () -> service.cancelSale(id));
+    }
+
+    @GetMapping("/demo/sales")
+    public List<Map<String, Object>> sales(
+            @RequestParam(required = false) LocalDate date,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size) {
+        return queries.sales(date, page, size);
+    }
+}

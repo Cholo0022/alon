@@ -1,7 +1,6 @@
+-- Seleccionar explícitamente la base de destino antes de ejecutar este script de compatibilidad.
 -- Ejecutar una sola vez sobre alon_demo después de database/demo-data.sql.
 -- Habilita claves generadas por MySQL para las altas creadas desde la aplicación.
-USE alon_demo;
-
 -- MySQL exige retirar temporalmente las claves foráneas que apuntan a IDs
 -- antes de agregar AUTO_INCREMENT a esas columnas.
 ALTER TABLE ventas DROP FOREIGN KEY fk_venta_cliente;

@@ -1,0 +1,21 @@
+import type { PagedRows } from '../hooks/useApiRows'
+
+export function Pagination({ rows, label = 'registros' }: { rows: PagedRows; label?: string }) {
+  return (
+    <nav aria-label={'Páginas de ' + label} className="pagination">
+      <button type="button" disabled={rows.page === 0 || rows.loading} onClick={rows.previous}>
+        Anterior
+      </button>
+      <span aria-live="polite">
+        {rows.error
+          ? 'No se pudieron cargar los datos'
+          : rows.loading
+            ? 'Cargando…'
+            : `Página ${rows.page + 1} · ${rows.length} ${label}`}
+      </span>
+      <button type="button" disabled={!rows.hasMore || rows.loading} onClick={rows.next}>
+        Siguiente
+      </button>
+    </nav>
+  )
+}

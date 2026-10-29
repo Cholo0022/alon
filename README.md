@@ -1,46 +1,64 @@
 # Alon
 
-Sistema web de gestión comercial para pequeños comercios argentinos, ofrecido como servicio a distintos negocios.
+Sistema web de gestión comercial para comercios argentinos. Java 21, Spring Boot, MySQL 8.4, React y TypeScript. Importes en ARS; fechas operativas en America/Argentina/Buenos_Aires.
 
-## Tecnologías
+## Inicio con una base nueva
 
-- Backend: Java 21 y Spring Boot 4.1.2.
-- Base de datos: MySQL 8.4.
-- Frontend: React, TypeScript y Vite.
-- Moneda y zona horaria: ARS y `America/Argentina/Buenos_Aires`.
+1. Instalar Java 21, Maven, Node.js 24 y MySQL 8.4 o Docker.
+2. Iniciar MySQL con `docker compose up -d` o crear una base vacía `alon_demo` y un usuario con acceso a ella. Compose publica MySQL solamente en 127.0.0.1.
+3. Configurar las variables de `backend/.env.example` en el entorno. Spring no carga automáticamente archivos .env.
+4. Desde backend/, ejecutar `mvn spring-boot:run`. Flyway crea y versiona el esquema. Las migraciones canónicas están en backend/src/main/resources/db/migration/.
+5. Desde frontend/, ejecutar `npm ci` y `npm run dev`. Abrir http://127.0.0.1:5173 y configurar la cuenta dueña con una contraseña de 12 a 128 caracteres.
 
-## Arquitectura
+La base inicial contiene el comercio ALON. El alta de otros comercios es administrativa; no hay registro público de comercios. El código de comercio en el inicio de sesión selecciona la organización; las operaciones posteriores toman el comercio de la sesión verificada por el servidor. Si se deja vacío se usa ALON_BOOTSTRAP_STORE_ID, por defecto 1.
 
-El proyecto organiza la interfaz, los controladores y los modelos siguiendo MVC. La vista React se comunica con los controladores REST de Spring MVC, que delegan las operaciones al modelo. Más detalles en [`docs/arquitectura-mvc.md`](docs/arquitectura-mvc.md).
+## Actualizar una base existente
 
-## Estado actual
+No volver a cargar datos demo ni ejecutar el esquema inicial sobre una base con operaciones. Seguir [la guía de actualización](docs/actualizacion-y-validacion.md), conservar una copia de seguridad y probar primero sobre una copia. La adopción del esquema anterior requiere una opción explícita y comprueba que las migraciones antiguas estén completas. Flyway rechaza por defecto bases no vacías sin historial.
 
-La aplicación permite registrar clientes, proveedores, artículos, ventas, compras, gastos, aperturas y cierres de caja, y pedidos web en el comercio de demostración. Las ventas descuentan stock en una transacción y pueden actualizar cuenta corriente; las compras reciben stock, actualizan costos y saldos de proveedor, y sus pagos se reflejan en caja. La base `alon_demo` conserva además los datos ficticios iniciales (100 artículos, 20 clientes, 20 proveedores, 10 compras y 1.000 ventas). Las ventas nuevas también son comprobantes internos no fiscales; no se emiten comprobantes ante ARCA.
+Los scripts de database/migrations/ se conservan únicamente como compatibilidad para instalaciones antiguas; no son la cadena Flyway de una instalación nueva.
 
-El backend publica endpoints locales para estas operaciones y para consultar listados e informes. La aplicación sigue limitada al comercio de demostración con ID 1; incluye inicio de sesión y permisos por módulo, y no debe exponerse a internet ni usarse con comercios reales. Las cuentas iniciales son `demo` / `demo` (dueño) y `vendedor1` / `demo` (vendedor); el dueño puede modificarlas desde Usuarios y accesos. Las vistas SQL están en `database/demo-data.sql` y las consultas preparadas para MySQL Workbench en `database/reportes.sql`.
+## Demostración opcional
+
+Usar exclusivamente una base nueva y desechable. Después de crear el esquema con Flyway, ejecutar una sola vez database/demo-data.sql sobre alon_demo. Contiene registros ficticios con IDs fijos y puede sobrescribir operaciones si se reutiliza incorrectamente; no es una herramienta de actualización.
+
+Para crear cuentas demo en una base sin usuarios, iniciar con SPRING_PROFILES_ACTIVE=demo. Usuarios: demo y vendedor1; contraseña inicial de ambos: CambiarDemo-2026!. El perfil normal no crea cuentas conocidas. Las cuentas antiguas se conservan al migrar y sus hashes se actualizan al iniciar sesión; cambiar cualquier contraseña antigua de demostración desde Usuarios antes de cargar información real.
+
+## Funcionamiento y reglas
+
+- Ventas, compras, pagos, stock y caja se guardan en transacciones. Cada escritura comercial requiere Idempotency-Key; la web lo genera y lo conserva cuando se pierde una respuesta. Reutilizar una clave con datos diferentes devuelve conflicto.
+- Los importes usan DECIMAL/BigDecimal y las cantidades hasta tres decimales. Se rechaza precisión excesiva en vez de redondear silenciosamente la entrada.
+- La corrección de una compra recalcula su valoración, conserva el registro anterior y registra al autor. Si hubo salidas posteriores del artículo, se impide reescribir esa compra; deben registrarse los ajustes correspondientes. Las ventas conservan sus costos históricos.
+- Siempre debe quedar al menos un dueño activo. Los cambios de contraseña y desactivaciones revocan las sesiones anteriores; roles y permisos se consultan en cada solicitud.
+- Los descuentos y el acceso a costos requieren permisos explícitos. El permiso de compras incluye consulta de costos de compra. Los márgenes del resumen requieren informes.
+- Las consultas usan page, size (máximo 200) y q; la interfaz navega de a 100 registros. Los rankings están acotados a 10 resultados. No se ha certificado la capacidad objetivo de 99.999 artículos y usuarios.
+
+## Verificación
+
+Desde la raíz:
+
+```sh
+mvn -f backend/pom.xml verify
+npm --prefix frontend run build
+npm --prefix frontend run lint
+npm --prefix frontend test
+```
+
+Las pruebas MySQL necesitan una base desechable llamada alon_validation y ALON_TEST_MYSQL_URL, ALON_TEST_MYSQL_USER, ALON_TEST_MYSQL_PASSWORD. Borran y reconstruyen exclusivamente esa base y rechazan otro nombre. Sin esas variables se ejecutan las pruebas unitarias y se omiten las de MySQL. La integración continua configura MySQL y ejecuta ambas.
+
+## Despliegue
+
+Usar el perfil production, credenciales propias, conexión MySQL protegida y HTTPS mediante un servidor web que mantenga /api en el mismo origen. Ese perfil exige las variables de conexión y cookies seguras. El perfil demo es para desarrollo y no habilita cuentas conocidas en producción.
+
+Las sesiones y el límite de intentos actuales están pensados para una instancia de API. Varias instancias requieren almacenamiento compartido de sesiones y limitación de intentos, además de pruebas de carga. Restringir acceso a la base y probar restauración de respaldos.
+
+Las ventas son comprobantes internos no fiscales. No se emiten comprobantes ante ARCA ni se capturan pagos externos de Mercado Pago; indicar ese medio registra un movimiento interno. Esas integraciones siguen fuera de este alcance.
 
 ## Estructura
 
-- `backend/`: API REST y lógica del negocio.
-- `frontend/`: aplicación web de gestión y tienda adaptable a móviles.
-- `docs/`: alcance, reglas iniciales y decisiones de arquitectura.
-- `compose.yaml`: entorno local de MySQL.
-
-## Inicio rápido
-
-1. Instalar Java 21, Maven, Node.js 22.12 o superior y MySQL o Docker.
-2. En MySQL Workbench, abrir y ejecutar `database/demo-data.sql`; crea una base separada llamada `alon_demo` y no borra otras bases.
-3. Ejecutar una sola vez, en orden, `database/migrations/V001__operaciones_persistentes.sql` a `database/migrations/V008__usuarios_y_permisos.sql` sobre `alon_demo`. Habilitan las operaciones, las reglas de precio, caja y nombres únicos, y las cuentas de usuario con permisos. Si la tabla de usuarios está vacía, la API crea las dos cuentas de acceso inicial al arrancar.
-4. Iniciar la API desde `backend/` configurando `SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/alon_demo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Argentina/Buenos_Aires`, además de `SPRING_DATASOURCE_USERNAME` y `SPRING_DATASOURCE_PASSWORD` en el entorno local.
-5. Iniciar la web desde `frontend/`: `npm install && npm run dev`.
-6. Abrir `http://127.0.0.1:5173`; las operaciones y los reportes consultan la API local en `http://127.0.0.1:8080`.
-
-La configuración local usa credenciales de desarrollo y no debe reutilizarse en producción. La emisión fiscal ARCA y Mercado Pago se integrarán en etapas posteriores, con credenciales propias de cada comercio.
-
-## Alcance del MVP
-
-La primera entrega funcional prioriza comercios y usuarios, catálogo y stock, caja, ventas de contado y cuenta corriente, gastos e informes diarios y mensuales. El detalle está en [`docs/alcance-mvp.md`](docs/alcance-mvp.md).
-
-## Derechos de autor
+- backend/: controladores, seguridad, servicios por módulo, consultas, auditoría y migraciones.
+- frontend/: páginas, componentes compartidos, cliente HTTP y pruebas.
+- database/: datos demo opcionales, consultas para Workbench y compatibilidad anterior.
+- docs/: alcance, decisiones, revisión y guía de actualización.
 
 Copyright © 2026 Cholo0022. Todos los derechos reservados.
