@@ -32,4 +32,34 @@ public class StoreOrderController {
     public List<Map<String, Object>> storeOrders() {
         return queries.storeOrders();
     }
+
+    @GetMapping("/demo/store-orders/{id}")
+    public Map<String, Object> detail(@PathVariable long id) {
+        return service.detail(id);
+    }
+
+    @PostMapping("/operations/store-orders/{id}/lines/{lineId}/exclude")
+    public Map<String, Object> exclude(@PathVariable long id, @PathVariable long lineId) {
+        return commands.execute(
+                "excludeStoreLine", List.of(id, lineId), () -> service.exclude(id, lineId));
+    }
+
+    @PostMapping("/operations/store-orders/{id}/approve")
+    public Map<String, Object> approve(@PathVariable long id, @Valid @RequestBody Approval input) {
+        return commands.execute(
+                "approveStoreOrder",
+                List.of(id, input),
+                () -> service.approve(id, input.paymentMethod()));
+    }
+
+    public record Approval(
+            @jakarta.validation.constraints.NotBlank
+                    @jakarta.validation.constraints.Pattern(
+                            regexp = "EFECTIVO|TRANSFERENCIA|MERCADO_PAGO")
+                    String paymentMethod) {}
+
+    @PostMapping("/operations/store-orders/{id}/cancel")
+    public Map<String, Object> cancel(@PathVariable long id) {
+        return commands.execute("cancelStoreOrder", id, () -> service.cancel(id));
+    }
 }

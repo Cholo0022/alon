@@ -39,7 +39,8 @@ public class UserService {
                     "usuarios",
                     "descuentos",
                     "costos");
-    private static final Set<String> VENDOR_PERMISSIONS = Set.of("ventas", "clientes", "caja");
+    private static final Set<String> VENDOR_PERMISSIONS =
+            Set.of("ventas", "clientes", "caja", "tienda");
     private final JdbcTemplate jdbc;
 
     public UserService(

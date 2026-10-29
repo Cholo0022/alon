@@ -30,7 +30,7 @@ public class SalesQueries {
         return jdbc.queryForList(
                 """
                 SELECT v.id, v.numero, v.fecha, DATE_FORMAT(v.fecha_hora, '%Y-%m-%d %H:%i:%s') AS fecha_hora, c.nombre AS cliente, v.tipo_venta, v.medio_pago,
-                       v.tipo_comprobante, v.total, v.estado
+                       v.tipo_comprobante, v.total, v.estado, v.origen, v.pedido_tienda_id
                 FROM ventas v JOIN clientes c ON c.id = v.cliente_id
                 WHERE v.comercio_id = ? AND v.fecha = ? ORDER BY v.fecha_hora DESC, v.id DESC LIMIT ? OFFSET ?
                 """,

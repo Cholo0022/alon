@@ -36,6 +36,24 @@ public class SalesService extends StoreJdbcSupport {
 
     @Transactional
     public Map<String, Object> createSale(SaleInput input) {
+        return createSale(input, null, Map.of());
+    }
+
+    /**
+     * Only the reviewed order supplies these historical prices; HTTP sale inputs cannot set them.
+     */
+    @Transactional
+    public Map<String, Object> createWebSale(
+            SaleInput input, long orderId, Map<Long, BigDecimal> prices) {
+        identity.require("tienda");
+        if (orderId <= 0
+                || input.lines().stream().anyMatch(line -> !prices.containsKey(line.articleId())))
+            throw new IllegalArgumentException("El detalle del pedido web no es válido.");
+        return createSale(input, orderId, prices);
+    }
+
+    private Map<String, Object> createSale(
+            SaleInput input, Long orderId, Map<Long, BigDecimal> prices) {
         assertBelongs("clientes", input.customerId());
         LocalDate date = input.date() == null ? LocalDate.now(clock) : input.date();
         String saleType = enumValue(input.saleType(), "CONTADO", "CONTADO", "CUENTA_CORRIENTE");
@@ -86,7 +104,12 @@ public class SalesService extends StoreJdbcSupport {
                                 + ". Disponible: "
                                 + stock.toPlainString());
             reservedStock.put(line.articleId(), reserved);
-            BigDecimal price = new BigDecimal(article.get("precio_venta").toString());
+            BigDecimal price =
+                    orderId == null
+                            ? new BigDecimal(article.get("precio_venta").toString())
+                            : nonNegative(
+                                    prices.get(line.articleId()),
+                                    "El precio del pedido no es válido.");
             BigDecimal cost = new BigDecimal(article.get("costo").toString());
             BigDecimal percent =
                     nonNegative(
@@ -126,13 +149,13 @@ public class SalesService extends StoreJdbcSupport {
         Long cashId = null;
         if (!payment.equals("CUENTA_CORRIENTE")) cashId = cashLedger.requireOpenCash(date);
         String number =
-                "V-"
+                (orderId == null ? "V-" : "VW-")
                         + date.toString().replace("-", "")
                         + "-"
                         + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         long saleId =
                 insert(
-                        "INSERT INTO ventas (comercio_id,numero,fecha,fecha_hora,cliente_id,tipo_venta,medio_pago,tipo_comprobante,subtotal,descuento,total,costo_total) VALUES (?,?,?,?,?,?,?,'INTERNO_NO_FISCAL',?,?,?,?)",
+                        "INSERT INTO ventas (comercio_id,numero,fecha,fecha_hora,cliente_id,tipo_venta,medio_pago,tipo_comprobante,subtotal,descuento,total,costo_total,origen,pedido_tienda_id) VALUES (?,?,?,?,?,?,?,'INTERNO_NO_FISCAL',?,?,?,?,?,?)",
                         identity.storeId(),
                         number,
                         Date.valueOf(date),
@@ -143,7 +166,9 @@ public class SalesService extends StoreJdbcSupport {
                         subtotal,
                         discount,
                         total,
-                        costTotal);
+                        costTotal,
+                        orderId == null ? "LOCAL" : "WEB",
+                        orderId);
         int row = 1;
         for (PricedLine line : lines) {
             jdbc.update(
@@ -166,7 +191,7 @@ public class SalesService extends StoreJdbcSupport {
                     "VENTA",
                     line.quantity().negate(),
                     number,
-                    "Salida por venta");
+                    orderId == null ? "Salida por venta" : "Venta web · pedido #" + orderId);
         }
         if (saleType.equals("CUENTA_CORRIENTE"))
             jdbc.update(
@@ -176,7 +201,14 @@ public class SalesService extends StoreJdbcSupport {
                     identity.storeId());
         else
             cashLedger.addCashMovement(
-                    cashId, "INGRESO", "VENTA", payment, date, total, number, "Cobro de venta");
+                    cashId,
+                    "INGRESO",
+                    "VENTA",
+                    payment,
+                    date,
+                    total,
+                    number,
+                    orderId == null ? "Cobro de venta" : "Cobro de venta web · pedido #" + orderId);
         return Map.of(
                 "id",
                 saleId,
@@ -271,6 +303,10 @@ public class SalesService extends StoreJdbcSupport {
                     "Devolución del cobro por cancelación de venta " + sale.get("numero"));
         jdbc.update(
                 "UPDATE ventas SET estado='CANCELADA' WHERE id=? AND comercio_id=?",
+                id,
+                identity.storeId());
+        jdbc.update(
+                "UPDATE pedidos_tienda SET estado='CANCELADO' WHERE venta_id=? AND comercio_id=? AND estado='CONFIRMADO'",
                 id,
                 identity.storeId());
         return Map.of(

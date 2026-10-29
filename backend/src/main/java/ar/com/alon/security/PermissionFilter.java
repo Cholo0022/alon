@@ -33,6 +33,7 @@ public class PermissionFilter extends OncePerRequestFilter {
         String path = req.getRequestURI();
         if (!path.startsWith("/api/v1/")
                 || path.equals("/api/v1/health")
+                || path.startsWith("/api/v1/shop/")
                 || AUTH_PUBLIC.contains(path)) {
             chain.doFilter(req, res);
             return;

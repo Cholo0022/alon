@@ -26,7 +26,7 @@ public class StoreOrderQueries {
         return pages.query(
                 "nombre_cliente,contacto,detalle",
                 """
-                SELECT id, nombre_cliente, contacto, detalle, total_estimado, estado, creado_en
+                SELECT id, nombre_cliente, contacto, detalle, total_estimado, estado, creado_en, medio_pago, venta_id
                 FROM pedidos_tienda WHERE comercio_id = ? ORDER BY creado_en DESC
                 """,
                 identity.storeId());

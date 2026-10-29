@@ -26,6 +26,8 @@ Para crear cuentas demo en una base sin usuarios, iniciar con SPRING_PROFILES_AC
 
 ## Funcionamiento y reglas
 
+La tienda local está en http://127.0.0.1:5173/tienda. Comparte catálogo y stock con Alon, permite registrar compradores y envía pedidos pendientes para revisar en Tienda online. Consultar [imágenes, pedidos y configuración](docs/tienda/README.md). Las fotos deben respaldarse junto con la base.
+
 - Ventas, compras, pagos, stock y caja se guardan en transacciones. Cada escritura comercial requiere Idempotency-Key; la web lo genera y lo conserva cuando se pierde una respuesta. Reutilizar una clave con datos diferentes devuelve conflicto.
 - Los importes usan DECIMAL/BigDecimal y las cantidades hasta tres decimales. Se rechaza precisión excesiva en vez de redondear silenciosamente la entrada.
 - La corrección de una compra recalcula su valoración, conserva el registro anterior y registra al autor. Si hubo salidas posteriores del artículo, se impide reescribir esa compra; deben registrarse los ajustes correspondientes. Las ventas conservan sus costos históricos.

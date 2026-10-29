@@ -1,4 +1,72 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+.store-payment-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  max-width: 100%;
+}
+.store-payment-field select {
+  max-width: 100%;
+  min-width: 200px;
+}
+
+.store-introduction,
+.store-buyer,
+.store-order-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.store-introduction,
+.store-order-detail,
+.article-image-editor {
+  padding: 22px;
+  margin-bottom: 20px;
+}
+.store-introduction h2,
+.store-introduction p {
+  margin: 0 0 6px;
+}
+.store-introduction a {
+  display: inline-flex;
+  text-decoration: none;
+}
+.store-buyer {
+  margin: 16px 0;
+  font-size: 13px;
+  align-items: flex-start;
+}
+.store-buyer p {
+  margin: 5px 0;
+}
+.store-order-actions {
+  margin-top: 20px;
+}
+.store-excluded {
+  opacity: 0.55;
+}
+.store-excluded td:first-child {
+  text-decoration: line-through;
+}
+.article-image-editor .article-illustrative {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.article-image-editor .article-illustrative input {
+  width: auto;
+}
+.article-image-editor p {
+  font-size: 12px;
+}
+.article-image-editor input[type='file'] {
+  height: auto;
+  max-width: 100%;
+  padding: 8px;
+}
 
 :root {
   font-family: 'DM Sans', sans-serif;

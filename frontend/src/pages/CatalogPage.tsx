@@ -5,12 +5,14 @@ import { useApiRows, type ApiRow } from '../hooks/useApiRows'
 import { Pagination } from '../components/Pagination'
 import { type EntryField, LocalEntryPanel } from '../components/Forms'
 import { ApiTable } from '../components/ApiTable'
+import { ArticleImageEditor } from '../components/ArticleImageEditor'
 
 export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }) {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('Todos los rubros')
   const [showInactive, setShowInactive] = useState(false)
   const [editing, setEditing] = useState<ApiRow | null>(null)
+  const [imageArticle, setImageArticle] = useState<{ id: number; name: string } | null>(null)
   const categoryRows = useApiRows('/api/v1/demo/categories')
   const apiRows = useApiRows(
     '/api/v1/demo/articles?inactive=' +
@@ -177,6 +179,9 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
 
   return (
     <>
+      {imageArticle && (
+        <ArticleImageEditor {...imageArticle} onClose={() => setImageArticle(null)} />
+      )}
       {canEditCosts &&
         (editing ? (
           <LocalEntryPanel
@@ -305,6 +310,14 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
                     </td>
                     <td data-label="Acciones" className="article-actions">
                       <div className="row-actions">
+                        {!showInactive && (
+                          <button
+                            className="secondary-button"
+                            onClick={() => setImageArticle({ id: article.id, name: article.name })}
+                          >
+                            Foto
+                          </button>
+                        )}
                         {article.id > 0 && (
                           <>
                             {!showInactive && canEditCosts && (

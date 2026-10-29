@@ -364,6 +364,13 @@ export function SalesPage({
           { key: 'cliente', label: 'CLIENTE' },
           { key: 'tipo_venta', label: 'TIPO' },
           { key: 'medio_pago', label: 'MEDIO DE PAGO' },
+          {
+            key: 'origen',
+            label: 'ORIGEN',
+            render: (row) => (
+              <span className="status-pill">{row.origen === 'WEB' ? 'Web' : 'Local'}</span>
+            ),
+          },
           { key: 'total', label: 'TOTAL', money: true },
           {
             key: 'estado',

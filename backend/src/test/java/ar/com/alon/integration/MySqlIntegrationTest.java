@@ -97,7 +97,9 @@ class MySqlIntegrationTest {
                                                     "ventas",
                                                     "compra_detalle",
                                                     "compras",
+                                                    "pedido_tienda_detalle",
                                                     "pedidos_tienda",
+                                                    "compradores_tienda",
                                                     "articulos",
                                                     "rubros",
                                                     "clientes",
@@ -160,6 +162,425 @@ class MySqlIntegrationTest {
                         new ar.com.alon.stock.StockRepository(jdbc, identity, clock));
         customers = new CustomerService(jdbc, identity, clock, audit);
         auth = new UserService(jdbc, new PasswordHasher(), identity, 1, false);
+    }
+
+    private ar.com.alon.storefront.ShopService shop() {
+        var accounts =
+                new ar.com.alon.storefront.ShopAccountService(jdbc, mock(PasswordHasher.class), 1);
+        return new ar.com.alon.storefront.ShopService(jdbc, accounts);
+    }
+
+    private Map<String, Object> buyer() {
+        jdbc.update(
+                "INSERT IGNORE INTO compradores_tienda(id,comercio_id,nombre,apellido,dni,domicilio,telefono,password_hash) VALUES(1,1,'Ana','Prueba','30111222','Calle de prueba 123','+5491100000000','unused')");
+        return jdbc.queryForMap("SELECT * FROM compradores_tienda WHERE id=1");
+    }
+
+    private ar.com.alon.storefront.ShopService.Checkout shopInput(String units) {
+        return new ar.com.alon.storefront.ShopService.Checkout(
+                List.of(new ar.com.alon.storefront.ShopService.Line(1, d(units), d("200"))),
+                "EFECTIVO");
+    }
+
+    private ar.com.alon.storefront.StoreOrderService storeOrders() {
+        return new ar.com.alon.storefront.StoreOrderService(
+                jdbc,
+                identity,
+                clock,
+                new AuditLog(jdbc, identity, JsonMapper.builder().build()),
+                sales,
+                customers);
+    }
+
+    @Test
+    void shopSubmissionKeepsStockAndReplaysOneOrder() {
+        jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
+        var buyer = buyer();
+        var service = shop();
+        var first =
+                transaction.execute(
+                        s -> service.checkout(shopInput("2"), buyer, "shop-request-123456"));
+        var replay =
+                transaction.execute(
+                        s -> service.checkout(shopInput("2"), buyer, "shop-request-123456"));
+        assertThat(first).isEqualTo(replay);
+        assertThat(stock()).isEqualByComparingTo("10");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pedidos_tienda", Integer.class))
+                .isEqualTo(1);
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s ->
+                                                service.checkout(
+                                                        shopInput("3"),
+                                                        buyer,
+                                                        "shop-request-123456")))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    }
+
+    @Test
+    void storeApprovalDeductsOnceAndRecordsStaff() {
+        transaction.execute(
+                s -> cash.openCash(new CashOpenInput(LocalDate.now(clock), BigDecimal.ZERO)));
+        jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
+        var buyer = buyer();
+        long id =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        shop().checkout(
+                                                                        shopInput("2"),
+                                                                        buyer,
+                                                                        "approve-order-123456"))
+                                        .get("id"))
+                        .longValue();
+        transaction.execute(s -> storeOrders().approve(id, "EFECTIVO"));
+        assertThat(stock()).isEqualByComparingTo("8");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT m.usuario_id FROM movimientos_stock m JOIN ventas v ON v.numero=m.referencia AND v.comercio_id=m.comercio_id WHERE v.pedido_tienda_id=?",
+                                Long.class,
+                                id))
+                .isEqualTo(1L);
+        assertThatThrownBy(() -> transaction.execute(s -> storeOrders().approve(id, "EFECTIVO")))
+                .isInstanceOf(BusinessConflict.class);
+        assertThat(stock()).isEqualByComparingTo("8");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimientos_stock", Integer.class))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void storeShortageRollsBackWholeOrderAndExclusionPreservesStock() {
+        transaction.execute(
+                s -> cash.openCash(new CashOpenInput(LocalDate.now(clock), BigDecimal.ZERO)));
+        jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
+        jdbc.update(
+                "INSERT INTO articulos(id,comercio_id,codigo,nombre,rubro_id,proveedor_principal_id,unidad,costo,precio_venta,stock) VALUES(2,1,'A2','Otro artículo',1,1,'UNIDAD',0,100,3)");
+        var buyer = buyer();
+        var input =
+                new ar.com.alon.storefront.ShopService.Checkout(
+                        List.of(
+                                new ar.com.alon.storefront.ShopService.Line(1, d("2"), d("200")),
+                                new ar.com.alon.storefront.ShopService.Line(2, d("2"), d("100"))),
+                        "EFECTIVO");
+        long id =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        shop().checkout(
+                                                                        input,
+                                                                        buyer,
+                                                                        "shortage-order-123456"))
+                                        .get("id"))
+                        .longValue();
+        jdbc.update("UPDATE articulos SET stock=0 WHERE id=2");
+        assertThatThrownBy(() -> transaction.execute(s -> storeOrders().approve(id, "EFECTIVO")))
+                .isInstanceOf(BusinessConflict.class);
+        assertThat(stock()).isEqualByComparingTo("10");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimientos_stock", Integer.class))
+                .isZero();
+        long line =
+                jdbc.queryForObject(
+                        "SELECT id FROM pedido_tienda_detalle WHERE pedido_id=? AND articulo_id=2",
+                        Long.class,
+                        id);
+        transaction.execute(s -> storeOrders().exclude(id, line));
+        transaction.execute(s -> storeOrders().approve(id, "EFECTIVO"));
+        assertThat(stock()).isEqualByComparingTo("8");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT total_estimado FROM pedidos_tienda WHERE id=?",
+                                BigDecimal.class,
+                                id))
+                .isEqualByComparingTo("400");
+    }
+
+    @Test
+    void shopRejectsStalePricesAndDuplicateProducts() {
+        jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
+        var buyer = buyer();
+        var stale =
+                new ar.com.alon.storefront.ShopService.Checkout(
+                        List.of(new ar.com.alon.storefront.ShopService.Line(1, d("2"), d("1"))),
+                        "EFECTIVO");
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s -> shop().checkout(stale, buyer, "stale-price-123456")))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        var duplicate =
+                new ar.com.alon.storefront.ShopService.Checkout(
+                        List.of(
+                                shopInput("2").lines().getFirst(),
+                                shopInput("2").lines().getFirst()),
+                        "EFECTIVO");
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s ->
+                                                shop().checkout(
+                                                                duplicate,
+                                                                buyer,
+                                                                "duplicate-line-123456")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pedidos_tienda", Integer.class))
+                .isZero();
+    }
+
+    @Test
+    void shopCatalogHidesUnavailableInactiveAndOtherStores() {
+        assertThat((List<?>) shop().catalog("", "", 0).get("items")).isEmpty();
+        jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
+        var result = shop().catalog("", "", 0);
+        assertThat((List<?>) result.get("items")).hasSize(1);
+        assertThat(((Map<?, ?>) ((List<?>) result.get("items")).getFirst()).containsKey("costo"))
+                .isFalse();
+        jdbc.update("UPDATE articulos SET estado='INACTIVO' WHERE id=1");
+        assertThat((List<?>) shop().catalog("", "", 0).get("items")).isEmpty();
+        when(identity.storeId()).thenReturn(2L);
+        assertThatThrownBy(() -> storeOrders().detail(1))
+                .isInstanceOf(org.springframework.dao.EmptyResultDataAccessException.class);
+    }
+
+    @Test
+    void cancellingAnOrderDoesNotDeductStock() {
+        jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
+        var buyer = buyer();
+        long id =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        shop().checkout(
+                                                                        shopInput("2"),
+                                                                        buyer,
+                                                                        "cancel-order-123456"))
+                                        .get("id"))
+                        .longValue();
+        transaction.execute(s -> storeOrders().cancel(id));
+        assertThat(stock()).isEqualByComparingTo("10");
+        assertThatThrownBy(() -> transaction.execute(s -> storeOrders().approve(id, "EFECTIVO")))
+                .isInstanceOf(BusinessConflict.class);
+    }
+
+    @Test
+    void concurrentStoreApprovalsCannotOversell() throws Exception {
+        transaction.execute(
+                s -> cash.openCash(new CashOpenInput(LocalDate.now(clock), BigDecimal.ZERO)));
+        jdbc.update("UPDATE articulos SET stock=2 WHERE id=1");
+        var buyer = buyer();
+        long a =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        shop().checkout(
+                                                                        shopInput("2"),
+                                                                        buyer,
+                                                                        "concurrent-shop-a-123456"))
+                                        .get("id"))
+                        .longValue();
+        long b =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        shop().checkout(
+                                                                        shopInput("2"),
+                                                                        buyer,
+                                                                        "concurrent-shop-b-123456"))
+                                        .get("id"))
+                        .longValue();
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var tasks =
+                    List.of(a, b).stream()
+                            .map(
+                                    id ->
+                                            executor.submit(
+                                                    () -> {
+                                                        try {
+                                                            transaction.execute(
+                                                                    s ->
+                                                                            storeOrders()
+                                                                                    .approve(
+                                                                                            id,
+                                                                                            "EFECTIVO"));
+                                                            return true;
+                                                        } catch (BusinessConflict e) {
+                                                            return false;
+                                                        }
+                                                    }))
+                            .toList();
+            int successes = 0;
+            for (var task : tasks) if (task.get(30, TimeUnit.SECONDS)) successes++;
+            assertThat(successes).isEqualTo(1);
+            assertThat(stock()).isEqualByComparingTo("0");
+        }
+    }
+
+    @Test
+    void imageUploadChecksBytesAndRollsBackFile(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        var images =
+                new ar.com.alon.articles.ArticleImageController(
+                        jdbc, identity, directory.toString());
+        var png = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(
+                new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB),
+                "png",
+                png);
+        var input =
+                new ar.com.alon.articles.ArticleImageController.Upload(
+                        Base64.getEncoder().encodeToString(png.toByteArray()), false);
+        String key =
+                transaction.execute(
+                        s -> {
+                            try {
+                                return String.valueOf(images.upload(1, input).get("key"));
+                            } catch (java.io.IOException e) {
+                                throw new java.io.UncheckedIOException(e);
+                            }
+                        });
+        assertThat(images.image(key).getBody()).isNotEmpty();
+        assertThatThrownBy(() -> images.image("../../outside.png"))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        transaction.execute(
+                s -> {
+                    try {
+                        images.upload(1, input);
+                    } catch (java.io.IOException e) {
+                        throw new java.io.UncheckedIOException(e);
+                    }
+                    s.setRollbackOnly();
+                    return null;
+                });
+        try (var files = java.nio.file.Files.list(directory)) {
+            assertThat(files.count()).isEqualTo(1);
+        }
+        var invalid =
+                new ar.com.alon.articles.ArticleImageController.Upload(
+                        Base64.getEncoder().encodeToString("<svg></svg>".getBytes()), false);
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s -> {
+                                            try {
+                                                return images.upload(1, invalid);
+                                            } catch (java.io.IOException e) {
+                                                throw new java.io.UncheckedIOException(e);
+                                            }
+                                        }))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void webApprovalRequiresPaymentAndTodaysOpenCashWithoutSideEffects() {
+        jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
+        var buyer = buyer();
+        long id =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        shop().checkout(
+                                                                        shopInput("2"),
+                                                                        buyer,
+                                                                        "closed-web-order-123456"))
+                                        .get("id"))
+                        .longValue();
+        assertThatThrownBy(() -> transaction.execute(s -> storeOrders().approve(id, null)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s -> storeOrders().approve(id, "CUENTA_CORRIENTE")))
+                .isInstanceOf(IllegalArgumentException.class);
+        transaction.execute(
+                s ->
+                        cash.openCash(
+                                new CashOpenInput(
+                                        LocalDate.now(clock).minusDays(1), BigDecimal.ZERO)));
+        for (String method : List.of("EFECTIVO", "TRANSFERENCIA", "MERCADO_PAGO"))
+            assertThatThrownBy(() -> transaction.execute(s -> storeOrders().approve(id, method)))
+                    .isInstanceOf(BusinessConflict.class);
+        assertThat(stock()).isEqualByComparingTo("10");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ventas", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimientos_caja", Integer.class))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimientos_stock", Integer.class))
+                .isZero();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT estado FROM pedidos_tienda WHERE id=?", String.class, id))
+                .isEqualTo("PENDIENTE_CONFIRMACION");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM clientes", Integer.class))
+                .isEqualTo(1);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(
+            strings = {"EFECTIVO", "TRANSFERENCIA", "MERCADO_PAGO"})
+    void webApprovalCreatesLinkedSaleAndCashAtOrderPrices(String method) {
+        jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
+        var buyer = buyer();
+        long cashId =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        cash.openCash(
+                                                                new CashOpenInput(
+                                                                        LocalDate.now(clock),
+                                                                        BigDecimal.ZERO)))
+                                        .get("id"))
+                        .longValue();
+        long orderId =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        shop().checkout(
+                                                                        shopInput("2"),
+                                                                        buyer,
+                                                                        "paid-web-order-123456"))
+                                        .get("id"))
+                        .longValue();
+        jdbc.update("UPDATE articulos SET precio_venta=250 WHERE id=1");
+        var result = transaction.execute(s -> storeOrders().approve(orderId, method));
+        long saleId = ((Number) result.get("venta_id")).longValue();
+        var sale = jdbc.queryForMap("SELECT * FROM ventas WHERE id=?", saleId);
+        assertThat(sale.get("origen")).isEqualTo("WEB");
+        assertThat(sale.get("pedido_tienda_id")).isEqualTo(orderId);
+        assertThat(sale.get("medio_pago")).isEqualTo(method);
+        assertThat((BigDecimal) sale.get("total")).isEqualByComparingTo("400");
+        assertThat(String.valueOf(sale.get("numero"))).startsWith("VW-");
+        var movement =
+                jdbc.queryForMap(
+                        "SELECT * FROM movimientos_caja WHERE referencia=?", sale.get("numero"));
+        assertThat(movement.get("caja_id")).isEqualTo(cashId);
+        assertThat(movement.get("categoria")).isEqualTo("VENTA");
+        assertThat(movement.get("medio_pago")).isEqualTo(method);
+        assertThat((BigDecimal) movement.get("importe")).isEqualByComparingTo("400");
+        assertThat(stock()).isEqualByComparingTo("8");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT venta_id FROM pedidos_tienda WHERE id=?",
+                                Long.class,
+                                orderId))
+                .isEqualTo(saleId);
+        assertThatThrownBy(() -> transaction.execute(s -> storeOrders().approve(orderId, method)))
+                .isInstanceOf(BusinessConflict.class);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ventas", Integer.class)).isEqualTo(1);
+        transaction.execute(s -> sales.cancelSale(saleId));
+        assertThat(stock()).isEqualByComparingTo("10");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT estado FROM pedidos_tienda WHERE id=?",
+                                String.class,
+                                orderId))
+                .isEqualTo("CANCELADO");
     }
 
     private PurchaseInput purchase(String document, String quantity, String cost, String extras) {
@@ -520,6 +941,61 @@ class MySqlIntegrationTest {
                                     .build(),
                             java.net.http.HttpResponse.BodyHandlers.ofString());
             assertThat(forbidden.statusCode()).isEqualTo(403);
+            var publicCatalog =
+                    client.send(
+                            java.net.http.HttpRequest.newBuilder(
+                                            java.net.URI.create(origin + "/api/v1/shop/catalog"))
+                                    .GET()
+                                    .build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofString());
+            assertThat(publicCatalog.statusCode()).isEqualTo(200);
+            var anonymousOrder =
+                    client.send(
+                            java.net.http.HttpRequest.newBuilder(
+                                            java.net.URI.create(origin + "/api/v1/shop/orders"))
+                                    .header("Content-Type", "application/json")
+                                    .header("X-CSRF-Token", csrf)
+                                    .header("Idempotency-Key", "anonymous-shop-123456")
+                                    .POST(
+                                            java.net.http.HttpRequest.BodyPublishers.ofString(
+                                                    "{\"paymentMethod\":\"EFECTIVO\",\"lines\":[{\"articleId\":1,\"quantity\":1,\"expectedPrice\":200}]}"))
+                                    .build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofString());
+            assertThat(anonymousOrder.statusCode()).isEqualTo(401);
+            var shopper =
+                    client.send(
+                            java.net.http.HttpRequest.newBuilder(
+                                            java.net.URI.create(origin + "/api/v1/shop/register"))
+                                    .header("Content-Type", "application/json")
+                                    .header("X-CSRF-Token", csrf)
+                                    .POST(
+                                            java.net.http.HttpRequest.BodyPublishers.ofString(
+                                                    mapper.writeValueAsString(
+                                                            Map.of(
+                                                                    "firstName",
+                                                                    "Ana",
+                                                                    "lastName",
+                                                                    "Prueba",
+                                                                    "dni",
+                                                                    "30111222",
+                                                                    "address",
+                                                                    "Calle 123",
+                                                                    "phone",
+                                                                    "+54 9 11 0000 0000",
+                                                                    "password",
+                                                                    "Shopper-test-2026!"))))
+                                    .build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofString());
+            assertThat(shopper.statusCode()).withFailMessage(shopper.body()).isEqualTo(201);
+            assertThat(shopper.body()).doesNotContain("password_hash");
+            var staffDenied =
+                    client.send(
+                            java.net.http.HttpRequest.newBuilder(
+                                            java.net.URI.create(origin + "/api/v1/demo/customers"))
+                                    .GET()
+                                    .build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofString());
+            assertThat(staffDenied.statusCode()).isEqualTo(401);
             var login =
                     client.send(
                             java.net.http.HttpRequest.newBuilder(
