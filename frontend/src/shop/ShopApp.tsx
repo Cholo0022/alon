@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { currency, formatDateTimeDisplay } from '../lib/format'
 import { shopRequest } from './api'
 import './shop.css'
+import { ProductGallery } from './ProductGallery'
 
 type Product = {
   id: number
@@ -13,6 +14,7 @@ type Product = {
   stock: number
   imagen_clave: string | null
   imagen_ilustrativa: boolean
+  photos?: { key: string; illustrative: boolean }[]
 }
 type CartLine = Product & { quantity: number }
 type PendingOrder = { body: string; key: string }
@@ -519,20 +521,12 @@ export default function ShopApp() {
                 <div className="shop-products">
                   {catalog.items.map((p) => (
                     <article className="shop-product" key={p.id}>
-                      <div className="shop-image">
-                        {p.imagen_clave ? (
-                          <img
-                            src={'/api/v1/shop/images/' + p.imagen_clave}
-                            alt={p.nombre}
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="shop-no-photo">
-                            <span>▧</span>Foto no disponible
-                          </div>
-                        )}
-                        {Boolean(p.imagen_ilustrativa) && <small>Imagen ilustrativa</small>}
-                      </div>
+                      <ProductGallery
+                        name={p.nombre}
+                        photos={p.photos}
+                        cover={p.imagen_clave}
+                        illustrative={Boolean(p.imagen_ilustrativa)}
+                      />
                       <div className="shop-product-body">
                         <span className="shop-product-category">{p.rubro}</span>
                         <h2>{p.nombre}</h2>

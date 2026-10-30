@@ -38,6 +38,11 @@ public class StoreOrderController {
         return service.detail(id);
     }
 
+    @GetMapping("/demo/store-orders/pending-count")
+    public Map<String, Long> pendingCount() {
+        return Map.of("count", queries.pendingCount());
+    }
+
     @PostMapping("/operations/store-orders/{id}/lines/{lineId}/exclude")
     public Map<String, Object> exclude(@PathVariable long id, @PathVariable long lineId) {
         return commands.execute(

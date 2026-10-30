@@ -177,7 +177,15 @@ public class ArticleService extends StoreJdbcSupport {
                             + oldStock.toPlainString()
                             + " a "
                             + newStock.toPlainString());
-        audit.record("articulo", id, "MODIFICACION", current, input);
+        audit.record(
+                "articulo",
+                id,
+                "MODIFICACION",
+                current,
+                jdbc.queryForMap(
+                        "SELECT * FROM articulos WHERE id=? AND comercio_id=?",
+                        id,
+                        identity.storeId()));
         return Map.of("id", id, "codigo", code, "nombre", name);
     }
 

@@ -45,6 +45,7 @@ public class ShopService {
                 jdbc.queryForList(
                         "SELECT DISTINCT r.nombre FROM rubros r JOIN articulos a ON a.rubro_id=r.id WHERE a.comercio_id=? AND a.estado='ACTIVO' AND a.stock>0 ORDER BY r.nombre",
                         accounts.storeId());
+        ar.com.alon.articles.ArticlePhotoQueries.attach(jdbc, accounts.storeId(), rows);
         return Map.of(
                 "items",
                 rows,
@@ -78,11 +79,14 @@ public class ShopService {
         var args = new ArrayList<Object>();
         args.add(accounts.storeId());
         args.addAll(input.ids());
-        return jdbc.queryForList(
-                "SELECT id,nombre,unidad,precio_venta,stock,imagen_clave,imagen_ilustrativa FROM articulos WHERE comercio_id=? AND estado='ACTIVO' AND id IN ("
-                        + String.join(",", Collections.nCopies(input.ids().size(), "?"))
-                        + ")",
-                args.toArray());
+        return ar.com.alon.articles.ArticlePhotoQueries.attach(
+                jdbc,
+                accounts.storeId(),
+                jdbc.queryForList(
+                        "SELECT id,nombre,unidad,precio_venta,stock,imagen_clave,imagen_ilustrativa FROM articulos WHERE comercio_id=? AND estado='ACTIVO' AND id IN ("
+                                + String.join(",", Collections.nCopies(input.ids().size(), "?"))
+                                + ")",
+                        args.toArray()));
     }
 
     @Transactional

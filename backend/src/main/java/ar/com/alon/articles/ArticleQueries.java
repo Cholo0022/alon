@@ -30,16 +30,22 @@ public class ArticleQueries {
         if (category.length() > 90)
             throw new IllegalArgumentException("El rubro solicitado no es válido.");
         if (!identity.permits("costos") && !identity.permits("compras"))
-            return pages.query(
-                    "a.codigo,a.nombre,r.nombre",
-                    "SELECT a.id,a.codigo,a.nombre,a.stock,a.unidad,a.precio_venta,a.imagen_clave,a.imagen_ilustrativa,r.nombre AS rubro FROM articulos a JOIN rubros r ON r.id=a.rubro_id WHERE a.comercio_id=? AND a.estado=? AND (?='' OR r.nombre=?) ORDER BY a.nombre,a.id",
+            return ArticlePhotoQueries.attach(
+                    jdbc,
                     identity.storeId(),
-                    inactive ? "INACTIVO" : "ACTIVO",
-                    category,
-                    category);
-        return pages.query(
-                "a.codigo,a.nombre,r.nombre",
-                """
+                    pages.query(
+                            "a.codigo,a.nombre,r.nombre",
+                            "SELECT a.id,a.codigo,a.nombre,a.stock,a.unidad,a.precio_venta,a.imagen_clave,a.imagen_ilustrativa,r.nombre AS rubro FROM articulos a JOIN rubros r ON r.id=a.rubro_id WHERE a.comercio_id=? AND a.estado=? AND (?='' OR r.nombre=?) ORDER BY a.nombre,a.id",
+                            identity.storeId(),
+                            inactive ? "INACTIVO" : "ACTIVO",
+                            category,
+                            category));
+        return ArticlePhotoQueries.attach(
+                jdbc,
+                identity.storeId(),
+                pages.query(
+                        "a.codigo,a.nombre,r.nombre",
+                        """
                 SELECT a.id, a.codigo, a.nombre, a.rubro_id, a.proveedor_principal_id, r.nombre AS rubro, a.stock, a.stock_minimo,
                        a.unidad, a.costo, a.flete_unitario, a.flete_porcentaje, a.margen_porcentaje, a.redondeo_precio,
                        a.precio_venta, a.imagen_clave, a.imagen_ilustrativa, p.codigo AS proveedor
@@ -48,9 +54,9 @@ public class ArticleQueries {
                 JOIN proveedores p ON p.id = a.proveedor_principal_id
                 WHERE a.comercio_id = ? AND a.estado=? AND (?='' OR r.nombre=?) ORDER BY a.nombre, a.id
                 """,
-                identity.storeId(),
-                inactive ? "INACTIVO" : "ACTIVO",
-                category,
-                category);
+                        identity.storeId(),
+                        inactive ? "INACTIVO" : "ACTIVO",
+                        category,
+                        category));
     }
 }

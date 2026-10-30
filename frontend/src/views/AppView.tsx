@@ -4,6 +4,7 @@ import { currency, textValue } from '../lib/format'
 import { navigation, descriptions, type Section } from '../lib/navigation'
 import { type ApiRow } from '../hooks/useApiRows'
 import { ApiFeedback } from '../components/ApiFeedback'
+import { PendingOrdersNotice } from '../components/PendingOrdersNotice'
 import { ArticleList, CategoriesPage } from '../pages/CatalogPage'
 import { CustomerList } from '../pages/CustomerPage'
 import { SupplierList } from '../pages/SupplierPage'
@@ -125,6 +126,9 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
           </div>
         </header>
         <div className="page-wrap">
+          {permissions.includes('tienda') && (
+            <PendingOrdersNotice onOpen={() => setActiveSection('tienda')} />
+          )}
           <section className="welcome-row">
             <div>
               <p className="eyebrow">TU NEGOCIO, MÁS SIMPLE</p>

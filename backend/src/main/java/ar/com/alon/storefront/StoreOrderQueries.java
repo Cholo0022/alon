@@ -31,4 +31,13 @@ public class StoreOrderQueries {
                 """,
                 identity.storeId());
     }
+
+    public long pendingCount() {
+        Long count =
+                jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM pedidos_tienda WHERE comercio_id=? AND estado='PENDIENTE_CONFIRMACION'",
+                        Long.class,
+                        identity.storeId());
+        return count == null ? 0 : count;
+    }
 }

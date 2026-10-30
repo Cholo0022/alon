@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Combobox } from './Combobox'
 import { LookupField } from './LookupField'
 import { apiFetch } from '../lib/http'
+import { ArticlePhotosField } from './ArticlePhotosField'
+import { photoPayload, savedPhotos, type SavedArticlePhoto } from '../lib/articlePhotos'
 import {
   currency,
   textValue,
@@ -106,6 +108,8 @@ export function LocalEntryPanel({
   onSaved,
   initialOpen = false,
   panelId,
+  articlePhotos = false,
+  initialPhotos = [],
 }: {
   title: string
   action: string
@@ -118,13 +122,20 @@ export function LocalEntryPanel({
   onSaved?: () => void
   initialOpen?: boolean
   panelId?: string
+  articlePhotos?: boolean
+  initialPhotos?: SavedArticlePhoto[]
 }) {
   const [open, setOpen] = useState(initialOpen)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  const [calculatedPrice, setCalculatedPrice] = useState<number | null>(null)
+  const [calculatedPrice, setCalculatedPrice] = useState<number | null>(() => {
+    const price = fields.find((field) => field.name === 'salePrice')?.defaultValue
+    return price === undefined ? null : Number(price)
+  })
   const [cashReport, setCashReport] = useState<Record<string, unknown> | null>(null)
   const [cashSummary, setCashSummary] = useState<Record<string, unknown> | null>(null)
+  const [photos, setPhotos] = useState(() => savedPhotos(initialPhotos))
+  const [readingPhotos, setReadingPhotos] = useState(false)
   useEffect(() => {
     if (initialOpen)
       window.requestAnimationFrame(() =>
@@ -159,20 +170,25 @@ export function LocalEntryPanel({
     if (!pricePreview) return
     const values = new FormData(event.currentTarget)
     const baseCost = Number(values.get('cost') ?? 0)
-    const costFreight =
-      values.get('freightByValue') === 'on' ? Number(values.get('freightPerUnit') ?? 0) : 0
-    const percentFreight =
-      values.get('freightByPercent') === 'on'
-        ? (baseCost * Number(values.get('freightPercent') ?? 0)) / 100
-        : 0
-    const freight = costFreight + percentFreight
+    const amount = Number(values.get('freightAmount') ?? 0)
+    const freight = values.get('freightByPercent') === 'on' ? (baseCost * amount) / 100 : amount
     const margin = Number(values.get('marginPercent') ?? 0)
     let price = Math.round((baseCost + freight) * (1 + margin / 100) * 100) / 100
     if (values.get('roundPrice') === 'on' && price > 0) price = Math.ceil(price / 10) * 10
+    const changed = event.target as HTMLInputElement
+    if (
+      ['cost', 'freightAmount', 'freightByPercent', 'marginPercent', 'roundPrice'].includes(
+        changed.name,
+      )
+    ) {
+      const salePrice = event.currentTarget.elements.namedItem('salePrice')
+      if (salePrice instanceof HTMLInputElement) salePrice.value = price.toFixed(2)
+    }
     setCalculatedPrice(price)
   }
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (busy || readingPhotos) return
     const formElement = event.currentTarget
     const form = new FormData(formElement)
     const submittedName = String(form.get('name') ?? '')
@@ -228,6 +244,12 @@ export function LocalEntryPanel({
       ]
     })
     const payload = Object.fromEntries(payloadEntries)
+    if ('freightAmount' in payload) {
+      payload.freightByValue = !payload.freightByPercent
+      payload.freightPerUnit = payload.freightByPercent ? 0 : payload.freightAmount
+      payload.freightPercent = payload.freightByPercent ? payload.freightAmount : 0
+      delete payload.freightAmount
+    }
     if (fields.some((field) => field.searchable && !payload[field.name])) {
       setMessage('Elegí un artículo del listado.')
       return
@@ -238,7 +260,11 @@ export function LocalEntryPanel({
       const response = await apiFetch(endpoint, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(transform ? transform(payload) : payload),
+        body: JSON.stringify(
+          transform
+            ? transform(payload)
+            : { ...payload, ...(articlePhotos ? { photos: photoPayload(photos) } : {}) },
+        ),
       })
       const result = (await response.json().catch(() => ({}))) as { error?: string }
       if (!response.ok) throw new Error(result.error ?? 'No se pudo guardar el registro.')
@@ -247,6 +273,7 @@ export function LocalEntryPanel({
       onSaved?.()
       setMessage('Registro guardado correctamente.')
       formElement.reset()
+      setPhotos([])
       setCalculatedPrice(null)
       setOpen(false)
     } catch (error) {
@@ -283,118 +310,120 @@ export function LocalEntryPanel({
       </div>
       {open && (
         <form className="entry-form" onSubmit={submit} onChange={handleFormChange}>
-          {fields.map((field) => (
-            <label
-              key={field.name}
-              className={field.type === 'checkbox' ? 'entry-checkbox-label' : undefined}
-            >
-              {field.type === 'checkbox' ? (
-                <>
+          {fields.map((field) =>
+            field.checkboxName ? (
+              <div className="entry-freight-field" key={field.name}>
+                <label htmlFor={(panelId ?? title) + '-' + field.name}>{field.label}</label>
+                <input
+                  id={(panelId ?? title) + '-' + field.name}
+                  name={field.name}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  defaultValue={field.defaultValue}
+                />
+                <label className="entry-inline-checkbox">
                   <input
-                    name={field.name}
+                    name={field.checkboxName}
                     type="checkbox"
-                    defaultChecked={field.defaultValue === 'true'}
-                    data-exclusive-group={field.exclusiveGroup}
-                    onChange={(event) => {
-                      if (event.currentTarget.checked && field.exclusiveGroup)
-                        event.currentTarget.form
-                          ?.querySelectorAll<HTMLInputElement>(
-                            '[data-exclusive-group="' + field.exclusiveGroup + '"]',
-                          )
-                          .forEach((other) => {
-                            if (other !== event.currentTarget) other.checked = false
-                          })
-                    }}
+                    defaultChecked={field.checkedByDefault}
                   />
-                  <span>{field.label}</span>
-                </>
-              ) : (
-                <>
-                  {field.label}
-                  {field.lookupEndpoint ? (
-                    <LookupField
-                      name={field.name}
-                      label={field.label}
-                      endpoint={field.lookupEndpoint}
-                      initialRecord={
-                        field.defaultValue
-                          ? {
-                              id: Number(field.defaultValue),
-                              nombre: field.defaultLabel ?? field.defaultValue,
-                            }
-                          : undefined
-                      }
-                    />
-                  ) : field.searchable ? (
-                    <SearchableEntryField field={field} />
-                  ) : field.suggestions ? (
-                    <ArticleNameSearch field={field} />
-                  ) : field.options ? (
-                    <select name={field.name} required defaultValue={field.defaultValue ?? ''}>
-                      <option value="" disabled>
-                        Seleccionar…
-                      </option>
-                      {field.options.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : field.type === 'date' ? (
-                    <DateTextInput name={field.name} defaultValue={field.defaultValue} />
-                  ) : field.checkboxName ? (
-                    <div className="entry-freight-row">
-                      <input
-                        name={field.name}
-                        type="number"
-                        required={false}
-                        min="0"
-                        step="0.01"
-                        defaultValue={field.defaultValue}
-                      />
-                      <div className="entry-inline-checkbox">
-                        <input
-                          name={field.checkboxName}
-                          type="checkbox"
-                          aria-label={field.checkboxLabel}
-                          defaultChecked={field.checkedByDefault}
-                          data-exclusive-group="freight"
-                          onChange={(event) => {
-                            if (event.currentTarget.checked)
-                              event.currentTarget.form
-                                ?.querySelectorAll<HTMLInputElement>(
-                                  '[data-exclusive-group="freight"]',
-                                )
-                                .forEach((other) => {
-                                  if (other !== event.currentTarget) other.checked = false
-                                })
-                          }}
-                        />
-                        <span>{field.checkboxLabel}</span>
-                      </div>
-                    </div>
-                  ) : (
+                  <span>{field.checkboxLabel}</span>
+                </label>
+              </div>
+            ) : (
+              <label
+                key={field.name}
+                className={field.type === 'checkbox' ? 'entry-checkbox-label' : undefined}
+              >
+                {field.type === 'checkbox' ? (
+                  <>
                     <input
                       name={field.name}
-                      type={field.type ?? 'text'}
-                      required={
-                        !(pricePreview && ['freightPerUnit', 'freightPercent'].includes(field.name))
-                      }
-                      min={field.type === 'number' ? '0' : undefined}
-                      step={
-                        field.type === 'number'
-                          ? ['initialStock', 'minimumStock'].includes(field.name)
-                            ? '0.001'
-                            : '0.01'
-                          : undefined
-                      }
-                      defaultValue={field.defaultValue}
+                      type="checkbox"
+                      defaultChecked={field.defaultValue === 'true'}
+                      data-exclusive-group={field.exclusiveGroup}
+                      onChange={(event) => {
+                        if (event.currentTarget.checked && field.exclusiveGroup)
+                          event.currentTarget.form
+                            ?.querySelectorAll<HTMLInputElement>(
+                              '[data-exclusive-group="' + field.exclusiveGroup + '"]',
+                            )
+                            .forEach((other) => {
+                              if (other !== event.currentTarget) other.checked = false
+                            })
+                      }}
                     />
-                  )}
-                </>
-              )}
-            </label>
-          ))}
+                    <span>{field.label}</span>
+                  </>
+                ) : (
+                  <>
+                    {field.label}
+                    {field.lookupEndpoint ? (
+                      <LookupField
+                        name={field.name}
+                        label={field.label}
+                        endpoint={field.lookupEndpoint}
+                        initialRecord={
+                          field.defaultValue
+                            ? {
+                                id: Number(field.defaultValue),
+                                nombre: field.defaultLabel ?? field.defaultValue,
+                              }
+                            : undefined
+                        }
+                      />
+                    ) : field.searchable ? (
+                      <SearchableEntryField field={field} />
+                    ) : field.suggestions ? (
+                      <ArticleNameSearch field={field} />
+                    ) : field.options ? (
+                      <select name={field.name} required defaultValue={field.defaultValue ?? ''}>
+                        <option value="" disabled>
+                          Seleccionar…
+                        </option>
+                        {field.options.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : field.type === 'date' ? (
+                      <DateTextInput name={field.name} defaultValue={field.defaultValue} />
+                    ) : (
+                      <input
+                        name={field.name}
+                        type={field.type ?? 'text'}
+                        required={
+                          !(
+                            pricePreview &&
+                            ['freightPerUnit', 'freightPercent'].includes(field.name)
+                          )
+                        }
+                        min={field.type === 'number' ? '0' : undefined}
+                        step={
+                          field.type === 'number'
+                            ? ['initialStock', 'minimumStock'].includes(field.name)
+                              ? '0.001'
+                              : '0.01'
+                            : undefined
+                        }
+                        defaultValue={field.defaultValue}
+                      />
+                    )}
+                  </>
+                )}
+              </label>
+            ),
+          )}
+          {articlePhotos && (
+            <ArticlePhotosField
+              value={photos}
+              onChange={setPhotos}
+              disabled={busy}
+              onReading={setReadingPhotos}
+            />
+          )}
           {pricePreview && (
             <div className="entry-price-preview">
               Precio de venta calculado <strong>{currency.format(calculatedPrice ?? 0)}</strong>
@@ -407,7 +436,7 @@ export function LocalEntryPanel({
                 ? 'Se guarda como registro interno; no emite comprobantes fiscales ante ARCA.'
                 : 'La operación se guardará en la base de datos del comercio.'}
             </span>
-            <button className="primary-button" type="submit" disabled={busy}>
+            <button className="primary-button" type="submit" disabled={busy || readingPhotos}>
               {busy ? 'Guardando…' : 'Guardar'}
             </button>
           </div>

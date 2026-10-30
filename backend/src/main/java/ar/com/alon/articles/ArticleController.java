@@ -15,18 +15,30 @@ public class ArticleController {
     private final ArticleService service;
     private final ArticleQueries queries;
     private final CommandExecutor commands;
+    private final ArticlePhotoService photos;
 
     public ArticleController(
-            ArticleService service, ArticleQueries queries, CommandExecutor commands) {
+            ArticleService service,
+            ArticleQueries queries,
+            CommandExecutor commands,
+            ArticlePhotoService photos) {
         this.service = service;
         this.queries = queries;
         this.commands = commands;
+        this.photos = photos;
     }
 
     @PostMapping("/operations/articles")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> createArticle(@Valid @RequestBody ArticleInput input) {
-        return commands.execute("createArticle", input, () -> service.createArticle(input));
+        return commands.execute(
+                "createArticle",
+                input,
+                () -> {
+                    var article = service.createArticle(input);
+                    photos.replace(((Number) article.get("id")).longValue(), input.photos());
+                    return article;
+                });
     }
 
     @PutMapping("/operations/articles/{id}")
@@ -35,7 +47,11 @@ public class ArticleController {
         return commands.execute(
                 "updateArticle",
                 java.util.List.of(id, input),
-                () -> service.updateArticle(id, input));
+                () -> {
+                    var article = service.updateArticle(id, input);
+                    photos.replace(id, input.photos());
+                    return article;
+                });
     }
 
     @PostMapping("/operations/articles/{id}/deactivate")

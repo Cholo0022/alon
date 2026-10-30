@@ -1,4 +1,36 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+.pending-orders-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  background: #fff4da;
+  color: #67470c;
+  border: 1px solid #efd48b;
+  border-left: 4px solid #d59a25;
+  border-radius: 8px;
+}
+.pending-orders-notice strong {
+  font-size: 15px;
+}
+.pending-orders-notice p {
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+.pending-orders-notice .row-actions {
+  justify-content: flex-start;
+}
+@media (max-width: 520px) {
+  .pending-orders-notice {
+    padding: 14px;
+  }
+  .pending-orders-notice .row-actions {
+    width: 100%;
+  }
+}
 .store-payment-field {
   display: flex;
   flex-direction: column;
@@ -99,4 +131,77 @@ button {
 ::selection {
   color: #10243a;
   background: #b8e5e7;
+}
+.entry-freight-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.entry-freight-field .entry-inline-checkbox {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.article-photos-field {
+  grid-column: 1/-1;
+  min-width: 0;
+  margin: 12px 0;
+  padding: 16px;
+  border: 1px solid #dce4ea;
+  border-radius: 8px;
+}
+.article-photos-field legend {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0 6px;
+}
+.article-photos-field p {
+  font-size: 12px;
+  color: #5d6e7b;
+}
+.article-photos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.article-photo-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.article-photo-tile > img {
+  width: 100%;
+  height: 110px;
+  object-fit: contain;
+  background: #f5f6f8;
+  border-radius: 6px;
+}
+.article-photo-tile > strong {
+  font-size: 12px;
+}
+#root .article-photo-tile > label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+#root .article-photo-tile > label input {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+}
+.article-photos-chooser {
+  margin-top: 14px;
+}
+#root .article-photos-chooser input[type='file'] {
+  height: auto;
+  max-width: 100%;
+  padding: 8px;
+}
+.article-photo-tile .row-actions {
+  justify-content: flex-start;
 }

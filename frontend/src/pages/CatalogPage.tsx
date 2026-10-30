@@ -6,6 +6,7 @@ import { Pagination } from '../components/Pagination'
 import { type EntryField, LocalEntryPanel } from '../components/Forms'
 import { ApiTable } from '../components/ApiTable'
 import { ArticleImageEditor } from '../components/ArticleImageEditor'
+import type { SavedArticlePhoto } from '../components/ArticlePhotosField'
 
 export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }) {
   const [query, setQuery] = useState('')
@@ -122,22 +123,16 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
         defaultValue: value('costo', '0'),
       },
       {
-        name: 'freightPerUnit',
-        label: 'Importe de flete por unidad (opcional)',
+        name: 'freightAmount',
+        label: 'Flete',
         type: 'number',
-        defaultValue: value('flete_unitario', '0'),
-        checkboxName: 'freightByValue',
-        checkboxLabel: 'Aplicar flete fijo',
-        checkedByDefault: Boolean(row && numberValue(row.flete_unitario) > 0),
-      },
-      {
-        name: 'freightPercent',
-        label: 'Porcentaje de flete sobre el costo (opcional)',
-        type: 'number',
-        defaultValue: value('flete_porcentaje', '0'),
+        defaultValue:
+          row && numberValue(row.flete_unitario) > 0
+            ? value('flete_unitario', '0')
+            : value('flete_porcentaje', '0'),
         checkboxName: 'freightByPercent',
         checkboxLabel: 'Aplicar flete porcentual',
-        checkedByDefault: Boolean(row && numberValue(row.flete_porcentaje) > 0),
+        checkedByDefault: !row || numberValue(row.flete_unitario) === 0,
       },
       {
         name: 'marginPercent',
@@ -180,7 +175,11 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
   return (
     <>
       {imageArticle && (
-        <ArticleImageEditor {...imageArticle} onClose={() => setImageArticle(null)} />
+        <ArticleImageEditor
+          key={imageArticle.id}
+          {...imageArticle}
+          onClose={() => setImageArticle(null)}
+        />
       )}
       {canEditCosts &&
         (editing ? (
@@ -190,6 +189,9 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
             action="Guardar cambios"
             endpoint={'/api/v1/operations/articles/' + textValue(editing.id)}
             method="PUT"
+            pricePreview
+            articlePhotos
+            initialPhotos={(editing.photos ?? []) as SavedArticlePhoto[]}
             onSaved={() => setEditing(null)}
             initialOpen
             panelId="article-editor"
@@ -204,6 +206,7 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
             action="Cargar artículo"
             endpoint="/api/v1/operations/articles"
             pricePreview
+            articlePhotos
             duplicateNames={allRows.map((row) => textValue(row.nombre))}
             fields={articleFields()}
           />
@@ -315,7 +318,7 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
                             className="secondary-button"
                             onClick={() => setImageArticle({ id: article.id, name: article.name })}
                           >
-                            Foto
+                            Fotos
                           </button>
                         )}
                         {article.id > 0 && (

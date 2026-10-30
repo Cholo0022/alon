@@ -98,6 +98,7 @@ class MySqlIntegrationTest {
                                                     "compra_detalle",
                                                     "compras",
                                                     "pedido_tienda_detalle",
+                                                    "articulo_imagenes",
                                                     "pedidos_tienda",
                                                     "compradores_tienda",
                                                     "articulos",
@@ -423,36 +424,36 @@ class MySqlIntegrationTest {
     @Test
     void imageUploadChecksBytesAndRollsBackFile(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        var storage = new ar.com.alon.articles.ArticleImageStorage(directory.toString());
+        var photos =
+                new ar.com.alon.articles.ArticlePhotoService(
+                        jdbc,
+                        identity,
+                        storage,
+                        new AuditLog(jdbc, identity, JsonMapper.builder().build()));
         var images =
                 new ar.com.alon.articles.ArticleImageController(
-                        jdbc, identity, directory.toString());
+                        jdbc, photos, storage, mock(CommandExecutor.class));
         var png = new java.io.ByteArrayOutputStream();
         javax.imageio.ImageIO.write(
                 new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB),
                 "png",
                 png);
         var input =
-                new ar.com.alon.articles.ArticleImageController.Upload(
-                        Base64.getEncoder().encodeToString(png.toByteArray()), false);
+                new ar.com.alon.articles.dto.ArticlePhotoInput(
+                        null, Base64.getEncoder().encodeToString(png.toByteArray()), false);
         String key =
                 transaction.execute(
                         s -> {
-                            try {
-                                return String.valueOf(images.upload(1, input).get("key"));
-                            } catch (java.io.IOException e) {
-                                throw new java.io.UncheckedIOException(e);
-                            }
+                            return String.valueOf(
+                                    photos.replace(1, List.of(input)).getFirst().get("key"));
                         });
         assertThat(images.image(key).getBody()).isNotEmpty();
         assertThatThrownBy(() -> images.image("../../outside.png"))
                 .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
         transaction.execute(
                 s -> {
-                    try {
-                        images.upload(1, input);
-                    } catch (java.io.IOException e) {
-                        throw new java.io.UncheckedIOException(e);
-                    }
+                    photos.replace(1, List.of(input));
                     s.setRollbackOnly();
                     return null;
                 });
@@ -460,19 +461,58 @@ class MySqlIntegrationTest {
             assertThat(files.count()).isEqualTo(1);
         }
         var invalid =
-                new ar.com.alon.articles.ArticleImageController.Upload(
-                        Base64.getEncoder().encodeToString("<svg></svg>".getBytes()), false);
+                new ar.com.alon.articles.dto.ArticlePhotoInput(
+                        null, Base64.getEncoder().encodeToString("<svg></svg>".getBytes()), false);
         assertThatThrownBy(
                         () ->
                                 transaction.execute(
                                         s -> {
-                                            try {
-                                                return images.upload(1, invalid);
-                                            } catch (java.io.IOException e) {
-                                                throw new java.io.UncheckedIOException(e);
-                                            }
+                                            return photos.replace(
+                                                    1, List.of(input, input, input, invalid));
                                         }))
                 .isInstanceOf(IllegalArgumentException.class);
+        try (var files = java.nio.file.Files.list(directory)) {
+            assertThat(files.count()).isEqualTo(1);
+        }
+        assertThat(photos.list(1)).hasSize(1);
+        var four = transaction.execute(s -> photos.replace(1, List.of(input, input, input, input)));
+        assertThat(four).hasSize(4);
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s ->
+                                                photos.replace(
+                                                        1,
+                                                        List.of(
+                                                                input, input, input, input,
+                                                                input))))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(photos.list(1)).hasSize(4);
+        var reordered = new java.util.ArrayList<ar.com.alon.articles.dto.ArticlePhotoInput>();
+        for (int i = 3; i >= 0; i--)
+            reordered.add(
+                    new ar.com.alon.articles.dto.ArticlePhotoInput(
+                            String.valueOf(four.get(i).get("key")), null, false));
+        transaction.execute(s -> photos.replace(1, reordered));
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT imagen_clave FROM articulos WHERE id=1", String.class))
+                .isEqualTo(four.get(3).get("key"));
+        jdbc.update("UPDATE articulos SET stock=1 WHERE id=1");
+        assertThat(
+                        (List<?>)
+                                ((Map<?, ?>)
+                                                ((List<?>) shop().catalog("", "", 0).get("items"))
+                                                        .getFirst())
+                                        .get("photos"))
+                .hasSize(4);
+        var foreign =
+                new ar.com.alon.articles.dto.ArticlePhotoInput(
+                        java.util.UUID.randomUUID() + ".png", null, false);
+        assertThatThrownBy(() -> transaction.execute(s -> photos.replace(1, List.of(foreign))))
+                .isInstanceOf(IllegalArgumentException.class);
+        transaction.execute(s -> photos.replace(1, List.of()));
+        assertThat(photos.list(1)).isEmpty();
     }
 
     @Test
@@ -581,6 +621,33 @@ class MySqlIntegrationTest {
                                 String.class,
                                 orderId))
                 .isEqualTo("CANCELADO");
+    }
+
+    @Test
+    void pendingOrderCountCoversAllPagesAndOnlyTheCurrentStore() {
+        var rows = new java.util.ArrayList<Object[]>();
+        for (int i = 0; i < 150; i++)
+            rows.add(
+                    new Object[] {
+                        1, "Cliente de prueba", "Sin contacto", "Pedido de prueba", BigDecimal.ZERO
+                    });
+        jdbc.batchUpdate(
+                "INSERT INTO pedidos_tienda(comercio_id,nombre_cliente,contacto,detalle,total_estimado) VALUES(?,?,?,?,?)",
+                rows);
+        jdbc.update("INSERT INTO comercios(id,codigo,nombre) VALUES(2,'OTRO','Otro comercio')");
+        jdbc.update(
+                "INSERT INTO pedidos_tienda(comercio_id,nombre_cliente,contacto,detalle,total_estimado) VALUES(2,'Otro cliente','Sin contacto','Otro pedido',0)");
+        var queries = new ar.com.alon.storefront.StoreOrderQueries(jdbc, identity, clock);
+        assertThat(queries.pendingCount()).isEqualTo(150);
+        jdbc.update(
+                "UPDATE pedidos_tienda SET estado='CONFIRMADO' WHERE comercio_id=1 ORDER BY id LIMIT 1");
+        jdbc.update(
+                "UPDATE pedidos_tienda SET estado='CANCELADO' WHERE comercio_id=1 AND estado='PENDIENTE_CONFIRMACION' ORDER BY id LIMIT 1");
+        assertThat(queries.pendingCount()).isEqualTo(148);
+        when(identity.storeId()).thenReturn(2L);
+        assertThat(queries.pendingCount()).isEqualTo(1);
+        jdbc.update("UPDATE pedidos_tienda SET estado='CANCELADO' WHERE comercio_id=2");
+        assertThat(queries.pendingCount()).isZero();
     }
 
     private PurchaseInput purchase(String document, String quantity, String cost, String extras) {
@@ -846,7 +913,8 @@ class MySqlIntegrationTest {
                         false,
                         d("9.125"),
                         d("0.001"),
-                        d("200"));
+                        d("200"),
+                        null);
         transaction.execute(status -> catalog.updateArticle(1, input));
         assertThat(stock()).isEqualByComparingTo("9.125");
         assertThat(
@@ -899,7 +967,8 @@ class MySqlIntegrationTest {
     }
 
     @Test
-    void realHttpSessionRejectsForgeryAndReplaysOneBusinessOperation() throws Exception {
+    void realHttpSessionRejectsForgeryAndReplaysOneBusinessOperation(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path imageDirectory) throws Exception {
         String password = "Clave de prueba segura 2026";
         jdbc.update(
                 "UPDATE usuarios SET password_hash=? WHERE id=1",
@@ -909,6 +978,7 @@ class MySqlIntegrationTest {
         try (var context =
                 application.run(
                         "--server.port=0",
+                        "--alon.images-directory=" + imageDirectory,
                         "--spring.datasource.url=" + System.getenv("ALON_TEST_MYSQL_URL"),
                         "--spring.datasource.username="
                                 + System.getenv().getOrDefault("ALON_TEST_MYSQL_USER", "root"),
@@ -1032,6 +1102,63 @@ class MySqlIntegrationTest {
                                     "SELECT COUNT(*) FROM clientes WHERE nombre='Desde HTTP'",
                                     Integer.class))
                     .isEqualTo(1);
+            var imageBytes = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(
+                    new java.awt.image.BufferedImage(
+                            2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB),
+                    "png",
+                    imageBytes);
+            var badArticle = new java.util.LinkedHashMap<String, Object>();
+            badArticle.put("code", "BAD-PHOTOS");
+            badArticle.put("name", "Artículo con foto inválida");
+            badArticle.put("categoryId", 1);
+            badArticle.put("supplierId", 1);
+            badArticle.put("unit", "UNIDAD");
+            badArticle.put("cost", 100);
+            badArticle.put("initialStock", 3);
+            badArticle.put("minimumStock", 0);
+            badArticle.put(
+                    "photos",
+                    List.of(
+                            Map.of(
+                                    "data",
+                                    Base64.getEncoder().encodeToString(imageBytes.toByteArray()),
+                                    "illustrative",
+                                    false),
+                            Map.of(
+                                    "data",
+                                    Base64.getEncoder().encodeToString("<svg></svg>".getBytes()),
+                                    "illustrative",
+                                    false)));
+            var invalidPhoto =
+                    client.send(
+                            java.net.http.HttpRequest.newBuilder(
+                                            java.net.URI.create(
+                                                    origin + "/api/v1/operations/articles"))
+                                    .header("Content-Type", "application/json")
+                                    .header("X-CSRF-Token", csrf)
+                                    .header("Idempotency-Key", "bad-photos-http-123456")
+                                    .POST(
+                                            java.net.http.HttpRequest.BodyPublishers.ofString(
+                                                    mapper.writeValueAsString(badArticle)))
+                                    .build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofString());
+            assertThat(invalidPhoto.statusCode())
+                    .withFailMessage(invalidPhoto.body())
+                    .isEqualTo(400);
+            assertThat(
+                            jdbc.queryForObject(
+                                    "SELECT COUNT(*) FROM articulos WHERE codigo='BAD-PHOTOS'",
+                                    Integer.class))
+                    .isZero();
+            assertThat(
+                            jdbc.queryForObject(
+                                    "SELECT COUNT(*) FROM movimientos_stock WHERE referencia='ALTA-BAD-PHOTOS'",
+                                    Integer.class))
+                    .isZero();
+            try (var files = java.nio.file.Files.list(imageDirectory)) {
+                assertThat(files.count()).isZero();
+            }
             jdbc.update("UPDATE usuarios SET activo=FALSE WHERE id=1");
             var denied =
                     client.send(

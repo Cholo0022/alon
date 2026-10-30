@@ -18,4 +18,9 @@ public record ArticleInput(
         boolean roundPrice,
         BigDecimal initialStock,
         BigDecimal minimumStock,
-        BigDecimal salePrice) {}
+        BigDecimal salePrice,
+        @Size(max = 4)
+                java.util.List<
+                                @jakarta.validation.constraints.NotNull @jakarta.validation.Valid
+                                ArticlePhotoInput>
+                        photos) {}
