@@ -125,8 +125,16 @@ El acceso de Wi-Fi sirve `frontend/dist`, el catálogo, las fotos y la API de co
 
 Los cambios de productos, precios y personalización se consultan desde la API. Para cambios en el código de la tienda se debe ejecutar `npm run build` desde frontend, porque la dirección del celular usa la versión compilada. El carrito admite el HTTP de la Wi-Fi con claves aleatorias de pedido generadas mediante getRandomValues cuando randomUUID no está disponible.
 
-Las cuentas de compradores de la tienda online también admiten contraseñas de **8 a 128 caracteres**, incluidos ocho números. El registro por Wi-Fi usa el mismo límite que el servidor; las cuentas existentes conservan sus credenciales. Los compradores ingresan con teléfono y contraseña para enviar el carrito como pedido.
+Las cuentas de compradores de la tienda online también admiten contraseñas de **4 a 128 caracteres**, incluidos cuatro números. El registro por Wi-Fi usa el mismo límite que el servidor; las cuentas existentes conservan sus credenciales. Los compradores ingresan con teléfono y contraseña para enviar el carrito como pedido.
 
 ### Cambiar la contraseña del comprador en la tienda
 
-Con la cuenta compradora ya iniciada, el encabezado de la tienda ofrece **Cambiar contraseña**. El formulario solicita únicamente la nueva contraseña, de 8 a 128 caracteres; no pide la anterior ni verificación por correo. No es un restablecimiento anónimo por teléfono: la cuenta se identifica desde la sesión existente. El cambio actualiza solo a ese comprador, conserva su sesión actual y revoca sus otras sesiones. El servidor exige la sesión y el token CSRF y verifica la huella de la credencial antes de reemplazarla. El cambio también está disponible en el acceso por Wi-Fi del celular después de recargar la tienda.
+Antes de ingresar, junto a **Crear cuenta**, aparece **Olvidé mi contraseña · Modificar contraseña**. Por decisión explícita del responsable de la aplicación, este formulario permite reemplazar la contraseña indicando únicamente el teléfono y la nueva contraseña, de 4 a 128 caracteres, sin la anterior, autorización, sesión previa ni códigos. Al guardar se vuelve al ingreso. El servidor reemplaza el único hash de contraseña del comprador y revoca todas sus sesiones anteriores. Esta ruta afecta exclusivamente cuentas compradoras del comercio de la tienda; no cambia credenciales del personal, Gerentes ni superusuario. Conserva CSRF y el límite de intentos.
+
+Con la cuenta compradora ya iniciada, el encabezado conserva **Cambiar contraseña**. Esta opción solicita solo la nueva contraseña, conserva la sesión actual y revoca las demás. Ambas opciones funcionan también por Wi-Fi después de recargar la tienda.
+
+### Teléfono local y apertura de formularios
+
+El registro y el ingreso de compradores muestran **Teléfono (código de área y número)**, por ejemplo **3446236311**, sin solicitar código de país. Para teléfonos argentinos de diez dígitos, el ingreso también reconoce los formatos anteriores con +54 o +549 y comprueba la contraseña de la cuenta correspondiente. El registro evita crear una segunda cuenta local si ese teléfono ya estaba guardado con esos prefijos.
+
+Al abrir un formulario desplegable de gestión mediante LocalEntryPanel (por ejemplo, **Arqueo y cierre**), se desplaza su encabezado al inicio de la vista y se enfoca el primer campo sin otro desplazamiento. Las pantallas de cuenta de la tienda también se presentan desde su inicio y, tras ingresar, la tienda vuelve arriba para mostrar las opciones de la cuenta, incluida **Cambiar contraseña**. El comprador también puede restablecer su contraseña antes de ingresar mediante teléfono y nueva contraseña.

@@ -6,14 +6,19 @@ import ar.com.alon.storefront.ShopAccountService;
 import org.junit.jupiter.api.Test;
 
 class ShopPasswordPolicyTest {
-    /** Comprueba los límites de las contraseñas de comprador, incluidos ocho dígitos numéricos. */
+    /**
+     * Comprueba los límites de las contraseñas de comprador, incluidos cuatro dígitos numéricos.
+     */
     @Test
-    void registrationAcceptsEightAndRejectsSevenOrMoreThan128() {
+    void registrationAcceptsFourAndRejectsThreeOrMoreThan128() {
         try (var factory = jakarta.validation.Validation.buildDefaultValidatorFactory()) {
             var validator = factory.getValidator();
-            for (String password : new String[] {"12345678", "abcdefgh", "x".repeat(128)})
+            for (String password : new String[] {"1234", "abcd", "x".repeat(128)}) {
                 assertThat(validator.validate(input(password))).isEmpty();
-            for (String password : new String[] {"1234567", "", "x".repeat(129)})
+                assertThat(validator.validate(new ShopAccountService.PasswordChange(password)))
+                        .isEmpty();
+            }
+            for (String password : new String[] {"123", "", "x".repeat(129)})
                 assertThat(validator.validate(input(password)))
                         .anyMatch(error -> error.getPropertyPath().toString().equals("password"));
         }

@@ -63,6 +63,19 @@ public class ShopController {
         return accounts.start(accounts.login(input), request);
     }
 
+    /**
+     * Permite recuperar la contraseña compradora con teléfono y clave nueva, sin sesión previa ni
+     * aprobación.
+     */
+    @PostMapping("/password/reset")
+    public Map<String, Object> resetPassword(
+            @Valid @RequestBody ShopAccountService.PasswordReset input,
+            HttpServletRequest request) {
+        throttle.check("shop-reset:" + request.getRemoteAddr());
+        accounts.resetPassword(input);
+        return Map.of("ok", true);
+    }
+
     /** Actualiza la contraseña exclusivamente de la cuenta compradora que ya inició sesión. */
     @PostMapping("/password")
     public Map<String, Object> password(

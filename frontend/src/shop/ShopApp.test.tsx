@@ -148,9 +148,9 @@ it('registers location with Argentina selected by default and allows another cou
   await user.type(screen.getByLabelText('Ciudad'), 'Montevideo')
   await user.type(screen.getByLabelText('Provincia'), 'Montevideo')
   await user.selectOptions(country, 'Uruguay')
-  await user.type(screen.getByLabelText('Teléfono con código de país'), '+59899123456')
-  expect((screen.getByLabelText(/^Contraseña/) as HTMLInputElement).minLength).toBe(8)
-  await user.type(screen.getByLabelText(/^Contraseña/), '12345678')
+  await user.type(screen.getByLabelText('Teléfono (código de área y número)'), '3446236311')
+  expect((screen.getByLabelText(/^Contraseña/) as HTMLInputElement).minLength).toBe(4)
+  await user.type(screen.getByLabelText(/^Contraseña/), '1234')
   await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
   await waitFor(() => expect(request.mock.calls.some(([path]) => path === '/register')).toBe(true))
   const call = request.mock.calls.find(([path]) => path === '/register')!
@@ -295,7 +295,7 @@ it('switches among all ten templates without changing the cart or shopping contr
 })
 
 /** Cambia la contraseña de la cuenta compradora sin pedir la anterior ni solicitar datos de otra persona. */
-it('changes the signed-in shopper password using only a new eight-character password', async () => {
+it('changes the signed-in shopper password using only a new four-character password', async () => {
   const implementation = request.getMockImplementation()!
   request.mockImplementation(async (path, options) =>
     path === '/password' ? buyer : implementation(path, options),
@@ -304,10 +304,10 @@ it('changes the signed-in shopper password using only a new eight-character pass
   render(<ShopApp />)
   await user.click(await screen.findByRole('button', { name: 'Cambiar contraseña' }))
   const field = screen.getByLabelText(/^Nueva contraseña/) as HTMLInputElement
-  expect(field.minLength).toBe(8)
+  expect(field.minLength).toBe(4)
   expect(screen.queryByLabelText(/contraseña anterior/i)).toBeNull()
   expect(screen.queryByLabelText(/código de verificación/i)).toBeNull()
-  await user.type(field, '12345678')
+  await user.type(field, '1234')
   await user.click(screen.getByRole('button', { name: 'Guardar nueva contraseña' }))
   expect(
     await screen.findByText(
@@ -315,7 +315,7 @@ it('changes the signed-in shopper password using only a new eight-character pass
     ),
   ).toBeTruthy()
   const call = request.mock.calls.find(([path]) => path === '/password')!
-  expect(JSON.parse(String(call[1]?.body))).toEqual({ password: '12345678' })
+  expect(JSON.parse(String(call[1]?.body))).toEqual({ password: '1234' })
 })
 
 /** El acceso flotante no aparece con carrito vacío aunque el panel esté fuera de la pantalla. */
@@ -345,4 +345,35 @@ it('hides the cart shortcut until a product has been added', async () => {
   } finally {
     vi.unstubAllGlobals()
   }
+})
+
+/** Recupera una cuenta antes de ingresar enviando solamente teléfono y clave nueva. */
+it('offers simple password recovery next to first-time registration', async () => {
+  const original = request.getMockImplementation()!
+  request.mockImplementation(async (path, options) =>
+    path === '/session'
+      ? { user: {} }
+      : path === '/password/reset'
+        ? { ok: true }
+        : original(path, options),
+  )
+  const user = userEvent.setup()
+  render(<ShopApp />)
+  await user.click(await screen.findByRole('button', { name: 'Ingresar' }))
+  expect(screen.getByRole('button', { name: 'Primera vez · Crear cuenta' })).toBeTruthy()
+  await user.click(
+    screen.getByRole('button', { name: 'Olvidé mi contraseña · Modificar contraseña' }),
+  )
+  await user.type(screen.getByLabelText('Teléfono (código de área y número)'), '3446236311')
+  const field = screen.getByLabelText(/^Nueva contraseña/) as HTMLInputElement
+  expect(field.minLength).toBe(4)
+  await user.type(field, '1234')
+  await user.click(screen.getByRole('button', { name: 'Guardar nueva contraseña' }))
+  expect(
+    await screen.findByText(
+      'Contraseña modificada. Ingresá con tu teléfono y la nueva contraseña.',
+    ),
+  ).toBeTruthy()
+  const call = request.mock.calls.find(([path]) => path === '/password/reset')!
+  expect(JSON.parse(String(call[1]?.body))).toEqual({ phone: '3446236311', password: '1234' })
 })

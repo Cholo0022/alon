@@ -1,6 +1,6 @@
 // Construye formularios reutilizables y convierte sus campos en los datos que espera el servidor.
 import { QuantityInput } from './QuantityInput'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Combobox } from './Combobox'
 import { LookupField } from './LookupField'
 import { apiFetch } from '../lib/http'
@@ -131,6 +131,7 @@ export function LocalEntryPanel({
   articlePhotos?: boolean
   initialPhotos?: SavedArticlePhoto[]
 }) {
+  const panel = useRef<HTMLElement>(null)
   const [open, setOpen] = useState(initialOpen)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
@@ -147,9 +148,20 @@ export function LocalEntryPanel({
       window.requestAnimationFrame(() =>
         document
           .getElementById(panelId ?? '')
-          ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+          ?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }),
       )
   }, [initialOpen, panelId])
+  // Al abrir cualquier formulario de gestión, muestra su encabezado y primeros campos arriba.
+  useEffect(() => {
+    if (!open) return
+    const frame = window.requestAnimationFrame(() => {
+      panel.current?.scrollIntoView?.({ behavior: 'instant', block: 'start' })
+      panel.current
+        ?.querySelector<HTMLElement>('form input:not([type="hidden"]), form select, form textarea')
+        ?.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [open])
   /** Consulta los importes esperados de la caja de la fecha indicada para preparar su cierre. */
   const refreshCashSummary = (date: string) => {
     if (!endpoint.endsWith('/cash/close') || !date) return
@@ -294,7 +306,7 @@ export function LocalEntryPanel({
   }
 
   return (
-    <section className="entry-panel" id={panelId}>
+    <section ref={panel} className="entry-panel" id={panelId}>
       <div className="entry-heading">
         <div>
           <span className="alon-tag">GESTIÓN DEL COMERCIO</span>

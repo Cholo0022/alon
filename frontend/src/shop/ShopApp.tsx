@@ -96,7 +96,9 @@ export default function ShopApp() {
   const [cartOutsideView, setCartOutsideView] = useState(false)
   const [cart, setCart] = useState<CartLine[]>(initialCart)
   const [buyer, setBuyer] = useState<Buyer | null>(null)
-  const [screen, setScreen] = useState<'catalog' | 'account' | 'orders' | 'password'>('catalog')
+  const [screen, setScreen] = useState<'catalog' | 'account' | 'orders' | 'password' | 'recover'>(
+    'catalog',
+  )
   const [register, setRegister] = useState(false)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
@@ -108,8 +110,14 @@ export default function ShopApp() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
+  const mainPanel = useRef<HTMLElement>(null)
   const cartPanel = useRef<HTMLElement>(null)
   const pending = useRef<PendingOrder | null>(pendingOrder())
+  // Abre los formularios de cuenta al comienzo, sin dejar la contraseña fuera de la vista.
+  useEffect(() => {
+    if (screen !== 'catalog')
+      mainPanel.current?.scrollIntoView?.({ behavior: 'instant', block: 'start' })
+  }, [screen])
   const availableToAdd = productToAdd
     ? Math.max(
         0,
@@ -223,7 +231,7 @@ export default function ShopApp() {
     requestAnimationFrame(() => {
       const panel = cartPanel.current
       const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
-      panel?.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'start' })
+      panel?.scrollIntoView?.({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'start' })
       panel?.focus({ preventScroll: true })
     })
   }
@@ -288,9 +296,36 @@ export default function ShopApp() {
       setBuyer(user)
       form.reset()
       setScreen('catalog')
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
       setNotice('Ya podés enviar tu pedido.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo ingresar.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** Permite recuperar la cuenta de la tienda con teléfono y contraseña nueva, sin solicitar la anterior. */
+  const recoverPassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (busy) return
+    const form = event.currentTarget,
+      data = new FormData(form)
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await shopRequest('/password/reset', {
+        method: 'POST',
+        body: JSON.stringify({ phone: data.get('phone'), password: data.get('password') }),
+      })
+      form.reset()
+      setBuyer(null)
+      setRegister(false)
+      setScreen('account')
+      setNotice('Contraseña modificada. Ingresá con tu teléfono y la nueva contraseña.')
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'No se pudo modificar la contraseña.')
     } finally {
       setBusy(false)
     }
@@ -475,7 +510,7 @@ export default function ShopApp() {
         <span>Precios en pesos argentinos</span>
         <span>Solo productos disponibles</span>
       </div>
-      <main className="shop-main">
+      <main ref={mainPanel} className="shop-main">
         {error && (
           <div className="shop-alert shop-error" role="alert">
             {error}
@@ -489,7 +524,53 @@ export default function ShopApp() {
             {notice}
           </div>
         )}
-        {screen === 'password' && buyer ? (
+        {screen === 'recover' ? (
+          <section className="shop-account">
+            <p className="shop-eyebrow">RECUPERAR CUENTA DE LA TIENDA</p>
+            <h1>Modificar contraseña</h1>
+            <p>
+              Ingresá tu teléfono y una nueva contraseña. La contraseña anterior dejará de
+              funcionar.
+            </p>
+            <form className="shop-account-form" onSubmit={(event) => void recoverPassword(event)}>
+              <label className="shop-wide">
+                Teléfono (código de área y número)
+                <input
+                  name="phone"
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="Ej.: 3446236311"
+                  maxLength={25}
+                  autoComplete="username"
+                  required
+                />
+              </label>
+              <label className="shop-wide">
+                Nueva contraseña
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={4}
+                  maxLength={128}
+                  required
+                />
+                <small>Entre 4 y 128 caracteres.</small>
+              </label>
+              <button className="shop-solid shop-wide" disabled={busy}>
+                {busy ? 'Guardando…' : 'Guardar nueva contraseña'}
+              </button>
+              <button
+                type="button"
+                className="shop-link shop-wide"
+                disabled={busy}
+                onClick={() => setScreen('account')}
+              >
+                Volver a ingresar
+              </button>
+            </form>
+          </section>
+        ) : screen === 'password' && buyer ? (
           <section className="shop-account">
             <p className="shop-eyebrow">TU CUENTA EN LA TIENDA</p>
             <h1>Cambiar contraseña</h1>
@@ -504,12 +585,12 @@ export default function ShopApp() {
                   name="password"
                   type="password"
                   autoComplete="new-password"
-                  minLength={8}
+                  minLength={4}
                   maxLength={128}
                   required
                   autoFocus
                 />
-                <small>Entre 8 y 128 caracteres.</small>
+                <small>Entre 4 y 128 caracteres.</small>
               </label>
               <button className="shop-solid shop-wide" disabled={busy}>
                 {busy ? 'Guardando…' : 'Guardar nueva contraseña'}
@@ -589,12 +670,13 @@ export default function ShopApp() {
                 </>
               )}
               <label className="shop-wide">
-                Teléfono con código de país
+                Teléfono (código de área y número)
                 <input
                   name="phone"
                   type="tel"
+                  inputMode="numeric"
                   autoComplete="username"
-                  placeholder="Ej.: +54 9 11 2345 6789"
+                  placeholder="Ej.: 3446236311"
                   maxLength={25}
                   required
                 />
@@ -605,11 +687,11 @@ export default function ShopApp() {
                   name="password"
                   type="password"
                   autoComplete={register ? 'new-password' : 'current-password'}
-                  minLength={register ? 8 : undefined}
+                  minLength={register ? 4 : undefined}
                   maxLength={128}
                   required
                 />
-                {register && <small>Entre 8 y 128 caracteres.</small>}
+                {register && <small>Entre 4 y 128 caracteres.</small>}
               </label>
               <button className="shop-solid shop-wide" disabled={busy}>
                 {busy ? 'Un momento…' : register ? 'Crear cuenta' : 'Ingresar'}
@@ -621,6 +703,19 @@ export default function ShopApp() {
               >
                 {register ? 'Ya tengo una cuenta' : 'Primera vez · Crear cuenta'}
               </button>
+              {!register && (
+                <button
+                  type="button"
+                  className="shop-link shop-wide"
+                  onClick={() => {
+                    setError('')
+                    setNotice('')
+                    setScreen('recover')
+                  }}
+                >
+                  Olvidé mi contraseña · Modificar contraseña
+                </button>
+              )}
             </form>
           </section>
         ) : screen === 'orders' ? (

@@ -54,12 +54,49 @@ public class ShopAccountService {
             @NotBlank @Size(max = 100) String province,
             @NotBlank @Size(max = 100) String country,
             @NotBlank @Size(max = 25) String phone,
-            @NotBlank @Size(min = 8, max = 128) String password) {}
+            @NotBlank @Size(min = 4, max = 128) String password) {}
 
     public record Login(
             @NotBlank @Size(max = 25) String phone, @NotBlank @Size(max = 128) String password) {}
 
-    public record PasswordChange(@NotBlank @Size(min = 8, max = 128) String password) {}
+    public record PasswordChange(@NotBlank @Size(min = 4, max = 128) String password) {}
+
+    public record PasswordReset(
+            @NotBlank @Size(max = 25) String phone,
+            @NotBlank @Size(min = 4, max = 128) String password) {}
+
+    /**
+     * Reemplaza la contraseña de una cuenta compradora por teléfono, según el modo simple
+     * solicitado para esta tienda.
+     */
+    @Transactional
+    public void resetPassword(PasswordReset input) {
+        if (input.password() == null
+                || input.password().isBlank()
+                || input.password().length() < 4
+                || input.password().length() > 128)
+            throw new IllegalArgumentException(
+                    "La contraseña debe tener entre 4 y 128 caracteres.");
+        String phone = normalizePhone(input.phone()), digits = phone.substring(1);
+        boolean local = digits.length() == 10 && !input.phone().trim().startsWith("+");
+        var ids =
+                jdbc.queryForList(
+                        "SELECT id FROM compradores_tienda WHERE comercio_id=? AND telefono IN (?,?,?) AND activo=TRUE FOR UPDATE",
+                        Long.class,
+                        storeId,
+                        phone,
+                        local ? "+54" + digits : phone,
+                        local ? "+549" + digits : phone);
+        if (ids.size() != 1)
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "No se encontró una única cuenta con ese teléfono. Revisá el número ingresado.");
+        jdbc.update(
+                "UPDATE compradores_tienda SET password_hash=? WHERE comercio_id=? AND id=? AND activo=TRUE",
+                passwords.hash(input.password()),
+                storeId,
+                ids.getFirst());
+    }
 
     /**
      * Cambia únicamente la contraseña del comprador de la sesión, sin pedir la anterior ni códigos.
@@ -69,10 +106,10 @@ public class ShopAccountService {
         var user = require(request);
         if (password == null
                 || password.isBlank()
-                || password.length() < 8
+                || password.length() < 4
                 || password.length() > 128)
             throw new IllegalArgumentException(
-                    "La contraseña debe tener entre 8 y 128 caracteres.");
+                    "La contraseña debe tener entre 4 y 128 caracteres.");
         long id = ((Number) user.get("id")).longValue();
         int changed =
                 jdbc.update(
@@ -108,11 +145,12 @@ public class ShopAccountService {
      */
     public static String normalizePhone(String input) {
         if (input == null || !input.matches("[+0-9 ()-]{8,25}"))
-            throw new IllegalArgumentException("Ingresá el teléfono con código de país y área.");
+            throw new IllegalArgumentException(
+                    "Ingresá el código de área y el número de teléfono.");
         String digits = input.replaceAll("[^0-9]", "");
         if (digits.length() < 10 || digits.length() > 15)
             throw new IllegalArgumentException(
-                    "Ingresá un teléfono de 10 a 15 dígitos, incluido el código de país.");
+                    "Ingresá el código de área y número, por ejemplo 3446236311.");
         return "+" + digits;
     }
 
@@ -122,6 +160,21 @@ public class ShopAccountService {
      */
     @Transactional
     public Map<String, Object> register(Registration input) {
+        String phone = normalizePhone(input.phone());
+        String digits = phone.substring(1);
+        if (digits.length() == 10
+                && !input.phone().trim().startsWith("+")
+                && jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM compradores_tienda WHERE comercio_id=? AND telefono IN (?,?,?)",
+                                Integer.class,
+                                storeId,
+                                phone,
+                                "+54" + digits,
+                                "+549" + digits)
+                        > 0)
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Ya existe una cuenta con ese teléfono. Ingresá con tu contraseña.");
         var key = new GeneratedKeyHolder();
         String hash = passwords.hash(input.password());
         jdbc.update(
@@ -149,18 +202,29 @@ public class ShopAccountService {
 
     /** Comprueba teléfono y contraseña de un comprador activo sin revelar si la cuenta existe. */
     public Map<String, Object> login(Login input) {
+        String phone = normalizePhone(input.phone());
+        String digits = phone.substring(1);
+        boolean local = digits.length() == 10 && !input.phone().trim().startsWith("+");
         var rows =
                 jdbc.queryForList(
-                        "SELECT id,password_hash FROM compradores_tienda WHERE comercio_id=? AND telefono=? AND activo=TRUE",
+                        "SELECT id,password_hash FROM compradores_tienda WHERE comercio_id=? AND telefono IN (?,?,?) AND activo=TRUE",
                         storeId,
-                        normalizePhone(input.phone()));
-        // Se comprueba la contraseña también cuando el usuario no existe para no revelar cuentas.
-        String stored =
-                rows.isEmpty() ? dummyHash : String.valueOf(rows.getFirst().get("password_hash"));
-        if (!passwords.verify(input.password(), stored) || rows.isEmpty())
+                        phone,
+                        local ? "+54" + digits : phone,
+                        local ? "+549" + digits : phone);
+        if (rows.isEmpty()) passwords.verify(input.password(), dummyHash);
+        var matches =
+                rows.stream()
+                        .filter(
+                                row ->
+                                        passwords.verify(
+                                                input.password(),
+                                                String.valueOf(row.get("password_hash"))))
+                        .toList();
+        if (matches.size() != 1)
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED, "Teléfono o contraseña incorrectos.");
-        return account(((Number) rows.getFirst().get("id")).longValue());
+        return account(((Number) matches.getFirst().get("id")).longValue());
     }
 
     /**

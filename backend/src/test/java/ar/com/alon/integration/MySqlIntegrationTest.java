@@ -401,26 +401,44 @@ class MySqlIntegrationTest {
         accounts.start(user, second);
         assertThat(accounts.current(first)).isNotEmpty();
         assertThat(accounts.current(second)).isNotEmpty();
-        assertThatThrownBy(() -> accounts.changePassword("12345678", new MockHttpServletRequest()))
+        assertThatThrownBy(() -> accounts.changePassword("1234", new MockHttpServletRequest()))
                 .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
-        assertThatThrownBy(() -> accounts.changePassword("1234567", first))
+        assertThatThrownBy(() -> accounts.changePassword("123", first))
                 .isInstanceOf(IllegalArgumentException.class);
         jdbc.update(
                 "INSERT INTO compradores_tienda(id,comercio_id,nombre,apellido,dni,domicilio,telefono,password_hash) VALUES(9999,1,'Otro','Comprador','30111223','Calle 124','+5491100000001','hash-ajeno-no-modificar')");
-        var changed = transaction.execute(status -> accounts.changePassword("12345678", first));
+        var changed = transaction.execute(status -> accounts.changePassword("1234", first));
         assertThat(changed).containsEntry("id", id).doesNotContainKey("password_hash");
         assertThat(accounts.current(first)).isNotEmpty();
         assertThat(accounts.current(second)).isEmpty();
         assertThat(
                         accounts.login(
                                 new ar.com.alon.storefront.ShopAccountService.Login(
-                                        "+5491100000000", "12345678")))
+                                        "+5491100000000", "1234")))
                 .containsEntry("id", id);
         assertThatThrownBy(
                         () ->
                                 accounts.login(
                                         new ar.com.alon.storefront.ShopAccountService.Login(
                                                 "+5491100000000", "87654321")))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        // El restablecimiento simple usa solo teléfono y clave nueva, sin sesión ni clave anterior.
+        transaction.executeWithoutResult(
+                status ->
+                        accounts.resetPassword(
+                                new ar.com.alon.storefront.ShopAccountService.PasswordReset(
+                                        "1100000000", "5678")));
+        assertThat(accounts.current(first)).isEmpty();
+        assertThat(
+                        accounts.login(
+                                new ar.com.alon.storefront.ShopAccountService.Login(
+                                        "1100000000", "5678")))
+                .containsEntry("id", id);
+        assertThatThrownBy(
+                        () ->
+                                accounts.login(
+                                        new ar.com.alon.storefront.ShopAccountService.Login(
+                                                "1100000000", "1234")))
                 .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
         assertThat(
                         jdbc.queryForObject(
