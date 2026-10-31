@@ -1,3 +1,4 @@
+// Muestra las fotos del artículo y permite recorrer su galería.
 import { useState } from 'react'
 
 type Photo = { key: string; illustrative: boolean }

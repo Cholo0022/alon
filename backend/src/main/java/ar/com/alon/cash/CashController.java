@@ -1,3 +1,4 @@
+// Recibe las solicitudes de caja y movimientos de dinero y las deriva al servicio correspondiente.
 package ar.com.alon.cash;
 
 import ar.com.alon.cash.dto.CashCloseInput;
@@ -46,12 +47,12 @@ public class CashController {
         return service.cashSummary(date);
     }
 
-    @GetMapping("/demo/cash/status")
+    @GetMapping("/alon/cash/status")
     public Map<String, Object> cashStatus(@RequestParam LocalDate date) {
         return queries.cashStatus(date);
     }
 
-    @GetMapping("/demo/reports/cash")
+    @GetMapping("/alon/reports/cash")
     public List<Map<String, Object>> cash() {
         return queries.cash();
     }

@@ -1,3 +1,4 @@
+// Consulta compras y costos del comercio actual para mostrarlos en pantalla.
 package ar.com.alon.purchases;
 
 import ar.com.alon.security.RequestIdentity;

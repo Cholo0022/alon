@@ -1,3 +1,4 @@
+// Administra cuentas, contraseñas y permisos; conserva al menos un dueño activo.
 package ar.com.alon.users;
 
 import ar.com.alon.security.PasswordHasher;
@@ -20,7 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class UserService {
     private final long bootstrapStoreId;
-    private final boolean demoAccounts;
+    private final boolean localAccounts;
     private final PasswordHasher passwords;
     private final RequestIdentity identity;
     private final String dummyHash;
@@ -48,19 +49,21 @@ public class UserService {
             PasswordHasher passwords,
             RequestIdentity identity,
             @Value("${alon.bootstrap-store-id:1}") long bootstrapStoreId,
-            @Value("${alon.demo-accounts:false}") boolean demoAccounts) {
+            @Value("${alon.local-accounts:false}") boolean localAccounts) {
         this.jdbc = jdbc;
         this.passwords = passwords;
         this.identity = identity;
         this.bootstrapStoreId = bootstrapStoreId;
-        this.demoAccounts = demoAccounts;
+        this.localAccounts = localAccounts;
         this.dummyHash = passwords.hash(java.util.UUID.randomUUID().toString());
     }
 
+    // Estas cuentas se crean únicamente si se habilita el perfil local y el comercio no tiene
+    // usuarios.
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
-    public void seedDemoAccounts() {
-        if (!demoAccounts) return;
+    public void seedLocalAccounts() {
+        if (!localAccounts) return;
         lockStore(bootstrapStoreId);
         Integer count =
                 jdbc.queryForObject(
@@ -68,12 +71,18 @@ public class UserService {
                         Integer.class,
                         bootstrapStoreId);
         if (count == null || count > 0) return;
-        insert(bootstrapStoreId, "demo", "Demo", "CambiarDemo-2026!", "DUENO", ALL_PERMISSIONS);
+        insert(
+                bootstrapStoreId,
+                "alon_pruebas",
+                "Cuenta de prueba Alon",
+                "CambiarAlon-2026!",
+                "DUENO",
+                ALL_PERMISSIONS);
         insert(
                 bootstrapStoreId,
                 "vendedor1",
-                "Vendedor demo",
-                "CambiarDemo-2026!",
+                "Vendedor de prueba",
+                "CambiarAlon-2026!",
                 "VENDEDOR",
                 VENDOR_PERMISSIONS);
     }

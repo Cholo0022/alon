@@ -1,3 +1,4 @@
+// Muestra informes calculados con los datos guardados en el comercio.
 import { ApiTable } from '../components/ApiTable'
 
 export function ReportsPage() {
@@ -5,11 +6,11 @@ export function ReportsPage() {
     <div className="report-stack">
       <ApiTable
         title="Ventas y ganancia bruta por día"
-        endpoint="/api/v1/demo/reports/daily-sales"
+        endpoint="/api/v1/alon/reports/daily-sales"
         columns={[
           { key: 'fecha', label: 'FECHA', date: true },
           { key: 'ventas', label: 'VENTAS' },
-          { key: 'total_ventas', label: 'FACTURACIÓN DEMO', money: true },
+          { key: 'total_ventas', label: 'TOTAL DE VENTAS', money: true },
           { key: 'costo', label: 'COSTO', money: true },
           { key: 'descuentos', label: 'DESCUENTOS', money: true },
           { key: 'ganancia_bruta', label: 'GANANCIA BRUTA', money: true },
@@ -18,18 +19,18 @@ export function ReportsPage() {
       />
       <ApiTable
         title="Resumen mensual"
-        endpoint="/api/v1/demo/reports/monthly-sales"
+        endpoint="/api/v1/alon/reports/monthly-sales"
         columns={[
           { key: 'mes', label: 'MES', month: true },
           { key: 'ventas', label: 'VENTAS' },
-          { key: 'total_ventas', label: 'FACTURACIÓN DEMO', money: true },
+          { key: 'total_ventas', label: 'TOTAL DE VENTAS', money: true },
           { key: 'costo', label: 'COSTO', money: true },
           { key: 'ganancia_bruta', label: 'GANANCIA BRUTA', money: true },
         ]}
       />
       <ApiTable
         title="Medios de pago"
-        endpoint="/api/v1/demo/reports/payment-methods"
+        endpoint="/api/v1/alon/reports/payment-methods"
         columns={[
           { key: 'medio_pago', label: 'MEDIO DE PAGO' },
           { key: 'operaciones', label: 'OPERACIONES' },
@@ -38,7 +39,7 @@ export function ReportsPage() {
       />
       <ApiTable
         title="Ranking de clientes"
-        endpoint="/api/v1/demo/reports/top-customers"
+        endpoint="/api/v1/alon/reports/top-customers"
         columns={[
           { key: 'codigo', label: 'CÓDIGO' },
           { key: 'nombre', label: 'CLIENTE' },
@@ -50,7 +51,7 @@ export function ReportsPage() {
       />
       <ApiTable
         title="Artículos más vendidos"
-        endpoint="/api/v1/demo/reports/top-articles"
+        endpoint="/api/v1/alon/reports/top-articles"
         columns={[
           { key: 'codigo', label: 'CÓDIGO' },
           { key: 'nombre', label: 'ARTÍCULO' },
@@ -62,7 +63,7 @@ export function ReportsPage() {
       />
       <ApiTable
         title="Compras por artículo y proveedor"
-        endpoint="/api/v1/demo/reports/purchases-by-article"
+        endpoint="/api/v1/alon/reports/purchases-by-article"
         columns={[
           { key: 'codigo', label: 'CÓDIGO' },
           { key: 'articulo', label: 'ARTÍCULO' },
@@ -74,7 +75,7 @@ export function ReportsPage() {
       />
       <ApiTable
         title="Saldos de proveedores"
-        endpoint="/api/v1/demo/reports/supplier-balances"
+        endpoint="/api/v1/alon/reports/supplier-balances"
         columns={[
           { key: 'codigo', label: 'CÓDIGO' },
           { key: 'nombre', label: 'PROVEEDOR' },
@@ -85,7 +86,7 @@ export function ReportsPage() {
       />
       <ApiTable
         title="Gastos por día y categoría"
-        endpoint="/api/v1/demo/reports/expenses"
+        endpoint="/api/v1/alon/reports/expenses"
         columns={[
           { key: 'fecha', label: 'FECHA', date: true },
           { key: 'categoria', label: 'CATEGORÍA' },
@@ -95,7 +96,7 @@ export function ReportsPage() {
       />
       <ApiTable
         title="Artículos bajo stock mínimo"
-        endpoint="/api/v1/demo/reports/low-stock"
+        endpoint="/api/v1/alon/reports/low-stock"
         columns={[
           { key: 'codigo', label: 'CÓDIGO' },
           { key: 'nombre', label: 'ARTÍCULO' },

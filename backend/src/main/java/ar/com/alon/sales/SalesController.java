@@ -1,3 +1,4 @@
+// Recibe las solicitudes de ventas y las deriva al servicio correspondiente.
 package ar.com.alon.sales;
 
 import ar.com.alon.sales.dto.SaleInput;
@@ -33,7 +34,7 @@ public class SalesController {
         return commands.execute("cancelSale", java.util.List.of(id), () -> service.cancelSale(id));
     }
 
-    @GetMapping("/demo/sales")
+    @GetMapping("/alon/sales")
     public List<Map<String, Object>> sales(
             @RequestParam(required = false) LocalDate date,
             @RequestParam(defaultValue = "0") int page,

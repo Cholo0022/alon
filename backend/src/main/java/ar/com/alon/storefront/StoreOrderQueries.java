@@ -1,3 +1,4 @@
+// Consulta pedidos y compradores de la tienda web del comercio actual para mostrarlos en pantalla.
 package ar.com.alon.storefront;
 
 import ar.com.alon.security.RequestIdentity;

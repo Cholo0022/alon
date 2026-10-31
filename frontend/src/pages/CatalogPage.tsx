@@ -1,4 +1,6 @@
+// Permite buscar artículos, editar sus datos y organizar el catálogo por rubro.
 import { useState } from 'react'
+import { CategoryPricePanel } from '../components/CategoryPricePanel'
 import { apiFetch } from '../lib/http'
 import { currency, textValue, numberValue } from '../lib/format'
 import { useApiRows, type ApiRow } from '../hooks/useApiRows'
@@ -14,16 +16,16 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
   const [showInactive, setShowInactive] = useState(false)
   const [editing, setEditing] = useState<ApiRow | null>(null)
   const [imageArticle, setImageArticle] = useState<{ id: number; name: string } | null>(null)
-  const categoryRows = useApiRows('/api/v1/demo/categories')
+  const categoryRows = useApiRows('/api/v1/alon/categories')
   const apiRows = useApiRows(
-    '/api/v1/demo/articles?inactive=' +
+    '/api/v1/alon/articles?inactive=' +
       showInactive +
       '&q=' +
       encodeURIComponent(query) +
       '&category=' +
       encodeURIComponent(category === 'Todos los rubros' ? '' : category),
   )
-  const allRows = useApiRows('/api/v1/demo/articles')
+  const allRows = useApiRows('/api/v1/alon/articles')
   const articles = apiRows
     .map((row) => ({
       id: numberValue(row.id),
@@ -81,7 +83,7 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
         label: 'Rubro',
         valueType: 'number',
         options: categoryOptions,
-        lookupEndpoint: '/api/v1/demo/categories',
+        lookupEndpoint: '/api/v1/alon/categories',
         defaultLabel: value('rubro'),
         searchable: true,
         defaultValue: selectedCategory,
@@ -90,8 +92,10 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
         name: 'supplierId',
         label: 'Proveedor principal',
         valueType: 'number',
-        lookupEndpoint: '/api/v1/demo/lookups/suppliers',
-        defaultLabel: value('proveedor'),
+        lookupEndpoint: '/api/v1/alon/lookups/suppliers',
+        defaultLabel:
+          value('proveedor_nombre', value('proveedor')) +
+          (value('proveedor_estado') === 'INACTIVO' ? ' · inactivo' : ''),
         searchable: true,
         defaultValue: selectedSupplier,
       },
@@ -144,7 +148,13 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
         name: 'roundPrice',
         label: 'Redondear hacia arriba al próximo $10',
         type: 'checkbox',
-        defaultValue: row && Boolean(row.redondeo_precio) ? 'true' : undefined,
+        defaultValue: !row || Boolean(row.redondeo_precio) ? 'true' : undefined,
+      },
+      {
+        name: 'publishOnWeb',
+        label: 'Cargar en la web',
+        type: 'checkbox',
+        defaultValue: row && Boolean(row.cargar_web) ? 'true' : undefined,
       },
       ...(row
         ? [
@@ -174,6 +184,7 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
 
   return (
     <>
+      {canEditCosts && <CategoryPricePanel />}
       {imageArticle && (
         <ArticleImageEditor
           key={imageArticle.id}
@@ -223,7 +234,7 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
       <section className="directory-panel">
         <div className="directory-toolbar">
           <div>
-            <span className="demo-tag">{showInactive ? 'ARTÍCULOS DESACTIVADOS' : 'CATÁLOGO'}</span>
+            <span className="alon-tag">{showInactive ? 'ARTÍCULOS DESACTIVADOS' : 'CATÁLOGO'}</span>
             <strong>{filtered.length} artículos</strong>
           </div>
           <div className="directory-filters">
@@ -363,7 +374,7 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
       </section>
       <ApiTable
         title="Movimientos de stock"
-        endpoint="/api/v1/demo/stock-movements"
+        endpoint="/api/v1/alon/stock-movements"
         columns={[
           { key: 'fecha_hora', label: 'FECHA', date: true },
           { key: 'codigo', label: 'CÓDIGO' },
@@ -380,7 +391,7 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
 }
 
 export function CategoriesPage() {
-  const rows = useApiRows('/api/v1/demo/categories')
+  const rows = useApiRows('/api/v1/alon/categories')
   return (
     <>
       <LocalEntryPanel
@@ -391,7 +402,7 @@ export function CategoriesPage() {
       />
       <ApiTable
         title="Rubros disponibles para artículos"
-        endpoint="/api/v1/demo/categories"
+        endpoint="/api/v1/alon/categories"
         columns={[
           { key: 'codigo', label: 'CÓDIGO' },
           { key: 'nombre', label: 'RUBRO' },

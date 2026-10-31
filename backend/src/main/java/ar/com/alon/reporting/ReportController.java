@@ -1,3 +1,4 @@
+// Recibe las solicitudes de informes del negocio y las deriva al servicio correspondiente.
 package ar.com.alon.reporting;
 
 import java.util.List;
@@ -13,47 +14,47 @@ public class ReportController {
         this.queries = queries;
     }
 
-    @GetMapping("/demo/reports/daily-sales")
+    @GetMapping("/alon/reports/daily-sales")
     public List<Map<String, Object>> dailySales() {
         return queries.dailySales();
     }
 
-    @GetMapping("/demo/reports/monthly-sales")
+    @GetMapping("/alon/reports/monthly-sales")
     public List<Map<String, Object>> monthlySales() {
         return queries.monthlySales();
     }
 
-    @GetMapping("/demo/reports/payment-methods")
+    @GetMapping("/alon/reports/payment-methods")
     public List<Map<String, Object>> paymentMethods() {
         return queries.paymentMethods();
     }
 
-    @GetMapping("/demo/reports/top-customers")
+    @GetMapping("/alon/reports/top-customers")
     public List<Map<String, Object>> topCustomers() {
         return queries.topCustomers();
     }
 
-    @GetMapping("/demo/reports/top-articles")
+    @GetMapping("/alon/reports/top-articles")
     public List<Map<String, Object>> topArticles() {
         return queries.topArticles();
     }
 
-    @GetMapping("/demo/reports/purchases-by-article")
+    @GetMapping("/alon/reports/purchases-by-article")
     public List<Map<String, Object>> purchasesByArticle() {
         return queries.purchasesByArticle();
     }
 
-    @GetMapping("/demo/reports/supplier-balances")
+    @GetMapping("/alon/reports/supplier-balances")
     public List<Map<String, Object>> supplierBalances() {
         return queries.supplierBalances();
     }
 
-    @GetMapping("/demo/reports/expenses")
+    @GetMapping("/alon/reports/expenses")
     public List<Map<String, Object>> expenses() {
         return queries.expenses();
     }
 
-    @GetMapping("/demo/reports/low-stock")
+    @GetMapping("/alon/reports/low-stock")
     public List<Map<String, Object>> lowStock() {
         return queries.lowStock();
     }

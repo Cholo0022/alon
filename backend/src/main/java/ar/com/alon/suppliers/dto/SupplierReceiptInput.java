@@ -1,3 +1,4 @@
+// Define y valida los datos necesarios para registrar un pago a un proveedor.
 package ar.com.alon.suppliers.dto;
 
 import jakarta.validation.constraints.*;

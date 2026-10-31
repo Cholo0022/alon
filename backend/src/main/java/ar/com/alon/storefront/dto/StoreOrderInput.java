@@ -1,3 +1,4 @@
+// Define y valida los datos necesarios para registrar un pedido de la tienda.
 package ar.com.alon.storefront.dto;
 
 import jakarta.validation.constraints.*;

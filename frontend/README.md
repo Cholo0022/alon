@@ -1,6 +1,6 @@
 # Alon Web
 
-Interfaz React y TypeScript con persistencia mediante la API Spring. Los listados vacíos permanecen vacíos; los errores de red y sesión se muestran al usuario. Los datos ficticios se cargan únicamente mediante el script SQL opcional de demostración.
+Interfaz React y TypeScript con persistencia mediante la API Spring. Los listados vacíos permanecen vacíos; los errores de red y sesión se muestran al usuario. Los datos ficticios se cargan únicamente mediante el script SQL opcional de prueba.
 
 Requisitos: Node.js 24 y API local iniciada. Desde esta carpeta:
 

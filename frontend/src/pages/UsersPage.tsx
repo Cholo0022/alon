@@ -1,3 +1,4 @@
+// Permite al dueño administrar los usuarios y sus permisos.
 import { useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import { textValue } from '../lib/format'
@@ -16,7 +17,7 @@ export function UsersPage() {
   const [editRole, setEditRole] = useState('VENDEDOR')
   const [editPermissions, setEditPermissions] = useState<string[]>(['ventas', 'clientes', 'caja'])
   const accessOptions = [
-    ...navigation.filter((item) => item.id !== 'usuarios'),
+    ...navigation.filter((item) => item.id !== 'usuarios' && item.id !== 'negocio'),
     { id: 'descuentos', label: 'Autorizar descuentos' },
     { id: 'costos', label: 'Ver y modificar costos' },
   ].map(({ id, label }) => ({ id, label }))
@@ -103,7 +104,7 @@ export function UsersPage() {
       <section className="entry-panel">
         <div className="entry-heading">
           <div>
-            <span className="demo-tag">ADMINISTRACIÓN</span>
+            <span className="alon-tag">ADMINISTRACIÓN</span>
             <strong>Crear usuario</strong>
           </div>
         </div>
@@ -197,7 +198,7 @@ export function UsersPage() {
         <section className="entry-panel">
           <div className="entry-heading">
             <div>
-              <span className="demo-tag">EDITAR ACCESO</span>
+              <span className="alon-tag">EDITAR ACCESO</span>
               <strong>{textValue(editing.usuario)}</strong>
             </div>
             <button className="select-button" type="button" onClick={() => setEditing(null)}>

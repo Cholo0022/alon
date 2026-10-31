@@ -1,3 +1,4 @@
+// Registra entradas y salidas de dinero en la caja abierta del comercio.
 package ar.com.alon.cash;
 
 import ar.com.alon.security.RequestIdentity;

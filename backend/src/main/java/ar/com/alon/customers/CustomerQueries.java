@@ -1,3 +1,4 @@
+// Consulta clientes y sus cuentas del comercio actual para mostrarlos en pantalla.
 package ar.com.alon.customers;
 
 import ar.com.alon.security.RequestIdentity;

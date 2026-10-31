@@ -1,3 +1,5 @@
+// Recibe las solicitudes de pedidos y compradores de la tienda web y las deriva al servicio
+// correspondiente.
 package ar.com.alon.storefront;
 
 import ar.com.alon.shared.commands.CommandExecutor;
@@ -28,17 +30,17 @@ public class StoreOrderController {
         return commands.execute("createStoreOrder", input, () -> service.createStoreOrder(input));
     }
 
-    @GetMapping("/demo/store-orders")
+    @GetMapping("/alon/store-orders")
     public List<Map<String, Object>> storeOrders() {
         return queries.storeOrders();
     }
 
-    @GetMapping("/demo/store-orders/{id}")
+    @GetMapping("/alon/store-orders/{id}")
     public Map<String, Object> detail(@PathVariable long id) {
         return service.detail(id);
     }
 
-    @GetMapping("/demo/store-orders/pending-count")
+    @GetMapping("/alon/store-orders/pending-count")
     public Map<String, Long> pendingCount() {
         return Map.of("count", queries.pendingCount());
     }

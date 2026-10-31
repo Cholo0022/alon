@@ -1,3 +1,4 @@
+// Recibe las solicitudes de artículos y fotos y las deriva al servicio correspondiente.
 package ar.com.alon.articles;
 
 import ar.com.alon.articles.dto.ArticleInput;
@@ -70,7 +71,7 @@ public class ArticleController {
                 () -> service.setArticleActive(id, true));
     }
 
-    @GetMapping("/demo/articles")
+    @GetMapping("/alon/articles")
     public List<Map<String, Object>> articles(
             HttpServletRequest request,
             @RequestParam(defaultValue = "false") boolean inactive,

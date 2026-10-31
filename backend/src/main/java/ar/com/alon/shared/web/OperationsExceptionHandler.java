@@ -1,3 +1,4 @@
+// Convierte los errores del servidor en mensajes que la interfaz puede mostrar.
 package ar.com.alon.shared.web;
 
 import java.util.Map;

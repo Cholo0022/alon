@@ -1,3 +1,4 @@
+// Busca y pagina registros del comercio para no cargar todos los datos de una sola vez.
 package ar.com.alon.shared.persistence;
 
 import java.util.ArrayList;
@@ -9,7 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-/** Bounded, parameterized reads; searchable expressions are constants owned by repositories. */
+/** Consultas con búsqueda y paginación para cargar solo los registros necesarios. */
 @Component
 public class ReadPage {
     private final JdbcTemplate jdbc;

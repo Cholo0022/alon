@@ -1,3 +1,4 @@
+// Calcula el precio de venta a partir del costo, el flete, la ganancia y el redondeo.
 package ar.com.alon.articles;
 
 import java.math.*;

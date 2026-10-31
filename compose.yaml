@@ -4,7 +4,7 @@ services:
     container_name: alon-mysql
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-alon_demo}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-alon}
       MYSQL_USER: ${MYSQL_USER:-alon}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-alon_local}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_local}

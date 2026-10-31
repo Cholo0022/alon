@@ -1,3 +1,4 @@
+// Consulta existencias y movimientos de stock del comercio actual para mostrarlos en pantalla.
 package ar.com.alon.stock;
 
 import ar.com.alon.security.RequestIdentity;

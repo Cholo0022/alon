@@ -1,3 +1,4 @@
+// Permite consultar proveedores y registrar los pagos de sus cuentas.
 import { useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import {
@@ -28,7 +29,7 @@ export function SupplierList() {
   const receiptFlowRef = useRef<HTMLElement>(null)
   const debtListRef = useRef<HTMLElement>(null)
   const apiRows = useApiRows(
-    '/api/v1/demo/suppliers?inactive=' + showInactive + '&q=' + encodeURIComponent(query),
+    '/api/v1/alon/suppliers?inactive=' + showInactive + '&q=' + encodeURIComponent(query),
   )
   const suppliers = apiRows.map((row) => ({
     id: numberValue(row.id),
@@ -185,7 +186,7 @@ export function SupplierList() {
       )}
       <section className="supplier-debt-toolbar">
         <div>
-          <span className="demo-tag">CUENTAS A PAGAR</span>
+          <span className="alon-tag">CUENTAS A PAGAR</span>
           <strong>
             {suppliers.filter((supplier) => supplier.balance > 0).length} proveedores con saldo
             pendiente
@@ -249,7 +250,7 @@ export function SupplierList() {
         <section className="entry-panel supplier-receipt-form" ref={receiptFlowRef}>
           <div className="entry-heading">
             <div>
-              <span className="demo-tag">CONFIRMAR RECIBO</span>
+              <span className="alon-tag">CONFIRMAR RECIBO</span>
               <strong>{selectedSupplier.name}</strong>
               <small>Saldo pendiente: {currency.format(selectedSupplier.balance)}</small>
             </div>
@@ -344,7 +345,7 @@ export function SupplierList() {
       <section className="directory-panel">
         <div className="directory-toolbar">
           <div>
-            <span className="demo-tag">
+            <span className="alon-tag">
               {showInactive ? 'PROVEEDORES DESACTIVADOS' : 'PROVEEDORES ACTIVOS'}
             </span>
             <strong>{filtered.length} proveedores</strong>

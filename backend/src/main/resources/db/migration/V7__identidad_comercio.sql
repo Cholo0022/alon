@@ -1,0 +1,5 @@
+ALTER TABLE comercios
+  ADD COLUMN slogan VARCHAR(180) NOT NULL DEFAULT '',
+  ADD COLUMN color_principal CHAR(7) NOT NULL DEFAULT '#006b73',
+  ADD COLUMN color_secundario CHAR(7) NOT NULL DEFAULT '#102a43',
+  ADD COLUMN color_fondo CHAR(7) NOT NULL DEFAULT '#f4f7f9';

@@ -1,9 +1,9 @@
--- SOLO para una base demo nueva y desechable ya migrada por Flyway.
+-- SOLO para una base de prueba nueva y desechable ya migrada por Flyway.
 -- No ejecutar sobre una base con operaciones de usuarios: los IDs son fijos.
-USE alon_demo;
+USE alon;
 SET NAMES utf8mb4;
 SET time_zone='-03:00';
-INSERT INTO comercios (id, codigo, nombre) VALUES (1, 'DEMO-ALON', 'Ferretería Alon de Prueba')
+INSERT INTO comercios (id, codigo, nombre) VALUES (1, 'ALON-PRUEBAS', 'Ferretería Alon de Prueba')
 ON DUPLICATE KEY UPDATE nombre = VALUES(nombre);
 INSERT INTO rubros (id, comercio_id, codigo, nombre) VALUES
   (1,1,'FIJ','Fijaciones'), (2,1,'HMA','Herramientas manuales'),
@@ -12,9 +12,9 @@ INSERT INTO rubros (id, comercio_id, codigo, nombre) VALUES
   (7,1,'ADH','Adhesivos y selladores'), (8,1,'SEG','Seguridad')
 ON DUPLICATE KEY UPDATE nombre = VALUES(nombre);
 
-DROP TEMPORARY TABLE IF EXISTS demo_numeros;
-CREATE TEMPORARY TABLE demo_numeros (n INT NOT NULL PRIMARY KEY);
-INSERT INTO demo_numeros (n)
+DROP TEMPORARY TABLE IF EXISTS alon_numeros;
+CREATE TEMPORARY TABLE alon_numeros (n INT NOT NULL PRIMARY KEY);
+INSERT INTO alon_numeros (n)
 SELECT 1 + unidades.n + decenas.n * 10 + centenas.n * 100
 FROM (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) unidades
 CROSS JOIN (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) decenas
@@ -24,13 +24,13 @@ INSERT INTO proveedores (id, comercio_id, codigo, nombre, especialidad, telefono
 SELECT n, 1, CONCAT('PROV-', LPAD(n,2,'0')), CONCAT('Proveedor de Prueba ', LPAD(n,2,'0')),
   ELT(1 + MOD(n - 1, 10), 'Tornillería', 'Herramientas', 'Electricidad', 'Plomería', 'Pinturería', 'Seguridad', 'Adhesivos', 'Materiales', 'Ferretería general', 'Fijaciones'),
   CONCAT('+54 11 5551-', LPAD(1000+n,4,'0')), CONCAT('proveedor', LPAD(n,2,'0'), '@example.test'), IF(n=20,'INACTIVO','ACTIVO')
-FROM demo_numeros WHERE n <= 20
+FROM alon_numeros WHERE n <= 20
 ON DUPLICATE KEY UPDATE nombre=VALUES(nombre), especialidad=VALUES(especialidad), estado=VALUES(estado);
 INSERT INTO clientes (id, comercio_id, codigo, nombre, telefono, email, limite_credito, estado)
 SELECT n, 1, CONCAT('CLI-', LPAD(n,3,'0')), CONCAT('Cliente de Prueba ', LPAD(n,2,'0')),
   CONCAT('+54 11 5550-', LPAD(1000+n,4,'0')), CONCAT('cliente', LPAD(n,2,'0'), '@example.test'),
   50000 + MOD(n,5)*25000, IF(n=20,'INACTIVO','ACTIVO')
-FROM demo_numeros WHERE n <= 20
+FROM alon_numeros WHERE n <= 20
 ON DUPLICATE KEY UPDATE nombre=VALUES(nombre), limite_credito=VALUES(limite_credito), estado=VALUES(estado);
 
 INSERT INTO articulos (id, comercio_id, codigo, nombre, rubro_id, unidad, costo, precio_venta, stock, stock_minimo, proveedor_principal_id) VALUES
@@ -138,7 +138,7 @@ ON DUPLICATE KEY UPDATE nombre=VALUES(nombre), rubro_id=VALUES(rubro_id), costo=
 
 INSERT INTO compras (id, comercio_id, proveedor_id, tipo_documento, numero_documento, fecha)
 SELECT n, 1, n, IF(MOD(n,2)=0,'FACTURA','REMITO'), CONCAT('DOC-PRUEBA-',LPAD(n,3,'0')), DATE_SUB(CURDATE(), INTERVAL 11 DAY)
-FROM demo_numeros WHERE n <= 10
+FROM alon_numeros WHERE n <= 10
 ON DUPLICATE KEY UPDATE fecha=VALUES(fecha);
 INSERT INTO compra_detalle (compra_id, renglon, articulo_id, cantidad, costo_unitario, total_linea)
 SELECT a.proveedor_principal_id,
@@ -159,20 +159,20 @@ INSERT INTO cajas (id, comercio_id, fecha, abierto_en, cerrado_en, saldo_inicial
 SELECT n, 1, DATE_SUB(CURDATE(), INTERVAL (11-n) DAY),
        TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL (11-n) DAY),'08:00:00'),
        TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL (11-n) DAY),'20:00:00'), 80000
-FROM demo_numeros WHERE n <= 10
+FROM alon_numeros WHERE n <= 10
 ON DUPLICATE KEY UPDATE abierto_en=VALUES(abierto_en), cerrado_en=VALUES(cerrado_en), saldo_inicial=VALUES(saldo_inicial);
 INSERT INTO pagos_proveedores (id, comercio_id, compra_id, proveedor_id, caja_id, fecha, medio_pago, importe, numero_recibo)
 SELECT 3000+n, 1, n, n, n, DATE_SUB(CURDATE(), INTERVAL (11-n) DAY), 'EFECTIVO', c.pagado,
        CONCAT('REC-PRUEBA-',LPAD(n,3,'0'))
-FROM demo_numeros n JOIN compras c ON c.id=n.n WHERE n.n <= 10
+FROM alon_numeros n JOIN compras c ON c.id=n.n WHERE n.n <= 10
 ON DUPLICATE KEY UPDATE fecha=VALUES(fecha), importe=VALUES(importe);
 
-DROP TEMPORARY TABLE IF EXISTS demo_lineas;
-CREATE TEMPORARY TABLE demo_lineas (n INT NOT NULL PRIMARY KEY);
-INSERT INTO demo_lineas VALUES (1),(2),(3);
+DROP TEMPORARY TABLE IF EXISTS alon_lineas;
+CREATE TEMPORARY TABLE alon_lineas (n INT NOT NULL PRIMARY KEY);
+INSERT INTO alon_lineas VALUES (1),(2),(3);
 INSERT INTO ventas (id, comercio_id, numero, fecha, fecha_hora, cliente_id, tipo_venta, medio_pago, tipo_comprobante)
 SELECT n.n, 1,
-       CONCAT('V-DEMO-', DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL (10-FLOOR((n.n-1)/100)) DAY),'%y%m%d'), '-', LPAD(MOD(n.n-1,100)+1,3,'0')),
+       CONCAT('V-ALON-', DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL (10-FLOOR((n.n-1)/100)) DAY),'%y%m%d'), '-', LPAD(MOD(n.n-1,100)+1,3,'0')),
        DATE_SUB(CURDATE(), INTERVAL (10-FLOOR((n.n-1)/100)) DAY),
        TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL (10-FLOOR((n.n-1)/100)) DAY),'12:00:00'),
        MOD(n.n*7,20)+1,
@@ -180,13 +180,13 @@ SELECT n.n, 1,
        CASE WHEN MOD(n.n,10) IN (0,1,2,3) THEN 'CUENTA_CORRIENTE'
             WHEN MOD(n.n,10) IN (4,5,6,7) THEN 'EFECTIVO' ELSE 'MERCADO_PAGO' END,
        'INTERNO_NO_FISCAL'
-FROM demo_numeros n WHERE n.n <= 1000
+FROM alon_numeros n WHERE n.n <= 1000
 ON DUPLICATE KEY UPDATE fecha=VALUES(fecha), fecha_hora=VALUES(fecha_hora), cliente_id=VALUES(cliente_id), tipo_venta=VALUES(tipo_venta), medio_pago=VALUES(medio_pago);
 INSERT INTO venta_detalle (venta_id, renglon, articulo_id, cantidad, precio_unitario, costo_unitario, descuento_pct, total_linea)
 SELECT v.id, l.n, MOD(v.id*17+l.n*29,100)+1,
        1+MOD(v.id+l.n,3), a.precio_venta, a.costo, MOD(v.id+l.n,6),
        ROUND((1+MOD(v.id+l.n,3))*a.precio_venta*(1-MOD(v.id+l.n,6)/100),2)
-FROM ventas v CROSS JOIN demo_lineas l
+FROM ventas v CROSS JOIN alon_lineas l
 JOIN articulos a ON a.id=MOD(v.id*17+l.n*29,100)+1
 WHERE v.comercio_id=1
 ON DUPLICATE KEY UPDATE cantidad=VALUES(cantidad), precio_unitario=VALUES(precio_unitario), costo_unitario=VALUES(costo_unitario), descuento_pct=VALUES(descuento_pct), total_linea=VALUES(total_linea);
@@ -203,7 +203,7 @@ SELECT 2000+n.n, 1, CEIL(n.n/3), DATE_SUB(CURDATE(), INTERVAL (11-CEIL(n.n/3)) D
        CASE MOD(n.n-1,3) WHEN 0 THEN 'SUELDOS' WHEN 1 THEN 'SERVICIOS' ELSE 'LOGISTICA' END,
        CASE MOD(n.n-1,3) WHEN 0 THEN 'Jornal diario ficticio' WHEN 1 THEN 'Prorrateo ficticio de luz y gas' ELSE 'Flete y gastos de entrega ficticios' END,
        'EFECTIVO', CASE MOD(n.n-1,3) WHEN 0 THEN 45000 WHEN 1 THEN 12500 ELSE 6500 END
-FROM demo_numeros n WHERE n.n <= 30
+FROM alon_numeros n WHERE n.n <= 30
 ON DUPLICATE KEY UPDATE fecha=VALUES(fecha), importe=VALUES(importe);
 INSERT INTO movimientos_caja (id, comercio_id, caja_id, tipo, categoria, medio_pago, fecha_hora, importe, referencia, descripcion)
 SELECT v.id, 1, DATEDIFF(v.fecha, DATE_SUB(CURDATE(), INTERVAL 10 DAY))+1, 'INGRESO', 'VENTA', v.medio_pago,

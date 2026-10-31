@@ -1,3 +1,4 @@
+// Valida la precisión de cantidades e importes antes de guardarlos.
 package ar.com.alon.shared.validation;
 
 import java.math.BigDecimal;

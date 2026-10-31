@@ -1,3 +1,4 @@
+// Define y valida los datos necesarios para registrar una compra.
 package ar.com.alon.purchases.dto;
 
 import jakarta.validation.Valid;

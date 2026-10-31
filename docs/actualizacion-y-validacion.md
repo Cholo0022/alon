@@ -14,7 +14,7 @@ Flyway ejecuta V1 (esquema inicial sin datos ficticios) y V2 (integridad, permis
 
 MySQL confirma cambios de esquema por sentencia: un fallo de migración puede dejar DDL aplicado parcialmente. Si falla, conservar el diagnóstico, restaurar la copia de respaldo o corregir explícitamente el estado antes de reintentar. No usar `repair` para ocultar una actualización incompleta.
 
-V2 añade columnas de autor con valor nulo para movimientos anteriores; no inventa responsables históricos. Las correcciones y movimientos nuevos sí guardan al usuario. No cambia las contraseñas existentes ni carga cuentas demo automáticamente.
+V2 añade columnas de autor con valor nulo para movimientos anteriores; no inventa responsables históricos. Las correcciones y movimientos nuevos sí guardan al usuario. No cambia las contraseñas existentes ni carga cuentas de prueba automáticamente.
 
 ## Comprobaciones reproducibles
 
@@ -34,3 +34,19 @@ Las pruebas se niegan a limpiar una base con otro nombre. Usar un usuario exclus
 ## Límites de la validación
 
 Las pruebas de regresión no sustituyen pruebas de carga, revisión de un despliegue HTTPS, restauración de respaldos ni validación fiscal. El aislamiento implementado toma el comercio de la sesión; la provisión y administración de nuevos comercios continúa siendo administrativa. El sistema mantiene una única sucursal operativa por comercio.
+
+
+## Publicación de artículos y ubicación de compradores (V6)
+
+La migración V6 agrega `cargar_web`, desactivado para artículos nuevos y existentes. Después de actualizar, marcar **Cargar en la web** y guardar los artículos que deban aparecer en la tienda. La opción se respeta en el catálogo, rubros, carrito y envío de pedidos; los pedidos ya recibidos conservan su contenido.
+
+El redondeo queda seleccionado para artículos nuevos; las preferencias de los existentes se conservan. El registro de compradores pide código postal, ciudad, provincia y país; Argentina aparece seleccionada y se puede cambiar. Estos datos se guardan y se incluyen en el domicilio del pedido. Las cuentas existentes pueden seguir ingresando con sus credenciales.
+
+
+## Identidad del negocio y aumentos por rubro (V7)
+
+V7 agrega slogan y colores al comercio. El dueño puede modificarlos en **Modificar negocio**. La identidad se comparte con la tienda online; las pestañas abiertas se actualizan al recibir el cambio, recuperar el foco o dentro de 30 segundos mientras están visibles. Los valores predeterminados conservan la paleta base de Alon.
+
+En **Artículos y stock → Modificar precios**, seleccionar un rubro y un porcentaje positivo. La vista previa muestra la cantidad total de artículos activos y hasta diez ejemplos. Al aplicar se actualizan todos los precios de venta del rubro, incluidos los artículos habilitados en la web, respetando el redondeo individual. Los costos, stock y márgenes configurados no cambian; una compra posterior conserva la regla existente de recalcular el precio desde esos costos y márgenes.
+
+La aplicación es atómica, auditada y protegida frente a reintentos. Si cambian los precios o el conjunto de artículos después de la vista previa, se requiere revisarla nuevamente. Los usuarios necesitan acceso a Artículos y a Costos o Compras para realizar el aumento.

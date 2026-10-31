@@ -1,3 +1,4 @@
+// Permite revisar pedidos web y convertirlos en ventas cuando se confirman.
 package ar.com.alon.storefront;
 
 import ar.com.alon.security.RequestIdentity;

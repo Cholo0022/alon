@@ -1,3 +1,4 @@
+// Protege las contraseñas y permite verificar claves guardadas con formatos anteriores.
 package ar.com.alon.security;
 
 import java.security.MessageDigest;

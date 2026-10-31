@@ -1,3 +1,4 @@
+// Muestra el ingreso a Alon y, después de iniciar sesión, las secciones permitidas para cada usuario.
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import { currency, textValue } from '../lib/format'
@@ -15,6 +16,8 @@ import { ReportsPage } from '../pages/ReportsPage'
 import { UsersPage } from '../pages/UsersPage'
 import { StorePage } from '../pages/StorePage'
 import { isSessionUser, type SessionUser, type AuthStatus } from '../lib/session'
+import { BusinessPage } from '../pages/BusinessPage'
+import { useBusinessBrand, brandStyle } from '../lib/businessBrand'
 import '../App.css'
 
 function userPermissions(user: SessionUser) {
@@ -24,10 +27,13 @@ function userPermissions(user: SessionUser) {
 }
 
 export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
+  const brand = useBusinessBrand()
   const permissions = userPermissions(user)
   const canViewSummary = permissions.includes('inicio')
   const [renderTime] = useState(() => new Date())
-  const visibleNavigation = navigation.filter((item) => permissions.includes(item.id))
+  const visibleNavigation = navigation.filter(
+    (item) => permissions.includes(item.id) && (item.id !== 'negocio' || user.rol === 'DUENO'),
+  )
   const initialSection = (
     permissions.includes('inicio') ? 'inicio' : (visibleNavigation[0]?.id ?? 'ventas')
   ) as Section
@@ -39,7 +45,7 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
   useEffect(() => {
     if (!canViewSummary) return
     const load = () =>
-      apiFetch('/api/v1/demo/summary')
+      apiFetch('/api/v1/alon/summary')
         .then((response) => {
           if (!response.ok) throw new Error('API unavailable')
           return response.json() as Promise<ApiRow>
@@ -64,7 +70,7 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
       </main>
     )
   return (
-    <div className="app-shell">
+    <div className="app-shell business-themed" style={brandStyle(brand)}>
       <aside className="sidebar">
         <a
           className="brand"
@@ -78,10 +84,10 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
           </span>
         </a>
         <div className="store-switcher">
-          <span className="store-avatar">M</span>
+          <span className="store-avatar">{brand.nombre.slice(0, 1).toUpperCase()}</span>
           <span className="store-copy">
-            <strong>Mi comercio</strong>
-            <small>Plan inicial</small>
+            <strong>{brand.nombre}</strong>
+            <small>{brand.slogan || 'Tu comercio en Alon'}</small>
           </span>
           <span className="chevron">⌄</span>
         </div>
@@ -105,7 +111,7 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
       <main className="main-content">
         <header className="topbar">
           <div className="breadcrumb">
-            Mi comercio <span>/</span> <strong>{activeItem.label}</strong>
+            {brand.nombre} <span>/</span> <strong>{activeItem.label}</strong>
           </div>
           <div className="topbar-actions">
             <span className="today-label">
@@ -306,6 +312,8 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
             <ReportsPage />
           ) : activeSection === 'tienda' ? (
             <StorePage />
+          ) : activeSection === 'negocio' ? (
+            <BusinessPage brand={brand} />
           ) : activeSection === 'usuarios' ? (
             <UsersPage />
           ) : (

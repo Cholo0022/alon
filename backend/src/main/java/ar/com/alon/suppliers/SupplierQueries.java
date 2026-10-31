@@ -1,3 +1,4 @@
+// Consulta proveedores y sus cuentas del comercio actual para mostrarlos en pantalla.
 package ar.com.alon.suppliers;
 
 import ar.com.alon.security.RequestIdentity;

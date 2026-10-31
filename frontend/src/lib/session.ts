@@ -1,3 +1,4 @@
+// Comprueba que la respuesta del servidor contiene una sesión válida.
 export type SessionUser = {
   id: number
   comercio_id: number

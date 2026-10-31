@@ -1,3 +1,4 @@
+// Prepara las fotos existentes y nuevas para enviarlas al servidor.
 export type ArticlePhoto = { key?: string; data?: string; illustrative: boolean; preview: string }
 export type SavedArticlePhoto = { key: string; illustrative: boolean }
 export const savedPhotos = (photos: SavedArticlePhoto[] = []): ArticlePhoto[] =>

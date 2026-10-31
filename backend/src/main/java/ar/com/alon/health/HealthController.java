@@ -1,3 +1,4 @@
+// Permite comprobar si el servidor de Alon está funcionando.
 package ar.com.alon.health;
 
 import java.time.Instant;

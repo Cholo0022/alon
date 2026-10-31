@@ -1,3 +1,4 @@
+// Limita los intentos seguidos de ingreso para proteger las cuentas.
 package ar.com.alon.security;
 
 import java.time.Clock;
@@ -6,7 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
-/** Bounded, per-origin limiter. Do not trust client supplied forwarding headers. */
+/** Limita los intentos de ingreso por dirección de origen. */
 @Component
 public class LoginThrottle {
     private record Window(long start, int attempts) {}

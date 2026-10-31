@@ -1,3 +1,4 @@
+// Consulta caja y movimientos de dinero del comercio actual para mostrarlos en pantalla.
 package ar.com.alon.cash;
 
 import ar.com.alon.security.RequestIdentity;

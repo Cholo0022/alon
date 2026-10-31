@@ -1,3 +1,7 @@
+// Muestra la tienda web, el carrito, el registro de compradores y sus pedidos.
+import { QuantityInput } from '../components/QuantityInput'
+import { countries } from './countries'
+import { brandStyle, useBusinessBrand } from '../lib/businessBrand'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { currency, formatDateTimeDisplay } from '../lib/format'
 import { shopRequest } from './api'
@@ -72,6 +76,7 @@ function pendingOrder(): PendingOrder | null {
 }
 
 export default function ShopApp() {
+  const brand = useBusinessBrand(true)
   const [catalog, setCatalog] = useState<Catalog>({
     items: [],
     total: 0,
@@ -101,11 +106,11 @@ export default function ShopApp() {
 
   useEffect(() => {
     const previousTitle = document.title
-    document.title = 'Alon · Tienda online'
+    document.title = brand.nombre + ' · Tienda online'
     return () => {
       document.title = previousTitle
     }
-  }, [])
+  }, [brand.nombre])
   useEffect(() => {
     void shopRequest<{ user: Buyer | Record<string, never> }>('/session')
       .then((s) => setBuyer(s.user.id ? (s.user as Buyer) : null))
@@ -290,14 +295,15 @@ export default function ShopApp() {
   }
 
   return (
-    <div className="shop-app">
+    <div className="shop-app business-themed" style={brandStyle(brand)}>
       <header className="shop-header">
         <button
           className="shop-brand"
           onClick={() => setScreen('catalog')}
-          aria-label="Alon, inicio"
+          aria-label={brand.nombre + ', inicio'}
         >
-          alon<span>TIENDA ONLINE</span>
+          {brand.nombre}
+          <span>TIENDA ONLINE</span>
         </button>
         <input
           className="shop-search"
@@ -347,7 +353,8 @@ export default function ShopApp() {
         </div>
       </header>
       <div className="shop-subnav">
-        <strong>{catalog.store.nombre}</strong>
+        <strong>{brand.nombre}</strong>
+        {brand.slogan && <span>{brand.slogan}</span>}
         <span>Precios en pesos argentinos</span>
         <span>Solo productos disponibles</span>
       </div>
@@ -398,9 +405,34 @@ export default function ShopApp() {
                       name="address"
                       maxLength={180}
                       autoComplete="street-address"
-                      placeholder="Calle, número y localidad"
+                      placeholder="Calle y número"
                       required
                     />
+                  </label>
+                  <label>
+                    Código postal
+                    <input name="postalCode" maxLength={20} autoComplete="postal-code" required />
+                  </label>
+                  <label>
+                    Ciudad
+                    <input name="city" maxLength={100} autoComplete="address-level2" required />
+                  </label>
+                  <label>
+                    Provincia
+                    <input name="province" maxLength={100} autoComplete="address-level1" required />
+                  </label>
+                  <label>
+                    País
+                    <select
+                      name="country"
+                      defaultValue="Argentina"
+                      autoComplete="country-name"
+                      required
+                    >
+                      {countries.map((country) => (
+                        <option key={country}>{country}</option>
+                      ))}
+                    </select>
                   </label>
                 </>
               )}
@@ -575,10 +607,8 @@ export default function ShopApp() {
                     <div>
                       <label>
                         Cantidad
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
+                        <QuantityInput
+                          min="0.001"
                           max={Math.max(Number(p.stock), p.quantity)}
                           value={p.quantity}
                           onChange={(e) => {
@@ -652,7 +682,9 @@ export default function ShopApp() {
         )}
       </main>
       <footer className="shop-footer">
-        <strong>alon · Tu comercio conectado</strong>
+        <strong>
+          {brand.nombre} · {brand.slogan || 'Tu comercio conectado'}
+        </strong>
         <span>Pedido enviado → revisión del vendedor → confirmación</span>
       </footer>
     </div>

@@ -1,3 +1,4 @@
+// Comunica la tienda web con el servidor y envía el token necesario para guardar cambios.
 let csrf = ''
 let loading: Promise<void> | undefined
 

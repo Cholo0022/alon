@@ -1,9 +1,10 @@
+// Datos públicos del usuario conectado; las contraseñas no forman parte de esta respuesta.
 package ar.com.alon.users;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
 
-/** Public identity contract, excluding authentication secrets. */
+/** Identidad que recibe la interfaz, sin claves ni datos secretos. */
 public record SessionUser(
         long id,
         @JsonProperty("comercio_id") long storeId,

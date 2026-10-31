@@ -1,3 +1,4 @@
+// Permite consultar clientes, editar sus datos y ver sus movimientos.
 import { useState } from 'react'
 import { apiFetch } from '../lib/http'
 import { currency, textValue, numberValue } from '../lib/format'
@@ -10,7 +11,7 @@ export function CustomerList() {
   const [showInactive, setShowInactive] = useState(false)
   const [editing, setEditing] = useState<ApiRow | null>(null)
   const apiRows = useApiRows(
-    '/api/v1/demo/customers?inactive=' + showInactive + '&q=' + encodeURIComponent(query),
+    '/api/v1/alon/customers?inactive=' + showInactive + '&q=' + encodeURIComponent(query),
   )
   const customers = apiRows.map((row) => ({
     id: numberValue(row.id),
@@ -95,7 +96,7 @@ export function CustomerList() {
       <section className="directory-panel">
         <div className="directory-toolbar">
           <div>
-            <span className="demo-tag">
+            <span className="alon-tag">
               {showInactive ? 'CLIENTES DESACTIVADOS' : 'CLIENTES ACTIVOS'}
             </span>
             <strong>{filtered.length} clientes</strong>

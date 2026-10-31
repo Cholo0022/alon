@@ -1,3 +1,4 @@
+// Indica que una operación no puede continuar por el estado actual de los datos.
 package ar.com.alon.shared.web;
 
 import org.springframework.http.HttpStatus;

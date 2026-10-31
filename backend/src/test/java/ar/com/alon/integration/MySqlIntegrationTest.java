@@ -129,7 +129,7 @@ class MySqlIntegrationTest {
         jdbc.update(
                 "INSERT INTO clientes(id,comercio_id,codigo,nombre,telefono,email,limite_credito) VALUES(1,1,'C1','Cliente','','',100000)");
         jdbc.update(
-                "INSERT INTO articulos(id,comercio_id,codigo,nombre,rubro_id,proveedor_principal_id,unidad,costo,precio_venta) VALUES(1,1,'A1','Artículo',1,1,'UNIDAD',0,200)");
+                "INSERT INTO articulos(id,comercio_id,codigo,nombre,rubro_id,proveedor_principal_id,unidad,costo,precio_venta,cargar_web,redondeo_precio) VALUES(1,1,'A1','Artículo',1,1,'UNIDAD',0,200,TRUE,FALSE)");
         var audit = new AuditLog(jdbc, identity, JsonMapper.builder().build());
         purchases =
                 new PurchaseService(
@@ -257,7 +257,7 @@ class MySqlIntegrationTest {
                 s -> cash.openCash(new CashOpenInput(LocalDate.now(clock), BigDecimal.ZERO)));
         jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
         jdbc.update(
-                "INSERT INTO articulos(id,comercio_id,codigo,nombre,rubro_id,proveedor_principal_id,unidad,costo,precio_venta,stock) VALUES(2,1,'A2','Otro artículo',1,1,'UNIDAD',0,100,3)");
+                "INSERT INTO articulos(id,comercio_id,codigo,nombre,rubro_id,proveedor_principal_id,unidad,costo,precio_venta,stock,cargar_web) VALUES(2,1,'A2','Otro artículo',1,1,'UNIDAD',0,100,3,TRUE)");
         var buyer = buyer();
         var input =
                 new ar.com.alon.storefront.ShopService.Checkout(
@@ -343,6 +343,59 @@ class MySqlIntegrationTest {
         when(identity.storeId()).thenReturn(2L);
         assertThatThrownBy(() -> storeOrders().detail(1))
                 .isInstanceOf(org.springframework.dao.EmptyResultDataAccessException.class);
+    }
+
+    @Test
+    void unpublishedArticlesAreExcludedFromCatalogCartAndCheckout() {
+        jdbc.update("UPDATE articulos SET stock=10,cargar_web=FALSE WHERE id=1");
+        assertThat((List<?>) shop().catalog("", "", 0).get("items")).isEmpty();
+        assertThat((List<?>) shop().catalog("", "", 0).get("categories")).isEmpty();
+        assertThat(shop().catalog("", "", 0).get("total")).isEqualTo(0L);
+        assertThat(shop().cart(new ar.com.alon.storefront.ShopService.CartInput(List.of(1L))))
+                .isEmpty();
+        var buyer = buyer();
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s ->
+                                                shop().checkout(
+                                                                shopInput("1"),
+                                                                buyer,
+                                                                "unpublished-123456")))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("ya no está disponible");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pedidos_tienda", Long.class)).isZero();
+        jdbc.update("UPDATE articulos SET cargar_web=TRUE WHERE id=1");
+        assertThat((List<?>) shop().catalog("", "", 0).get("items")).hasSize(1);
+    }
+
+    @Test
+    void registrationStoresLocationAndUsesItInOrderAddress() {
+        var accounts = new ar.com.alon.storefront.ShopAccountService(jdbc, new PasswordHasher(), 1);
+        var user =
+                transaction.execute(
+                        s ->
+                                accounts.register(
+                                        new ar.com.alon.storefront.ShopAccountService.Registration(
+                                                "Ana",
+                                                "Prueba",
+                                                "30111222",
+                                                "Calle 123",
+                                                "11000",
+                                                "Montevideo",
+                                                "Montevideo",
+                                                "Uruguay",
+                                                "+598 99 123 456",
+                                                "Shopper-test-2026!")));
+        assertThat(user)
+                .containsEntry("codigo_postal", "11000")
+                .containsEntry("ciudad", "Montevideo")
+                .containsEntry("provincia", "Montevideo")
+                .containsEntry("pais", "Uruguay");
+        jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
+        transaction.execute(s -> shop().checkout(shopInput("1"), user, "location-order-123456"));
+        assertThat(jdbc.queryForObject("SELECT domicilio FROM pedidos_tienda", String.class))
+                .isEqualTo("Calle 123, 11000, Montevideo, Montevideo, Uruguay");
     }
 
     @Test
@@ -823,12 +876,12 @@ class MySqlIntegrationTest {
     }
 
     @Test
-    void concurrentOwnerDemotionsPreserveOneOwner() throws Exception {
+    void concurrentOwnerRoleChangesPreserveOneOwner() throws Exception {
         jdbc.update(
                 "INSERT INTO usuarios(id,comercio_id,usuario,nombre,password_hash,rol,permisos) VALUES(2,1,'other','Otro','unused','DUENO','ventas')");
         try (var executor = Executors.newFixedThreadPool(2)) {
-            Callable<Boolean> first = () -> demote(1);
-            Callable<Boolean> second = () -> demote(2);
+            Callable<Boolean> first = () -> changeOwnerToSeller(1);
+            Callable<Boolean> second = () -> changeOwnerToSeller(2);
             var results = executor.invokeAll(List.of(first, second));
             assertThat(
                             results.stream()
@@ -850,7 +903,7 @@ class MySqlIntegrationTest {
                 .isEqualTo(1);
     }
 
-    private boolean demote(long id) {
+    private boolean changeOwnerToSeller(long id) {
         try {
             transaction.execute(
                     status ->
@@ -862,6 +915,91 @@ class MySqlIntegrationTest {
         } catch (org.springframework.web.server.ResponseStatusException exception) {
             return false;
         }
+    }
+
+    @Test
+    void businessBrandIsSharedWithShopAndRestrictedToOwner() {
+        when(identity.user()).thenReturn(Map.of("rol", "DUENO"));
+        jdbc.update("INSERT INTO comercios(id,codigo,nombre) VALUES(2,'OTRO','Otro comercio')");
+        var audit = new AuditLog(jdbc, identity, JsonMapper.builder().build());
+        var business = new ar.com.alon.business.BusinessService(jdbc, identity, audit);
+        var input =
+                new ar.com.alon.business.BusinessService.Input(
+                        "  Almacén Norte  ", "Siempre cerca", "#ABCDEF", "#102030", "#fefefe");
+        var saved = transaction.execute(s -> business.update(input));
+        assertThat(saved)
+                .containsEntry("nombre", "Almacén Norte")
+                .containsEntry("slogan", "Siempre cerca")
+                .containsEntry("color_principal", "#abcdef");
+        assertThat((Map<?, ?>) shop().catalog("", "", 0).get("store")).isEqualTo(saved);
+        assertThat(business.read(2))
+                .containsEntry("nombre", "Otro comercio")
+                .containsEntry("slogan", "");
+        when(identity.user()).thenReturn(Map.of("rol", "VENDEDOR"));
+        assertThatThrownBy(() -> transaction.execute(s -> business.update(input)))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    }
+
+    @Test
+    void categoryIncreaseIsScopedReviewedAndIdempotent() {
+        var audit = new AuditLog(jdbc, identity, JsonMapper.builder().build());
+        var prices = new ar.com.alon.articles.CategoryPriceService(jdbc, identity, audit);
+        jdbc.update(
+                "INSERT INTO rubros(id,comercio_id,codigo,nombre) VALUES(2,1,'R2','Otro rubro')");
+        jdbc.update(
+                "INSERT INTO articulos(id,comercio_id,codigo,nombre,rubro_id,proveedor_principal_id,unidad,costo,precio_venta,redondeo_precio,stock) VALUES(2,1,'A2','Con redondeo',1,1,'UNIDAD',50,105,TRUE,5),(3,1,'A3','Otro rubro',2,1,'UNIDAD',50,100,FALSE,5),(4,1,'A4','Inactivo',1,1,'UNIDAD',50,100,FALSE,5)");
+        jdbc.update("UPDATE articulos SET estado='INACTIVO' WHERE id=4");
+        var input = new ar.com.alon.articles.CategoryPriceService.Input(1, d("10"), null);
+        var preview = prices.preview(input);
+        assertThat(preview.get("count")).isEqualTo(2);
+        jdbc.update("UPDATE articulos SET precio_venta=201 WHERE id=1");
+        var stale =
+                new ar.com.alon.articles.CategoryPriceService.Input(
+                        1, d("10"), preview.get("expectedHash").toString());
+        assertThatThrownBy(() -> transaction.execute(s -> prices.apply(stale)))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT precio_venta FROM articulos WHERE id=2", BigDecimal.class))
+                .isEqualByComparingTo("105");
+        var fresh = prices.preview(input);
+        var reviewed =
+                new ar.com.alon.articles.CategoryPriceService.Input(
+                        1, d("10"), fresh.get("expectedHash").toString());
+        var request = new MockHttpServletRequest();
+        request.addHeader("Idempotency-Key", "category-prices-123456");
+        var commands = new CommandExecutor(jdbc, identity, request, JsonMapper.builder().build());
+        for (int i = 0; i < 2; i++)
+            transaction.execute(
+                    s ->
+                            commands.execute(
+                                    "categoryIncrease", reviewed, () -> prices.apply(reviewed)));
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT precio_venta FROM articulos WHERE id=1", BigDecimal.class))
+                .isEqualByComparingTo("221.10");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT precio_venta FROM articulos WHERE id=2", BigDecimal.class))
+                .isEqualByComparingTo("120");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT precio_venta FROM articulos WHERE id=3", BigDecimal.class))
+                .isEqualByComparingTo("100");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT precio_venta FROM articulos WHERE id=4", BigDecimal.class))
+                .isEqualByComparingTo("100");
+        assertThat(jdbc.queryForObject("SELECT stock FROM articulos WHERE id=2", BigDecimal.class))
+                .isEqualByComparingTo("5");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM auditoria_operaciones WHERE accion='AUMENTO_RUBRO'",
+                                Integer.class))
+                .isEqualTo(2);
+        when(identity.storeId()).thenReturn(2L);
+        assertThatThrownBy(() -> prices.preview(input))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -914,7 +1052,8 @@ class MySqlIntegrationTest {
                         d("9.125"),
                         d("0.001"),
                         d("200"),
-                        null);
+                        null,
+                        false);
         transaction.execute(status -> catalog.updateArticle(1, input));
         assertThat(stock()).isEqualByComparingTo("9.125");
         assertThat(
@@ -1050,6 +1189,14 @@ class MySqlIntegrationTest {
                                                                     "30111222",
                                                                     "address",
                                                                     "Calle 123",
+                                                                    "postalCode",
+                                                                    "1000",
+                                                                    "city",
+                                                                    "Buenos Aires",
+                                                                    "province",
+                                                                    "CABA",
+                                                                    "country",
+                                                                    "Argentina",
                                                                     "phone",
                                                                     "+54 9 11 0000 0000",
                                                                     "password",
@@ -1061,7 +1208,7 @@ class MySqlIntegrationTest {
             var staffDenied =
                     client.send(
                             java.net.http.HttpRequest.newBuilder(
-                                            java.net.URI.create(origin + "/api/v1/demo/customers"))
+                                            java.net.URI.create(origin + "/api/v1/alon/customers"))
                                     .GET()
                                     .build(),
                             java.net.http.HttpResponse.BodyHandlers.ofString());
@@ -1163,7 +1310,7 @@ class MySqlIntegrationTest {
             var denied =
                     client.send(
                             java.net.http.HttpRequest.newBuilder(
-                                            java.net.URI.create(origin + "/api/v1/demo/customers"))
+                                            java.net.URI.create(origin + "/api/v1/alon/customers"))
                                     .GET()
                                     .build(),
                             java.net.http.HttpResponse.BodyHandlers.ofString());
@@ -1183,7 +1330,7 @@ class MySqlIntegrationTest {
             String sql =
                     java.nio.file.Files.readString(
                                     java.nio.file.Path.of("../database/migrations/" + file))
-                            .replace("USE alon_demo;", "");
+                            .replace("USE alon;", "");
             try (var connection = source.getConnection()) {
                 var resource =
                         new org.springframework.core.io.ByteArrayResource(
@@ -1207,10 +1354,11 @@ class MySqlIntegrationTest {
     }
 
     @Test
-    void optionalDemoDataLoadsIntoTheMigratedSchema() throws Exception {
+    void optionalAlonSampleDataLoadsIntoTheMigratedSchema() throws Exception {
         String sql =
-                java.nio.file.Files.readString(java.nio.file.Path.of("../database/demo-data.sql"))
-                        .replace("USE alon_demo;", "");
+                java.nio.file.Files.readString(
+                                java.nio.file.Path.of("../database/alon-sample-data.sql"))
+                        .replace("USE alon;", "");
         try (var connection = source.getConnection()) {
             var resource =
                     new org.springframework.core.io.ByteArrayResource(

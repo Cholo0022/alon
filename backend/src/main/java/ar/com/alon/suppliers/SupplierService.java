@@ -1,3 +1,4 @@
+// Organiza las reglas de proveedores y sus cuentas.
 package ar.com.alon.suppliers;
 
 import ar.com.alon.cash.CashLedger;

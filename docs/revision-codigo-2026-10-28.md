@@ -6,7 +6,7 @@ Fecha: 28/10/2026. Alcance: fuentes Java, React/TypeScript, CSS, SQL, configurac
 
 ## Dictamen
 
-El proyecto tiene una base razonable para una demostración local, pero no cumple todavía las condiciones de calidad, seguridad y mantenibilidad necesarias para operar con comercios reales. Compilar correctamente no demuestra integridad de los procesos comerciales.
+El proyecto tiene una base razonable para una prueba local, pero no cumple todavía las condiciones de calidad, seguridad y mantenibilidad necesarias para operar con comercios reales. Compilar correctamente no garantiza integridad de los procesos comerciales.
 
 Se realizó revisión estática y se ejecutaron las comprobaciones indicadas abajo. No se inició la aplicación contra MySQL, no se ejecutaron migraciones ni se alteraron datos. Los defectos funcionales siguientes están sustentados en el flujo del código; requieren pruebas de regresión e integración al corregirse. No se modificó código de aplicación durante esta revisión.
 
@@ -14,11 +14,11 @@ Se realizó revisión estática y se ejecutaron las comprobaciones indicadas aba
 
 ### 1. Alta — La instalación documentada no es reproducible
 
-Referencias: `database/demo-data.sql:104`, `database/demo-data.sql:137`, `database/migrations/V005__sesiones_caja_mismo_dia.sql:4`, `database/migrations/V006__fecha_hora_ventas.sql:3`, `README.md`.
+Referencias: `database/alon-sample-data.sql:104`, `database/alon-sample-data.sql:137`, `database/migrations/V005__sesiones_caja_mismo_dia.sql:4`, `database/migrations/V006__fecha_hora_ventas.sql:3`, `README.md`.
 
-El esquema inicial ya incluye `numero_sesion`, `sesion_abierta`, los índices de sesiones y `ventas.fecha_hora`. V005 intenta volver a crear esas columnas y eliminar `uq_caja_fecha`, que no existe en ese esquema; V006 vuelve a crear `fecha_hora`. Seguir el inicio rápido sobre una base nueva produce errores DDL. Además, Compose y la configuración predeterminada apuntan a `alon`, mientras los scripts crean `alon_demo`; V008 no selecciona base explícitamente.
+El esquema inicial ya incluye `numero_sesion`, `sesion_abierta`, los índices de sesiones y `ventas.fecha_hora`. V005 intenta volver a crear esas columnas y eliminar `uq_caja_fecha`, que no existe en ese esquema; V006 vuelve a crear `fecha_hora`. Seguir el inicio rápido sobre una base nueva produce errores DDL. Además, Compose y la configuración predeterminada apuntan a una base diferente de la que crean los scripts; V008 no selecciona base explícitamente.
 
-Acción: establecer un esquema inicial y una cadena coherente de migraciones, con seguimiento de versiones; separar datos demo del esquema y comprobar una instalación vacía en una base desechable. Preservar un camino de actualización para instalaciones existentes.
+Acción: establecer un esquema inicial y una cadena coherente de migraciones, con seguimiento de versiones; separar datos de prueba del esquema y comprobar una instalación vacía en una base desechable. Preservar un camino de actualización para instalaciones existentes.
 
 ### 2. Alta — Editar compras deja costos y precios inconsistentes
 
@@ -36,13 +36,13 @@ Referencia: `backend/src/main/java/ar/com/alon/model/AuthModel.java:68-88`.
 
 Acción: proteger esa invariante con transacción y bloqueo; probar degradación propia, desactivación y modificaciones simultáneas de dueños.
 
-### 4. Alta antes de producción — Acceso demo y protección de autenticación insuficientes
+### 4. Alta antes de producción — Acceso de prueba y protección de autenticación insuficientes
 
 Referencias: `backend/src/main/java/ar/com/alon/model/AuthModel.java:29-34,96-115`, `backend/src/main/java/ar/com/alon/api/auth/PermissionFilter.java`.
 
-El arranque crea cuentas con contraseña pública `demo` cuando no hay usuarios. Las contraseñas nuevas admiten cuatro caracteres; no se observa limitación de intentos. PBKDF2-HMAC-SHA256 usa 210.000 iteraciones sin guardar ese parámetro en el hash. La aplicación sí usa sal aleatoria y comparación resistente a diferencias de tiempo, lo cual es positivo.
+El arranque crea cuentas con una contraseña de prueba conocida públicamente cuando no hay usuarios. Las contraseñas nuevas admiten cuatro caracteres; no se observa limitación de intentos. PBKDF2-HMAC-SHA256 usa 210.000 iteraciones sin guardar ese parámetro en el hash. La aplicación sí usa sal aleatoria y comparación resistente a diferencias de tiempo, lo cual es positivo.
 
-Acción: limitar la carga demo a un perfil explícito, endurecer la política de acceso y usar un codificador versionado con actualización de hashes al iniciar sesión. OWASP indica 600.000 iteraciones para PBKDF2-HMAC-SHA256: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html . Revisar además protección CSRF, vencimiento y revocación de sesiones, cookies y HTTPS antes de desplegar; no se verificó una explotación de CSRF y las políticas del navegador también influyen.
+Acción: limitar la carga de prueba a un perfil explícito, endurecer la política de acceso y usar un codificador versionado con actualización de hashes al iniciar sesión. OWASP indica 600.000 iteraciones para PBKDF2-HMAC-SHA256: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html . Revisar además protección CSRF, vencimiento y revocación de sesiones, cookies y HTTPS antes de desplegar; no se verificó una explotación de CSRF y las políticas del navegador también influyen.
 
 ### 5. Media — Listados vacíos o fallidos se sustituyen por datos inventados
 
@@ -50,7 +50,7 @@ Referencia: `frontend/src/views/AppView.tsx:39-53,207-213,280,315`.
 
 El hook ignora errores y devuelve una lista vacía. Los componentes usan datos locales si `apiRows.length` es cero. Una respuesta válida sin artículos, clientes o proveedores muestra registros ficticios; ocurre también al consultar inactivos y ante fallos iniciales de red o permisos. Si había datos anteriores, un error puede dejarlos visibles sin aviso.
 
-Acción: representar carga, éxito vacío, error y sesión vencida por separado; permitir datos ficticios solo mediante un modo demo explícito.
+Acción: representar carga, éxito vacío, error y sesión vencida por separado; permitir datos ficticios solo mediante un modo de prueba explícito.
 
 ### 6. Media — Las cantidades pierden precisión o pueden quedar en cero
 
@@ -62,7 +62,7 @@ Acción: separar validadores de dinero y cantidad, validar después de normaliza
 
 ### 7. Media — El informe SQL de caja no trata anulaciones como el cierre de la API
 
-Referencias: `database/migrations/V005__sesiones_caja_mismo_dia.sql:12`, `database/demo-data.sql:470`, `backend/src/main/java/ar/com/alon/model/OperationsModel.java:465-471`.
+Referencias: `database/migrations/V005__sesiones_caja_mismo_dia.sql:12`, `database/alon-sample-data.sql:470`, `backend/src/main/java/ar/com/alon/model/OperationsModel.java:465-471`.
 
 La vista suma ventas brutas y clasifica anulaciones entre egresos/gastos; la API resta `VENTA_ANULADA` de ventas y la excluye de otros egresos. La misma operación produce categorías y ventas netas distintas entre reportes y cierre.
 
@@ -78,7 +78,7 @@ Acción: obtener la identidad desde la sesión del servidor, registrar autor y m
 
 ### 9. Media — Las restricciones de compras rechazan documentos válidos de distintos proveedores
 
-Referencia: `database/demo-data.sql:83`.
+Referencia: `database/alon-sample-data.sql:83`.
 
 La clave única es `(comercio_id, numero_documento)`. Dos proveedores del mismo comercio con el documento `0001-00000001` no pueden registrarse, aunque sus documentos sean distintos.
 
@@ -100,7 +100,7 @@ Acción: usar generación de claves por la base, como en otras altas. Para nombr
 - **Permisos:** el servidor actualiza permisos desde la base en cada petición, pero `/auth/status` devuelve la copia guardada en sesión. Tras editar un rol, la navegación puede seguir mostrando accesos obsoletos. El permiso `inicio` también entrega margen bruto desde `summary`; acordar si debe requerir acceso financiero explícito. Las ventas permiten descuentos de hasta 100% a cualquier usuario con permiso de ventas, sin permiso de descuento independiente.
 - **Concurrencia y reintentos:** no se observan claves de idempotencia para ventas, compras y recibos; una respuesta perdida seguida de reintento puede duplicar operaciones. Los bloqueos de artículos siguen el orden recibido y pueden producir interbloqueos con órdenes inversos; adoptar orden estable y tratamiento de conflictos transitorios.
 - **Escalabilidad:** artículos, clientes, proveedores y compras se cargan completos; ventas se limita a 200 en la vista sin controles de paginación. Introducir filtros y paginación del servidor antes de validar el objetivo de 99.999 registros.
-- **Multi comercio:** las tres clases de modelo fijan comercio 1. Es una limitación demo documentada, no una implementación del aislamiento prometido. Obtener comercio autorizado desde identidad y reforzar relaciones y consultas con pruebas de aislamiento antes de ampliar el producto.
+- **Multi comercio:** las tres clases de modelo fijan comercio 1. Es una limitación de prueba documentada, no una implementación del aislamiento prometido. Obtener comercio autorizado desde identidad y reforzar relaciones y consultas con pruebas de aislamiento antes de ampliar el producto.
 - **Fechas:** se mezclan `LocalDate.now()` y `LocalTime.now()` del servidor con fechas de Buenos Aires explícitas y fechas del navegador. Usar un reloj inyectable y una política uniforme por comercio.
 - **Presentación monetaria:** `maximumFractionDigits: 0` oculta centavos en saldos, importes y recibos. Mostrar dos decimales donde el usuario revisa o confirma dinero; mantener cálculos definitivos en el servidor.
 - **TypeScript:** no está configurado `strict`. La comprobación adicional con `--strict` pasó, por lo que activarlo tiene un costo inicial bajo. Evaluar comprobaciones adicionales de accesos por índice. Referencia: https://www.typescriptlang.org/tsconfig/strict.html .

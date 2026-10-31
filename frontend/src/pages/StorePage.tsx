@@ -1,3 +1,4 @@
+// Muestra los pedidos web y permite revisarlos antes de confirmar la venta.
 import { useEffect, useRef, useState } from 'react'
 import { ApiTable } from '../components/ApiTable'
 import { apiFetch } from '../lib/http'
@@ -59,7 +60,7 @@ export function StorePage() {
     if (selected === null) return
     let active = true
     const controller = new AbortController()
-    void apiFetch('/api/v1/demo/store-orders/' + selected, { signal: controller.signal })
+    void apiFetch('/api/v1/alon/store-orders/' + selected, { signal: controller.signal })
       .then(async (r) => {
         const body = await r.json()
         if (!r.ok) throw new Error(body.error ?? 'No se pudo cargar el pedido.')
@@ -132,7 +133,10 @@ export function StorePage() {
       )}
       <ApiTable
         title="Pedidos de la tienda online"
-        endpoint="/api/v1/demo/store-orders"
+        endpoint="/api/v1/alon/store-orders"
+        rowClassName={(row) =>
+          row.estado === 'PENDIENTE_CONFIRMACION' ? 'store-order-pending' : undefined
+        }
         columns={[
           { key: 'id', label: 'NÚMERO' },
           { key: 'nombre_cliente', label: 'CLIENTE' },

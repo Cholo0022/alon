@@ -1,3 +1,4 @@
+// Guarda la venta, el movimiento de caja y la salida de stock en una misma operación.
 package ar.com.alon.sales;
 
 import ar.com.alon.cash.CashLedger;
@@ -39,9 +40,7 @@ public class SalesService extends StoreJdbcSupport {
         return createSale(input, null, Map.of());
     }
 
-    /**
-     * Only the reviewed order supplies these historical prices; HTTP sale inputs cannot set them.
-     */
+    /** Los precios del pedido revisado se conservan al confirmar su venta web. */
     @Transactional
     public Map<String, Object> createWebSale(
             SaleInput input, long orderId, Map<Long, BigDecimal> prices) {

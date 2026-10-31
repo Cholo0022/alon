@@ -1,3 +1,4 @@
+// Administra las cuentas de compradores, separadas de las cuentas del personal.
 package ar.com.alon.storefront;
 
 import ar.com.alon.security.PasswordHasher;
@@ -13,7 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-/** Shopper identities are independent of staff users and never grant management access. */
+/** Las cuentas de compradores están separadas de las cuentas del personal. */
 @Service
 public class ShopAccountService {
     private final JdbcTemplate jdbc;
@@ -40,6 +41,10 @@ public class ShopAccountService {
             @NotBlank @Size(max = 60) String lastName,
             @NotBlank @Pattern(regexp = "[0-9]{7,8}") String dni,
             @NotBlank @Size(max = 180) String address,
+            @NotBlank @Size(max = 20) String postalCode,
+            @NotBlank @Size(max = 100) String city,
+            @NotBlank @Size(max = 100) String province,
+            @NotBlank @Size(max = 100) String country,
             @NotBlank @Size(max = 25) String phone,
             @NotBlank @Size(min = 12, max = 128) String password) {}
 
@@ -64,7 +69,7 @@ public class ShopAccountService {
                 c -> {
                     var s =
                             c.prepareStatement(
-                                    "INSERT INTO compradores_tienda(comercio_id,nombre,apellido,dni,domicilio,telefono,password_hash) VALUES(?,?,?,?,?,?,?)",
+                                    "INSERT INTO compradores_tienda(comercio_id,nombre,apellido,dni,domicilio,telefono,password_hash,codigo_postal,ciudad,provincia,pais) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                                     Statement.RETURN_GENERATED_KEYS);
                     s.setLong(1, storeId);
                     s.setString(2, input.firstName().trim());
@@ -73,6 +78,10 @@ public class ShopAccountService {
                     s.setString(5, input.address().trim());
                     s.setString(6, normalizePhone(input.phone()));
                     s.setString(7, hash);
+                    s.setString(8, input.postalCode().trim());
+                    s.setString(9, input.city().trim());
+                    s.setString(10, input.province().trim());
+                    s.setString(11, input.country().trim());
                     return s;
                 },
                 key);
@@ -85,7 +94,7 @@ public class ShopAccountService {
                         "SELECT id,password_hash FROM compradores_tienda WHERE comercio_id=? AND telefono=? AND activo=TRUE",
                         storeId,
                         normalizePhone(input.phone()));
-        // Always perform the password derivation, including for unknown accounts.
+        // Se comprueba la contraseña también cuando el usuario no existe para no revelar cuentas.
         String stored =
                 rows.isEmpty() ? dummyHash : String.valueOf(rows.getFirst().get("password_hash"));
         if (!passwords.verify(input.password(), stored) || rows.isEmpty())
@@ -97,7 +106,7 @@ public class ShopAccountService {
     private Map<String, Object> account(long id) {
         var rows =
                 jdbc.queryForList(
-                        "SELECT id,nombre,apellido,dni,domicilio,telefono,telefono_verificado FROM compradores_tienda WHERE comercio_id=? AND id=? AND activo=TRUE",
+                        "SELECT id,nombre,apellido,dni,domicilio,codigo_postal,ciudad,provincia,pais,telefono,telefono_verificado FROM compradores_tienda WHERE comercio_id=? AND id=? AND activo=TRUE",
                         storeId,
                         id);
         return rows.isEmpty() ? Map.of() : rows.getFirst();

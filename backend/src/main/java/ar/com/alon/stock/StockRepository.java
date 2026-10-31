@@ -1,3 +1,5 @@
+// Consulta el stock con bloqueo y registra cada movimiento para evitar cambios simultáneos
+// incompatibles.
 package ar.com.alon.stock;
 
 import ar.com.alon.security.RequestIdentity;

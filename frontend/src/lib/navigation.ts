@@ -1,3 +1,4 @@
+// Define las secciones del menú y las descripciones que aparecen en cada pantalla.
 export type Section =
   | 'inicio'
   | 'ventas'
@@ -10,6 +11,7 @@ export type Section =
   | 'informes'
   | 'tienda'
   | 'usuarios'
+  | 'negocio'
 
 export const navigation: { id: Section; label: string; icon: string }[] = [
   { id: 'inicio', label: 'Resumen', icon: '⌂' },
@@ -23,6 +25,7 @@ export const navigation: { id: Section; label: string; icon: string }[] = [
   { id: 'informes', label: 'Informes', icon: '▤' },
   { id: 'tienda', label: 'Tienda online', icon: '⌑' },
   { id: 'usuarios', label: 'Usuarios y accesos', icon: '♙' },
+  { id: 'negocio', label: 'Modificar negocio', icon: '⚙' },
 ]
 
 export const descriptions: Record<Section, string> = {
@@ -37,4 +40,5 @@ export const descriptions: Record<Section, string> = {
   informes: 'Revisá ventas, costos y gastos por período.',
   tienda: 'Prepará el catálogo online de tu comercio.',
   usuarios: 'Creá usuarios y elegí a qué secciones pueden acceder.',
+  negocio: 'Personalizá el nombre, slogan y colores de Alon y de tu tienda web.',
 }

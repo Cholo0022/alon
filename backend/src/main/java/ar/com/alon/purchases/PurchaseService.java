@@ -1,3 +1,4 @@
+// Registra compras y reparte los gastos para calcular el costo y el stock resultantes.
 package ar.com.alon.purchases;
 
 import static ar.com.alon.articles.ArticlePricing.calculateSalePrice;
@@ -302,7 +303,7 @@ public class PurchaseService extends StoreJdbcSupport {
             BigDecimal after =
                     newLines.containsKey(articleId) ? newLines.get(articleId)[0] : BigDecimal.ZERO;
             BigDecimal delta = after.subtract(before);
-            // Historical sales must retain their original cost and valuation.
+            // Las ventas anteriores conservan el costo que tenían al registrarse.
             Integer outflows =
                     jdbc.queryForObject(
                             "SELECT COUNT(*) FROM movimientos_stock WHERE comercio_id=? AND articulo_id=? AND cantidad<0 AND fecha_hora>=?",

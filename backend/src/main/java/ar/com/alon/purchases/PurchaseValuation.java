@@ -1,3 +1,4 @@
+// Reparte los gastos entre los artículos sin perder centavos en el redondeo.
 package ar.com.alon.purchases;
 
 import java.math.BigDecimal;
@@ -5,7 +6,7 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Allocates every cent once, with deterministic remainder on the last line. */
+/** Reparte todos los centavos y deja la diferencia de redondeo en el último renglón. */
 public final class PurchaseValuation {
     private PurchaseValuation() {}
 

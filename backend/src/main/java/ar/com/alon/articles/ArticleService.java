@@ -1,3 +1,4 @@
+// Crea y modifica artículos; valida sus datos y registra los ajustes de stock.
 package ar.com.alon.articles;
 
 import static ar.com.alon.articles.ArticlePricing.calculateSalePrice;
@@ -72,7 +73,7 @@ public class ArticleService extends StoreJdbcSupport {
                 calculateSalePrice(cost, freight, freightPercent, margin, roundPrice);
         long id =
                 insert(
-                        "INSERT INTO articulos (comercio_id,codigo,nombre,rubro_id,proveedor_principal_id,unidad,costo,flete_unitario,flete_porcentaje,margen_porcentaje,redondeo_precio,precio_venta,stock,stock_minimo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        "INSERT INTO articulos (comercio_id,codigo,nombre,rubro_id,proveedor_principal_id,unidad,costo,flete_unitario,flete_porcentaje,margen_porcentaje,redondeo_precio,cargar_web,precio_venta,stock,stock_minimo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         identity.storeId(),
                         code,
                         name,
@@ -84,6 +85,7 @@ public class ArticleService extends StoreJdbcSupport {
                         freightPercent,
                         margin,
                         roundPrice,
+                        input.publishOnWeb(),
                         salePrice,
                         stock,
                         DecimalRules.quantity(
@@ -116,7 +118,11 @@ public class ArticleService extends StoreJdbcSupport {
         if (duplicateName != null && duplicateName > 0)
             throw new IllegalArgumentException("Ya existe otro artículo con ese nombre.");
         assertBelongs("rubros", input.categoryId());
-        assertBelongs("proveedores", input.supplierId());
+        // El artículo puede conservar su proveedor anterior aunque esté desactivado.
+        // Para elegir un proveedor diferente, debe estar activo y pertenecer a este comercio.
+        boolean sameSupplier =
+                ((Number) current.get("proveedor_principal_id")).longValue() == input.supplierId();
+        assertBelongs("proveedores", input.supplierId(), sameSupplier);
         BigDecimal cost = nonNegative(input.cost(), "El costo no puede ser negativo.");
         BigDecimal freight =
                 nonNegative(
@@ -139,6 +145,7 @@ public class ArticleService extends StoreJdbcSupport {
                         ? calculateSalePrice(
                                 cost, freight, freightPercent, margin, input.roundPrice())
                         : nonNegative(input.salePrice(), "El precio no puede ser negativo.");
+        // Un cambio manual de cantidad debe quedar registrado como ajuste de stock.
         BigDecimal oldStock = new BigDecimal(current.get("stock").toString());
         BigDecimal requestedStock = input.initialStock() == null ? oldStock : input.initialStock();
         if (requestedStock.signum() < 0)
@@ -146,7 +153,7 @@ public class ArticleService extends StoreJdbcSupport {
         BigDecimal newStock =
                 DecimalRules.quantity(requestedStock, false, "La cantidad no puede ser negativa.");
         jdbc.update(
-                "UPDATE articulos SET codigo=?,nombre=?,rubro_id=?,proveedor_principal_id=?,unidad=?,costo=?,flete_unitario=?,flete_porcentaje=?,margen_porcentaje=?,redondeo_precio=?,precio_venta=?,stock_minimo=? WHERE id=? AND comercio_id=?",
+                "UPDATE articulos SET codigo=?,nombre=?,rubro_id=?,proveedor_principal_id=?,unidad=?,costo=?,flete_unitario=?,flete_porcentaje=?,margen_porcentaje=?,redondeo_precio=?,cargar_web=?,precio_venta=?,stock_minimo=? WHERE id=? AND comercio_id=?",
                 code,
                 name,
                 input.categoryId(),
@@ -157,6 +164,7 @@ public class ArticleService extends StoreJdbcSupport {
                 freightPercent,
                 margin,
                 input.roundPrice(),
+                input.publishOnWeb(),
                 price,
                 DecimalRules.quantity(
                         input.minimumStock(), false, "El stock mínimo no puede ser negativo."),

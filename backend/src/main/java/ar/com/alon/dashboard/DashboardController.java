@@ -1,3 +1,4 @@
+// Recibe las solicitudes de resumen del negocio y las deriva al servicio correspondiente.
 package ar.com.alon.dashboard;
 
 import java.util.Map;
@@ -12,7 +13,7 @@ public class DashboardController {
         this.queries = queries;
     }
 
-    @GetMapping("/demo/summary")
+    @GetMapping("/alon/summary")
     public Map<String, Object> summary() {
         return queries.summary();
     }

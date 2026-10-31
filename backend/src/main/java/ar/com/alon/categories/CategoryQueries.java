@@ -1,3 +1,4 @@
+// Consulta rubros del comercio actual para mostrarlos en pantalla.
 package ar.com.alon.categories;
 
 import ar.com.alon.security.RequestIdentity;

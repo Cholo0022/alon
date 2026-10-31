@@ -6,10 +6,10 @@ Los hallazgos de `revision-codigo-2026-10-28.md` describen el estado anterior. E
 
 | Hallazgo | Corrección |
 | --- | --- |
-| Instalación y migraciones incompatibles | Cadena Flyway canónica, datos demo separados, compatibilidad de V005/V006 y adopción explícita de una instalación anterior. |
+| Instalación y migraciones incompatibles | Cadena Flyway canónica, datos de prueba separados, compatibilidad de V005/V006 y adopción explícita de una instalación anterior. |
 | Costos, fletes y stock al editar compras | Valoración anterior y nueva por artículo, acumulación de renglones repetidos, reparto de centavos y bloqueo de correcciones que afecten salidas posteriores. |
 | Pérdida del último dueño | Regla transaccional protegida mediante bloqueo del comercio, también ante cambios concurrentes. |
-| Autenticación débil | Contraseñas nuevas de 12–128 caracteres, PBKDF2 con 600.000 iteraciones y formato versionado; compatibilidad y actualización de hashes anteriores; cuentas demo únicamente por perfil explícito. |
+| Autenticación débil | Contraseñas nuevas de 12–128 caracteres, PBKDF2 con 600.000 iteraciones y formato versionado; compatibilidad y actualización de hashes anteriores; cuentas de prueba únicamente por perfil explícito. |
 | Datos ficticios en listas vacías | La API es la fuente de los listados; estados de carga, error y vacío separados. |
 | Precisión y ajustes de stock | Hasta tres decimales para cantidades, rechazo de precisión excesiva y movimientos con delta firmado y autor. |
 | Anulaciones en informes de caja | La vista SQL y el cierre restan anulaciones de ventas y las excluyen de gastos. |
@@ -33,7 +33,7 @@ Los hallazgos de `revision-codigo-2026-10-28.md` describen el estado anterior. E
 
 ## Comprobación y límites
 
-La validación utiliza una instancia MySQL 8.4 temporal separada de la base habitual. Incluye instalación nueva, actualización de esquema anterior, carga demo, transacciones comerciales, aislamiento, reintentos, sesiones y permisos. Resultados comprobados:
+La validación utiliza una instancia MySQL 8.4 temporal separada de la base habitual. Incluye instalación nueva, actualización de esquema anterior, carga de prueba, transacciones comerciales, aislamiento, reintentos, sesiones y permisos. Resultados comprobados:
 
 | Comprobación | Resultado |
 | --- | --- |
@@ -47,4 +47,4 @@ La validación utiliza una instancia MySQL 8.4 temporal separada de la base habi
 
 La ejecución completa inicial incluyó 20 casos backend; luego se añadió el caso de estados HTTP y se ejecutaron los 9 unitarios y la regresión de consultas sobre los ajustes finales. La integración continua queda configurada para ejecutar todos los casos con MySQL. No se ejecutó un flujo remoto de GitHub ni se publicó el proyecto.
 
-No se certifica un despliegue productivo ni capacidad de carga a partir de estas pruebas. Para actualizar una instalación existente se debe seguir `actualizacion-y-validacion.md`, empezando por una copia. Las contraseñas antiguas se conservan para evitar bloquear cuentas; cualquier contraseña de demostración existente debe cambiarse antes de utilizar datos reales. La operación de varias instancias, el alta pública de comercios y múltiples sucursales no forman parte del producto implementado.
+No se certifica un despliegue productivo ni capacidad de carga a partir de estas pruebas. Para actualizar una instalación existente se debe seguir `actualizacion-y-validacion.md`, empezando por una copia. Las contraseñas antiguas se conservan para evitar bloquear cuentas; cualquier contraseña de prueba existente debe cambiarse antes de utilizar datos reales. La operación de varias instancias, el alta pública de comercios y múltiples sucursales no forman parte del producto implementado.

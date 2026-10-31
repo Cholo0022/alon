@@ -1,3 +1,4 @@
+// Evita guardar dos veces la misma operación cuando se reintenta una solicitud.
 package ar.com.alon.shared.commands;
 
 import ar.com.alon.security.RequestIdentity;
@@ -15,7 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
-/** Request, business changes, audit, and replay result commit in one transaction. */
+/** Guarda juntos los cambios, su registro de auditoría y el resultado para futuros reintentos. */
 @Service
 public class CommandExecutor {
     private final JdbcTemplate jdbc;
@@ -40,7 +41,7 @@ public class CommandExecutor {
         String key = request.getHeader("Idempotency-Key");
         if (key == null || !key.matches("[A-Za-z0-9_-]{16,80}"))
             throw new IllegalArgumentException("Falta un identificador válido de operación.");
-        // Also serializes cash opening and corrections for a store. Stores remain independent.
+        // Ordena las escrituras de un comercio para que no se pisen entre sí.
         jdbc.queryForObject(
                 "SELECT id FROM comercios WHERE id=? FOR UPDATE", Long.class, identity.storeId());
         String hash =

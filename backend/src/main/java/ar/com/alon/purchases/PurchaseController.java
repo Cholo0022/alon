@@ -1,3 +1,4 @@
+// Recibe las solicitudes de compras y costos y las deriva al servicio correspondiente.
 package ar.com.alon.purchases;
 
 import ar.com.alon.purchases.dto.PurchaseInput;
@@ -37,12 +38,12 @@ public class PurchaseController {
                 () -> service.updatePurchase(id, input));
     }
 
-    @GetMapping("/demo/purchases")
+    @GetMapping("/alon/purchases")
     public List<Map<String, Object>> purchases() {
         return queries.purchases();
     }
 
-    @GetMapping("/demo/purchases/{id}")
+    @GetMapping("/alon/purchases/{id}")
     public Map<String, Object> purchaseDetails(@PathVariable long id) {
         return queries.purchaseDetails(id);
     }

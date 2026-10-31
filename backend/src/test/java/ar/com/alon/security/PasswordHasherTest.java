@@ -20,14 +20,15 @@ class PasswordHasherTest {
         byte[] salt = new byte[16];
         byte[] derived =
                 SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-                        .generateSecret(new PBEKeySpec("demo".toCharArray(), salt, 210_000, 256))
+                        .generateSecret(
+                                new PBEKeySpec("alon_pruebas".toCharArray(), salt, 210_000, 256))
                         .getEncoded();
         String legacy =
                 "pbkdf2$"
                         + Base64.getEncoder().encodeToString(salt)
                         + "$"
                         + Base64.getEncoder().encodeToString(derived);
-        assertThat(hasher.verify("demo", legacy)).isTrue();
+        assertThat(hasher.verify("alon_pruebas", legacy)).isTrue();
         assertThat(hasher.needsUpgrade(legacy)).isTrue();
         assertThat(hasher.verify(password, "pbkdf2$999999999$invalid$invalid")).isFalse();
     }

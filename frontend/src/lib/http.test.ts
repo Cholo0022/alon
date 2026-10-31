@@ -32,7 +32,7 @@ it('notifies the app when an authenticated session has been revoked', async () =
     vi.fn(async () => Response.json({ error: 'Sesión vencida' }, { status: 401 })),
   )
   const { apiFetch } = await import('./http')
-  await apiFetch('/api/v1/demo/customers')
+  await apiFetch('/api/v1/alon/customers')
   expect(expired).toHaveBeenCalledOnce()
   window.removeEventListener('alon:session-expired', expired)
 })

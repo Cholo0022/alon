@@ -761,7 +761,7 @@
   color: #454458;
   font-size: 11px;
 }
-.demo-tag {
+.alon-tag {
   background: #f0efff;
   color: #7064ce;
   border-radius: 20px;
@@ -1687,7 +1687,7 @@ body {
   color: #17324b;
   font-size: 16px;
 }
-.demo-tag,
+.alon-tag,
 .notice-badge {
   border: 1px solid #356274;
   background: #e6f3f3;
@@ -2536,5 +2536,195 @@ td.article-actions {
     white-space: normal;
     overflow-wrap: anywhere;
     overflow: visible;
+  }
+}
+
+.business-themed.app-shell {
+  --alon-primary: var(--business-primary);
+  background: var(--business-background);
+}
+.business-themed .main-content {
+  background: var(--business-background);
+}
+.business-themed .sidebar {
+  background: var(--business-secondary);
+  border-color: var(--business-secondary);
+}
+.business-themed
+  .sidebar
+  :is(
+    .brand,
+    .brand-name,
+    .nav-item,
+    .nav-icon,
+    .nav-caption,
+    .store-copy strong,
+    .store-copy small
+  ) {
+  color: var(--business-on-secondary);
+}
+.business-themed .store-switcher {
+  background: color-mix(in srgb, var(--business-secondary), var(--business-on-secondary) 8%);
+  border-color: color-mix(in srgb, var(--business-secondary), var(--business-on-secondary) 35%);
+  height: auto;
+  min-height: 58px;
+}
+.business-themed .store-copy strong,
+.business-themed .store-copy small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.business-themed .sidebar .nav-item:is(:hover, .active) {
+  background: color-mix(in srgb, var(--business-secondary), var(--business-on-secondary) 15%);
+  color: var(--business-on-secondary);
+}
+.business-themed .sidebar .nav-item.active {
+  box-shadow: inset 4px 0 var(--business-primary);
+}
+.business-themed .brand-mark,
+.business-themed .primary-button,
+.business-themed .cash-notice button {
+  background: var(--business-primary);
+  color: var(--business-on-primary);
+  border-color: var(--business-primary);
+}
+.business-themed .primary-button:hover,
+.business-themed .cash-notice button:hover {
+  background: var(--business-primary);
+  filter: brightness(0.9);
+}
+.business-themed .brand-name span {
+  color: var(--business-on-secondary);
+}
+.business-themed .welcome-row :is(h1, .page-subtitle, .eyebrow),
+.business-themed .page-footer {
+  color: var(--business-on-background);
+}
+.business-color {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.entry-form .business-color input[type='color'] {
+  width: 70px;
+  min-width: 70px;
+  padding: 3px;
+  cursor: pointer;
+}
+.business-preview {
+  grid-column: 1/-1;
+  border: 1px solid #b8c6d2;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.business-preview-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px;
+  background: var(--business-secondary);
+  color: var(--business-on-secondary);
+  overflow-wrap: anywhere;
+}
+.business-preview-header strong {
+  font-size: 24px;
+}
+.business-preview-content {
+  padding: 22px;
+  background: var(--business-background);
+  color: var(--business-on-background);
+}
+.business-preview-button {
+  display: inline-block;
+  border-radius: 7px;
+  padding: 12px 18px;
+  background: var(--business-primary);
+  color: var(--business-on-primary);
+}
+.price-preview {
+  grid-column: 1/-1;
+  padding: 18px;
+  display: grid;
+  gap: 16px;
+  border: 1px solid #b8c6d2;
+  border-radius: 8px;
+}
+.price-preview .primary-button {
+  justify-self: start;
+}
+
+.store-module .report-table tbody tr.store-order-pending > td {
+  background: #fff7d6;
+  color: #493b12;
+}
+.store-module .report-table tbody tr.store-order-pending:hover > td {
+  background: #fff0b3;
+}
+
+/* Cliente o proveedor siempre arriba; los artículos tienen su propio desplazamiento. */
+#root :is(.sale-entry, .purchase-entry) {
+  overflow: visible;
+}
+#root :is(.sale-entry, .purchase-entry) .entry-form {
+  scroll-margin-top: 8px;
+}
+#root .transaction-header {
+  grid-column: 1/-1;
+  display: grid;
+  grid-template-columns: 2fr repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  position: sticky;
+  top: 8px;
+  z-index: 6;
+  background: #f3f7fa;
+  border: 1px solid #c5d0da;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 3px 10px #10243a12;
+}
+#root .transaction-header > label {
+  min-width: 0;
+}
+#root .transaction-article-entry {
+  grid-column: 1/-1;
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) minmax(90px, 1fr) minmax(100px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+#root .transaction-article-entry > label {
+  min-width: 0;
+}
+#root :is(.sale-entry, .purchase-entry) .purchase-lines .table-scroll {
+  max-height: clamp(160px, calc(100dvh - 380px), 480px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+#root :is(.sale-entry, .purchase-entry) .purchase-lines th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #edf2f6;
+}
+@media (max-width: 900px) {
+  #root .transaction-header {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  #root .transaction-header > label:first-child {
+    grid-column: 1/-1;
+  }
+  #root .transaction-article-entry {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  #root .transaction-article-entry > label:first-child {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 600px) {
+  #root .transaction-header {
+    position: static;
+  }
+  #root .transaction-article-entry {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

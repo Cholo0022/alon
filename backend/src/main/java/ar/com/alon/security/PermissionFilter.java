@@ -1,3 +1,4 @@
+// Comprueba la sesión y los permisos antes de permitir el acceso a cada sección.
 package ar.com.alon.security;
 
 import ar.com.alon.users.UserService;
@@ -64,6 +65,14 @@ public class PermissionFilter extends OncePerRequestFilter {
             chain.doFilter(req, res);
             return;
         }
+        if ("/api/v1/business".equals(path) && "GET".equals(req.getMethod())) {
+            chain.doFilter(req, res);
+            return;
+        }
+        if ("/api/v1/operations/business".equals(path)) {
+            reject(res, 403, "Solo el dueño puede modificar el negocio.");
+            return;
+        }
         String required = permissionFor(path);
         if ("usuarios".equals(required)) {
             reject(res, 403, "Solo el dueño puede administrar usuarios.");
@@ -79,23 +88,23 @@ public class PermissionFilter extends OncePerRequestFilter {
                         .filter(s -> !s.isBlank())
                         .collect(Collectors.toSet());
         if ("GET".equals(req.getMethod())
-                && (path.equals("/api/v1/demo/lookups/customers")
+                && (path.equals("/api/v1/alon/lookups/customers")
                                 && (permissions.contains("ventas")
                                         || permissions.contains("clientes"))
-                        || path.equals("/api/v1/demo/lookups/suppliers")
+                        || path.equals("/api/v1/alon/lookups/suppliers")
                                 && (permissions.contains("articulos")
                                         || permissions.contains("compras")
                                         || permissions.contains("proveedores")))) {
             chain.doFilter(req, res);
             return;
         }
-        if ("/api/v1/demo/articles".equals(path)
+        if ("/api/v1/alon/articles".equals(path)
                 && "GET".equalsIgnoreCase(req.getMethod())
                 && (permissions.contains("ventas") || permissions.contains("compras"))) {
             chain.doFilter(req, res);
             return;
         }
-        if ("/api/v1/demo/categories".equals(path)
+        if ("/api/v1/alon/categories".equals(path)
                 && "GET".equalsIgnoreCase(req.getMethod())
                 && (permissions.contains("articulos")
                         || permissions.contains("rubros")
@@ -114,25 +123,25 @@ public class PermissionFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/v1/auth/users")) return "usuarios";
         if (path.startsWith("/api/v1/auth/")) return "usuarios";
         if (path.startsWith("/api/v1/operations/cash")
-                || path.startsWith("/api/v1/demo/cash/")
-                || path.startsWith("/api/v1/demo/reports/cash")) return "caja";
-        if (path.startsWith("/api/v1/operations/sales") || path.startsWith("/api/v1/demo/sales"))
+                || path.startsWith("/api/v1/alon/cash/")
+                || path.startsWith("/api/v1/alon/reports/cash")) return "caja";
+        if (path.startsWith("/api/v1/operations/sales") || path.startsWith("/api/v1/alon/sales"))
             return "ventas";
         if (path.startsWith("/api/v1/operations/customers")
-                || path.startsWith("/api/v1/demo/customers")) return "clientes";
+                || path.startsWith("/api/v1/alon/customers")) return "clientes";
         if (path.startsWith("/api/v1/operations/categories")
-                || path.startsWith("/api/v1/demo/categories")) return "rubros";
+                || path.startsWith("/api/v1/alon/categories")) return "rubros";
         if (path.startsWith("/api/v1/operations/articles")
-                || path.startsWith("/api/v1/demo/articles")
-                || path.startsWith("/api/v1/demo/stock-movements")) return "articulos";
+                || path.startsWith("/api/v1/alon/articles")
+                || path.startsWith("/api/v1/alon/stock-movements")) return "articulos";
         if (path.startsWith("/api/v1/operations/purchases")
-                || path.startsWith("/api/v1/demo/purchases")) return "compras";
+                || path.startsWith("/api/v1/alon/purchases")) return "compras";
         if (path.startsWith("/api/v1/operations/suppliers")
-                || path.startsWith("/api/v1/demo/suppliers")) return "proveedores";
+                || path.startsWith("/api/v1/alon/suppliers")) return "proveedores";
         if (path.startsWith("/api/v1/operations/store-orders")
-                || path.startsWith("/api/v1/demo/store-orders")) return "tienda";
-        if (path.startsWith("/api/v1/demo/reports/")) return "informes";
-        if (path.startsWith("/api/v1/demo/summary")) return "inicio";
+                || path.startsWith("/api/v1/alon/store-orders")) return "tienda";
+        if (path.startsWith("/api/v1/alon/reports/")) return "informes";
+        if (path.startsWith("/api/v1/alon/summary")) return "inicio";
         return null;
     }
 

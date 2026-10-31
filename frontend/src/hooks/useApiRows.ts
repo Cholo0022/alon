@@ -1,3 +1,4 @@
+// Carga una página de registros y descarta respuestas anteriores cuando cambia la búsqueda.
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/http'
 
@@ -21,6 +22,7 @@ export function useApiRows(endpoint: string): PagedRows {
   const [result, setResult] = useState({ url: '', rows: [] as ApiRow[], error: false })
   useEffect(() => {
     let controller = new AbortController()
+    // El número de solicitud permite ignorar una respuesta vieja que llegue tarde.
     let sequence = 0
     const load = async () => {
       controller.abort()

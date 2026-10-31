@@ -12,7 +12,7 @@ beforeEach(() => {
   fetchMock.mockReset()
   fetchMock.mockImplementation(async (url) =>
     Response.json(
-      url.startsWith('/api/v1/demo/store-orders/7')
+      url.startsWith('/api/v1/alon/store-orders/7')
         ? {
             id: 7,
             nombre_cliente: 'Cliente de prueba',

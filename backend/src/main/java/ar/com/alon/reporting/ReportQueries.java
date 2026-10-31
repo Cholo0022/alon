@@ -1,3 +1,4 @@
+// Consulta informes del negocio del comercio actual para mostrarlos en pantalla.
 package ar.com.alon.reporting;
 
 import ar.com.alon.security.RequestIdentity;

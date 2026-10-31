@@ -1,3 +1,4 @@
+// Avisa cuando hay pedidos web que todavía esperan confirmación.
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/http'
 
@@ -11,7 +12,7 @@ export function PendingOrdersNotice({ onOpen }: { onOpen: () => void }) {
       current?.abort()
       const controller = new AbortController()
       current = controller
-      void apiFetch('/api/v1/demo/store-orders/pending-count', { signal: controller.signal })
+      void apiFetch('/api/v1/alon/store-orders/pending-count', { signal: controller.signal })
         .then(async (response) => {
           if (!response.ok) throw new Error('No se pudo consultar la cantidad de pedidos.')
           const body = (await response.json()) as { count: unknown }

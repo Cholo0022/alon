@@ -1,3 +1,4 @@
+// Consulta artículos y fotos del comercio actual para mostrarlos en pantalla.
 package ar.com.alon.articles;
 
 import ar.com.alon.security.RequestIdentity;
@@ -47,8 +48,8 @@ public class ArticleQueries {
                         "a.codigo,a.nombre,r.nombre",
                         """
                 SELECT a.id, a.codigo, a.nombre, a.rubro_id, a.proveedor_principal_id, r.nombre AS rubro, a.stock, a.stock_minimo,
-                       a.unidad, a.costo, a.flete_unitario, a.flete_porcentaje, a.margen_porcentaje, a.redondeo_precio,
-                       a.precio_venta, a.imagen_clave, a.imagen_ilustrativa, p.codigo AS proveedor
+                       a.unidad, a.costo, a.flete_unitario, a.flete_porcentaje, a.margen_porcentaje, a.redondeo_precio, a.cargar_web,
+                       a.precio_venta, a.imagen_clave, a.imagen_ilustrativa, p.codigo AS proveedor, p.nombre AS proveedor_nombre, p.estado AS proveedor_estado
                 FROM articulos a
                 JOIN rubros r ON r.id = a.rubro_id
                 JOIN proveedores p ON p.id = a.proveedor_principal_id

@@ -1,3 +1,4 @@
+// Consulta ventas del comercio actual para mostrarlos en pantalla.
 package ar.com.alon.sales;
 
 import ar.com.alon.security.RequestIdentity;

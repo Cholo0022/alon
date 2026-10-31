@@ -1,3 +1,4 @@
+// Permite actualizar las fotos de un artículo que ya existe.
 import { useEffect, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import { ArticlePhotosField } from './ArticlePhotosField'

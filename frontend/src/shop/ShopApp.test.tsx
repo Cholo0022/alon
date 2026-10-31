@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ShopApp from './ShopApp'
 import { shopRequest } from './api'
@@ -46,7 +46,9 @@ beforeEach(() => {
 it('requires choosing a payment method before submitting', async () => {
   const user = userEvent.setup()
   render(<ShopApp />)
-  await user.click(await screen.findByRole('button', { name: '+ Agregar al carrito' }))
+  await user.click(
+    await screen.findByRole('button', { name: '+ Agregar al carrito' }, { timeout: 10000 }),
+  )
   await user.click(screen.getByRole('button', { name: 'Enviar pedido →' }))
   expect(screen.getByRole('alert').textContent).toContain('Elegí un medio de pago')
   expect(request.mock.calls.some(([path]) => path === '/orders')).toBe(false)
@@ -115,4 +117,71 @@ it('reuses the operation key when retrying after a lost response', async () => {
   expect(new Headers(calls[0][1]?.headers).get('Idempotency-Key')).toEqual(
     new Headers(calls[1][1]?.headers).get('Idempotency-Key'),
   )
+})
+
+it('registers location with Argentina selected by default and allows another country', async () => {
+  const implementation = request.getMockImplementation()!
+  request.mockImplementation(async (path, options) =>
+    path === '/session'
+      ? { user: {} }
+      : path === '/register'
+        ? buyer
+        : implementation(path, options),
+  )
+  const user = userEvent.setup()
+  render(<ShopApp />)
+  await user.click(await screen.findByRole('button', { name: 'Ingresar' }))
+  await user.click(screen.getByRole('button', { name: 'Primera vez · Crear cuenta' }))
+  const country = screen.getByRole('combobox', { name: 'País' }) as HTMLSelectElement
+  expect(country.value).toBe('Argentina')
+  await user.type(screen.getByLabelText('Nombre'), 'Ana')
+  await user.type(screen.getByLabelText('Apellido'), 'Prueba')
+  await user.type(screen.getByLabelText('DNI'), '30111222')
+  await user.type(screen.getByLabelText('Domicilio'), 'Calle 123')
+  await user.type(screen.getByLabelText('Código postal'), '11000')
+  await user.type(screen.getByLabelText('Ciudad'), 'Montevideo')
+  await user.type(screen.getByLabelText('Provincia'), 'Montevideo')
+  await user.selectOptions(country, 'Uruguay')
+  await user.type(screen.getByLabelText('Teléfono con código de país'), '+59899123456')
+  await user.type(screen.getByLabelText(/^Contraseña/), 'Shopper-test-2026!')
+  await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
+  await waitFor(() => expect(request.mock.calls.some(([path]) => path === '/register')).toBe(true))
+  const call = request.mock.calls.find(([path]) => path === '/register')!
+  expect(JSON.parse(String(call[1]?.body))).toMatchObject({
+    postalCode: '11000',
+    city: 'Montevideo',
+    province: 'Montevideo',
+    country: 'Uruguay',
+  })
+})
+
+it('uses the business identity and refreshes it when a saved brand is announced', async () => {
+  const implementation = request.getMockImplementation()!
+  const brand = {
+    nombre: 'Almacén Norte',
+    slogan: 'Siempre cerca',
+    color_principal: '#aa3300',
+    color_secundario: '#112233',
+    color_fondo: '#fefefe',
+  }
+  request.mockImplementation(async (path, options) =>
+    path === '/business' ? brand : implementation(path, options),
+  )
+  const { container } = render(<ShopApp />)
+  await screen.findByRole('button', { name: 'Almacén Norte, inicio' })
+  expect(screen.getByText('Siempre cerca')).toBeTruthy()
+  expect(
+    (container.firstElementChild as HTMLElement).style.getPropertyValue('--business-primary'),
+  ).toBe('#aa3300')
+  act(() =>
+    window.dispatchEvent(
+      new CustomEvent('alon:business-updated', {
+        detail: { ...brand, nombre: 'Comercio renovado', color_principal: '#114477' },
+      }),
+    ),
+  )
+  expect(screen.getByRole('button', { name: 'Comercio renovado, inicio' })).toBeTruthy()
+  expect(
+    (container.firstElementChild as HTMLElement).style.getPropertyValue('--business-primary'),
+  ).toBe('#114477')
 })

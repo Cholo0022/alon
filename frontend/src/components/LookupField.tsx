@@ -1,3 +1,4 @@
+// Busca registros y conserva el identificador elegido aunque cambien las sugerencias.
 import { useEffect, useState } from 'react'
 import { useApiRows, type ApiRow } from '../hooks/useApiRows'
 import { apiFetch } from '../lib/http'
@@ -14,6 +15,8 @@ export function LookupField({
   onSelect,
   initialRecord,
   defaultName,
+  searchOnly = false,
+  onEmptyEnter,
 }: {
   name: string
   label: string
@@ -21,6 +24,8 @@ export function LookupField({
   required?: boolean
   autoFocus?: boolean
   defaultName?: string
+  onEmptyEnter?: () => void
+  searchOnly?: boolean
   initialRecord?: ApiRow
   onSelect?: (row: ApiRow | null) => void
 }) {
@@ -67,12 +72,16 @@ export function LookupField({
       <input type="hidden" name={name} value={selected ? textValue(selected.id) : ''} />
       <Combobox
         label={label}
+        onEmptyEnter={onEmptyEnter}
         value={!edited && selected ? labelFor(selected) : query}
         required={required}
         autoFocus={autoFocus}
         valid={!!selected}
         selectOnFocus={!!selected}
-        options={rows.map((row) => ({ value: textValue(row.id), label: labelFor(row) }))}
+        options={(searchOnly && (!edited || !query.trim() || selected) ? [] : rows).map((row) => ({
+          value: textValue(row.id),
+          label: labelFor(row),
+        }))}
         onChange={(value) => {
           setEdited(true)
           setQuery(value)

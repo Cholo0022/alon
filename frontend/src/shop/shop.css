@@ -32,11 +32,13 @@
   cursor: default;
 }
 .shop-app button:focus-visible,
-.shop-app input:focus-visible {
+.shop-app input:focus-visible,
+.shop-app select:focus-visible {
   outline: 3px solid #174c54;
   outline-offset: 3px;
 }
-.shop-app input {
+.shop-app input,
+.shop-app .shop-account-form select {
   height: 34px;
   min-height: 34px;
   border: 1px solid #dce4ea;
@@ -368,7 +370,8 @@
 .shop-account-form label {
   font-size: 12px;
 }
-.shop-account-form input {
+.shop-account-form input,
+.shop-account-form select {
   display: block;
   margin-top: 5px;
 }
@@ -522,7 +525,8 @@
   .shop-app button {
     min-height: 44px;
   }
-  .shop-app input {
+  .shop-app input,
+  .shop-app .shop-account-form select {
     font-size: 16px;
   }
   .shop-app .shop-link {
@@ -594,4 +598,67 @@
     height: 42px;
     min-height: 42px;
   }
+}
+
+.shop-app.business-themed {
+  --shop-green: var(--business-primary);
+  background: var(--business-background);
+}
+.shop-app.business-themed .shop-header {
+  background: var(--business-secondary);
+  color: var(--business-on-secondary);
+}
+.shop-app.business-themed .shop-brand {
+  color: var(--business-on-secondary);
+  font-size: clamp(22px, 3vw, 36px);
+  max-width: 350px;
+  overflow-wrap: anywhere;
+}
+.shop-app.business-themed .shop-solid,
+.shop-app.business-themed .shop-solid:hover {
+  background: var(--business-primary);
+  border-color: var(--business-primary);
+  color: var(--business-on-primary);
+}
+.shop-app.business-themed .shop-brand:hover {
+  background: transparent;
+  color: var(--business-on-secondary);
+}
+.shop-app.business-themed .shop-hero,
+.shop-app.business-themed .shop-results,
+.shop-app.business-themed .shop-footer {
+  color: var(--business-on-background);
+}
+.shop-app.business-themed .shop-hero :is(h1, p, .shop-eyebrow) {
+  color: inherit;
+}
+.shop-app.business-themed .shop-account {
+  background: #fff;
+  padding: 24px;
+  border-radius: 12px;
+}
+.shop-app.business-themed .shop-categories button[aria-pressed='true'] {
+  background: var(--business-primary);
+  border-color: var(--business-primary);
+  color: var(--business-on-primary);
+}
+.shop-app.business-themed .shop-eyebrow {
+  color: var(--business-primary);
+}
+
+.shop-app.business-themed .shop-main {
+  color: var(--business-on-background);
+}
+.shop-app.business-themed :is(.shop-product, .shop-cart, .shop-account, .shop-orders) {
+  color: var(--shop-ink);
+}
+.shop-app.business-themed .shop-hero,
+.shop-app.business-themed .shop-footer {
+  background: var(--business-secondary);
+  color: var(--business-on-secondary);
+}
+.shop-app.business-themed .shop-product-body > button {
+  background: var(--business-primary);
+  border-color: var(--business-primary);
+  color: var(--business-on-primary);
 }

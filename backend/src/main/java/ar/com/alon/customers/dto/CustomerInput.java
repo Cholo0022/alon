@@ -1,3 +1,4 @@
+// Define y valida los datos necesarios para crear o modificar un cliente.
 package ar.com.alon.customers.dto;
 
 import jakarta.validation.constraints.*;

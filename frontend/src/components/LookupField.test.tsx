@@ -15,7 +15,7 @@ it('searches remote records in one field and keeps the selected ID when results 
     <LookupField
       name="articleId"
       label="Artículo"
-      endpoint="/api/v1/demo/articles"
+      endpoint="/api/v1/alon/articles"
       onSelect={selected}
     />,
   )
@@ -76,7 +76,7 @@ it('selects Consumidor final by default and preserves another explicit choice', 
     <LookupField
       name="customerId"
       label="Cliente"
-      endpoint="/api/v1/demo/lookups/customers"
+      endpoint="/api/v1/alon/lookups/customers"
       defaultName="Consumidor final"
     />,
   )
@@ -107,7 +107,7 @@ it('offers other database customers when opening the default selection without t
     <LookupField
       name="customerId"
       label="Cliente"
-      endpoint="/api/v1/demo/lookups/customers"
+      endpoint="/api/v1/alon/lookups/customers"
       defaultName="Consumidor final"
     />,
   )
@@ -125,4 +125,113 @@ it('offers other database customers when opening the default selection without t
     expect(screen.getByRole('option', { name: 'FINAL · Consumidor final' })).toBeTruthy(),
   )
   expect(input.value).toBe('C99 · Cliente registrado')
+})
+
+it('shows sale article suggestions only for a nonempty matching search', async () => {
+  const row = { id: 1, codigo: 'A1', nombre: 'Yerba', stock: 5 }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) =>
+      Response.json(
+        url.includes('/cash/status')
+          ? { estado: 'ABIERTA' }
+          : url.includes('/articles') && !url.includes('inexistente')
+            ? [row]
+            : [],
+      ),
+    ),
+  )
+  render(<SalesPage onOpenCash={() => undefined} />)
+  fireEvent.click(screen.getByRole('button', { name: /Nueva venta/ }))
+  const input = screen.getByRole('combobox', { name: 'Artículo' })
+  fireEvent.focus(input)
+  await new Promise((resolve) => setTimeout(resolve, 200))
+  expect(screen.queryByRole('listbox')).toBeNull()
+  fireEvent.change(input, { target: { value: 'Yerba' } })
+  fireEvent.click(await screen.findByRole('option', { name: 'A1 · Yerba' }))
+  fireEvent.focus(input)
+  expect(screen.queryByRole('listbox')).toBeNull()
+  fireEvent.change(input, { target: { value: '   ' } })
+  expect(screen.queryByRole('listbox')).toBeNull()
+  fireEvent.change(input, { target: { value: 'inexistente' } })
+  await screen.findByText('Sin coincidencias.')
+  expect(screen.queryByRole('listbox')).toBeNull()
+})
+
+it('defaults new articles to rounding enabled and web publication disabled', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json([])),
+  )
+  render(<ArticleList canEditCosts />)
+  fireEvent.click(screen.getByRole('button', { name: /Cargar artículo/ }))
+  expect(
+    (
+      screen.getByRole('checkbox', {
+        name: 'Redondear hacia arriba al próximo $10',
+      }) as HTMLInputElement
+    ).checked,
+  ).toBe(true)
+  expect(
+    (screen.getByRole('checkbox', { name: 'Cargar en la web' }) as HTMLInputElement).checked,
+  ).toBe(false)
+})
+
+it('preserves an inactive linked supplier when enabling web publication in the article editor', async () => {
+  const article = {
+    id: 1,
+    codigo: 'A1',
+    nombre: 'Yerba',
+    rubro_id: 1,
+    rubro: 'Almacén',
+    proveedor_principal_id: 7,
+    proveedor: 'P7',
+    proveedor_nombre: 'Proveedor anterior',
+    proveedor_estado: 'INACTIVO',
+    stock: 10,
+    stock_minimo: 0,
+    unidad: 'UNIDAD',
+    costo: 100,
+    flete_unitario: 0,
+    flete_porcentaje: 0,
+    margen_porcentaje: 20,
+    precio_venta: 120,
+    redondeo_precio: true,
+    cargar_web: false,
+  }
+  const fetcher = vi.fn(async (url: string) =>
+    Response.json(
+      url.includes('/auth/status')
+        ? { csrfToken: 'test' }
+        : url.includes('/alon/articles')
+          ? [article]
+          : url.includes('/categories')
+            ? [{ id: 1, nombre: 'Almacén' }]
+            : url.includes('/operations/articles/')
+              ? { id: 1 }
+              : [],
+    ),
+  )
+  vi.stubGlobal('fetch', fetcher)
+  render(<ArticleList canEditCosts />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Modificar' }, { timeout: 10000 }))
+  expect(
+    (screen.getByRole('combobox', { name: 'Proveedor principal' }) as HTMLInputElement).value,
+  ).toBe('Proveedor anterior · inactivo')
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Cargar en la web' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+  await waitFor(
+    () =>
+      expect(fetcher.mock.calls.some(([url]) => url === '/api/v1/operations/articles/1')).toBe(
+        true,
+      ),
+    { timeout: 10000 },
+  )
+  const call = fetcher.mock.calls.find(([url]) => url === '/api/v1/operations/articles/1')!
+  const options = (call as unknown as [string, RequestInit])[1]
+  expect(JSON.parse(String(options.body))).toMatchObject({
+    supplierId: 7,
+    categoryId: 1,
+    publishOnWeb: true,
+  })
 })

@@ -1,3 +1,4 @@
+// Recibe las solicitudes de usuarios y permisos y las deriva al servicio correspondiente.
 package ar.com.alon.users;
 
 import ar.com.alon.security.BrowserSecurityFilter;

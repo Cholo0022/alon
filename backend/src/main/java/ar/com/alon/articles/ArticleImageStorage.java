@@ -1,3 +1,4 @@
+// Guarda y recupera fotos de artículos usando ubicaciones controladas por Alon.
 package ar.com.alon.articles;
 
 import java.awt.image.BufferedImage;

@@ -1,3 +1,4 @@
+// Muestra artículos publicados y recibe pedidos web sin descontar stock hasta su confirmación.
 package ar.com.alon.storefront;
 
 import ar.com.alon.shared.validation.DecimalRules;
@@ -32,7 +33,7 @@ public class ShopService {
         if (query.length() > 100 || category.length() > 90 || page < 0 || page > 10000)
             throw new IllegalArgumentException("La búsqueda no es válida.");
         String where =
-                " FROM articulos a JOIN rubros r ON r.id=a.rubro_id WHERE a.comercio_id=? AND a.estado='ACTIVO' AND a.stock>0 AND (?='' OR LOCATE(?,CONCAT(a.codigo,' ',a.nombre))>0) AND (?='' OR r.nombre=?)";
+                " FROM articulos a JOIN rubros r ON r.id=a.rubro_id WHERE a.comercio_id=? AND a.estado='ACTIVO' AND a.cargar_web=TRUE AND a.stock>0 AND (?='' OR LOCATE(?,CONCAT(a.codigo,' ',a.nombre))>0) AND (?='' OR r.nombre=?)";
         var args = new Object[] {accounts.storeId(), query, query, category, category};
         var rows =
                 jdbc.queryForList(
@@ -43,7 +44,7 @@ public class ShopService {
                         args);
         var categories =
                 jdbc.queryForList(
-                        "SELECT DISTINCT r.nombre FROM rubros r JOIN articulos a ON a.rubro_id=r.id WHERE a.comercio_id=? AND a.estado='ACTIVO' AND a.stock>0 ORDER BY r.nombre",
+                        "SELECT DISTINCT r.nombre FROM rubros r JOIN articulos a ON a.rubro_id=r.id WHERE a.comercio_id=? AND a.estado='ACTIVO' AND a.cargar_web=TRUE AND a.stock>0 ORDER BY r.nombre",
                         accounts.storeId());
         ar.com.alon.articles.ArticlePhotoQueries.attach(jdbc, accounts.storeId(), rows);
         return Map.of(
@@ -55,7 +56,9 @@ public class ShopService {
                 "categories",
                 categories,
                 "store",
-                jdbc.queryForMap("SELECT nombre FROM comercios WHERE id=?", accounts.storeId()),
+                jdbc.queryForMap(
+                        "SELECT nombre,slogan,color_principal,color_secundario,color_fondo FROM comercios WHERE id=?",
+                        accounts.storeId()),
                 "page",
                 page,
                 "heroImage",
@@ -83,7 +86,7 @@ public class ShopService {
                 jdbc,
                 accounts.storeId(),
                 jdbc.queryForList(
-                        "SELECT id,nombre,unidad,precio_venta,stock,imagen_clave,imagen_ilustrativa FROM articulos WHERE comercio_id=? AND estado='ACTIVO' AND id IN ("
+                        "SELECT id,nombre,unidad,precio_venta,stock,imagen_clave,imagen_ilustrativa FROM articulos WHERE comercio_id=? AND estado='ACTIVO' AND cargar_web=TRUE AND id IN ("
                                 + String.join(",", Collections.nCopies(input.ids().size(), "?"))
                                 + ")",
                         args.toArray()));
@@ -139,14 +142,20 @@ public class ShopService {
                     "total",
                     saved.get("total_estimado"));
         }
+        // El pedido queda pendiente: el stock se descontará cuando el comercio lo confirme.
         BigDecimal total = BigDecimal.ZERO;
         var articles = new LinkedHashMap<Long, Map<String, Object>>();
         for (var line : lines) {
             var a =
                     jdbc.queryForMap(
-                            "SELECT id,nombre,unidad,stock,precio_venta FROM articulos WHERE comercio_id=? AND id=? AND estado='ACTIVO' FOR UPDATE",
+                            "SELECT id,nombre,unidad,stock,precio_venta,cargar_web FROM articulos WHERE comercio_id=? AND id=? AND estado='ACTIVO' FOR UPDATE",
                             store,
                             line.articleId());
+            if (!Boolean.TRUE.equals(a.get("cargar_web"))
+                    && !"1".equals(String.valueOf(a.get("cargar_web"))))
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "El artículo ya no está disponible en la web. Actualizá tu carrito.");
             if (((BigDecimal) a.get("stock")).compareTo(line.quantity()) < 0)
                 throw new ResponseStatusException(
                         HttpStatus.CONFLICT,
@@ -179,7 +188,17 @@ public class ShopService {
                     s.setBigDecimal(5, orderTotal);
                     s.setLong(6, buyerId);
                     s.setString(7, String.valueOf(buyer.get("dni")));
-                    s.setString(8, String.valueOf(buyer.get("domicilio")));
+                    s.setString(
+                            8,
+                            java.util.stream.Stream.of(
+                                            "domicilio",
+                                            "codigo_postal",
+                                            "ciudad",
+                                            "provincia",
+                                            "pais")
+                                    .map(field -> Objects.toString(buyer.get(field), "").trim())
+                                    .filter(value -> !value.isEmpty())
+                                    .collect(java.util.stream.Collectors.joining(", ")));
                     s.setString(9, key);
                     s.setString(10, hash);
                     s.setString(11, input.paymentMethod());

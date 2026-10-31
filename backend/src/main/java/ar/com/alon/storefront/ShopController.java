@@ -1,3 +1,5 @@
+// Recibe las solicitudes de pedidos y compradores de la tienda web y las deriva al servicio
+// correspondiente.
 package ar.com.alon.storefront;
 
 import ar.com.alon.security.BrowserSecurityFilter;

@@ -1,3 +1,4 @@
+// Abre y cierra cajas y controla los importes cobrados, pagados y registrados como gastos.
 package ar.com.alon.cash;
 
 import ar.com.alon.cash.dto.CashCloseInput;

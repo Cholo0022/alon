@@ -1,3 +1,5 @@
+// Construye formularios reutilizables y convierte sus campos en los datos que espera el servidor.
+import { QuantityInput } from './QuantityInput'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Combobox } from './Combobox'
 import { LookupField } from './LookupField'
@@ -287,7 +289,7 @@ export function LocalEntryPanel({
     <section className="entry-panel" id={panelId}>
       <div className="entry-heading">
         <div>
-          <span className="demo-tag">GESTIÓN DEL COMERCIO</span>
+          <span className="alon-tag">GESTIÓN DEL COMERCIO</span>
           <strong>{title}</strong>
         </div>
         <button
@@ -388,6 +390,14 @@ export function LocalEntryPanel({
                           </option>
                         ))}
                       </select>
+                    ) : ['initialStock', 'minimumStock'].includes(field.name) ? (
+                      <QuantityInput
+                        name={field.name}
+                        label={field.label}
+                        min="0"
+                        required
+                        defaultValue={field.defaultValue}
+                      />
                     ) : field.type === 'date' ? (
                       <DateTextInput name={field.name} defaultValue={field.defaultValue} />
                     ) : (
@@ -401,13 +411,7 @@ export function LocalEntryPanel({
                           )
                         }
                         min={field.type === 'number' ? '0' : undefined}
-                        step={
-                          field.type === 'number'
-                            ? ['initialStock', 'minimumStock'].includes(field.name)
-                              ? '0.001'
-                              : '0.01'
-                            : undefined
-                        }
+                        step={field.type === 'number' ? '0.01' : undefined}
                         defaultValue={field.defaultValue}
                       />
                     )}

@@ -1,4 +1,5 @@
-export type DemoArticle = {
+// Genera ejemplos ficticios de artículos, clientes y proveedores; no guarda datos reales.
+export type AlonExampleArticle = {
   code: string
   name: string
   category: string
@@ -9,7 +10,7 @@ export type DemoArticle = {
   supplier: string
 }
 
-export type DemoCustomer = {
+export type AlonExampleCustomer = {
   code: string
   name: string
   phone: string
@@ -19,7 +20,7 @@ export type DemoCustomer = {
   status: 'Activo' | 'Inactivo'
 }
 
-export type DemoSupplier = {
+export type AlonExampleSupplier = {
   code: string
   name: string
   specialty: string
@@ -187,35 +188,39 @@ const articleFamilies: {
   },
 ]
 
-export const demoArticles: DemoArticle[] = articleFamilies.flatMap((family, familyIndex) =>
-  family.variants.map((variant, variantIndex) => {
-    const sequence = familyIndex * 4 + variantIndex + 1
-    const cost = family.baseCost + variantIndex * Math.max(25, Math.round(family.baseCost * 0.08))
-    return {
-      code: `FER-${String(sequence).padStart(4, '0')}`,
-      name: `${family.product} ${variant}`,
-      category: family.category,
-      stock: 8 + ((sequence * 17) % 93),
-      unit: family.category === 'Fijaciones' ? 'unidad' : 'unidad',
-      cost,
-      price: Math.round((cost * 1.42) / 10) * 10,
-      supplier: `PROV-${String(((sequence - 1) % 10) + 1).padStart(2, '0')}`,
-    }
-  }),
+export const alonExampleArticles: AlonExampleArticle[] = articleFamilies.flatMap(
+  (family, familyIndex) =>
+    family.variants.map((variant, variantIndex) => {
+      const sequence = familyIndex * 4 + variantIndex + 1
+      const cost = family.baseCost + variantIndex * Math.max(25, Math.round(family.baseCost * 0.08))
+      return {
+        code: `FER-${String(sequence).padStart(4, '0')}`,
+        name: `${family.product} ${variant}`,
+        category: family.category,
+        stock: 8 + ((sequence * 17) % 93),
+        unit: family.category === 'Fijaciones' ? 'unidad' : 'unidad',
+        cost,
+        price: Math.round((cost * 1.42) / 10) * 10,
+        supplier: `PROV-${String(((sequence - 1) % 10) + 1).padStart(2, '0')}`,
+      }
+    }),
 )
 
-export const demoCustomers: DemoCustomer[] = Array.from({ length: 20 }, (_, index) => {
-  const number = index + 1
-  return {
-    code: `CLI-${String(number).padStart(3, '0')}`,
-    name: `Cliente de Prueba ${String(number).padStart(2, '0')}`,
-    phone: `+54 11 5550-${String(1000 + number)}`,
-    email: `cliente${String(number).padStart(2, '0')}@example.test`,
-    currentAccount: number % 4 === 0 ? number * 1250 : 0,
-    creditLimit: 50000 + (number % 5) * 25000,
-    status: number === 20 ? 'Inactivo' : 'Activo',
-  }
-})
+export const alonExampleCustomers: AlonExampleCustomer[] = Array.from(
+  { length: 20 },
+  (_, index) => {
+    const number = index + 1
+    return {
+      code: `CLI-${String(number).padStart(3, '0')}`,
+      name: `Cliente de Prueba ${String(number).padStart(2, '0')}`,
+      phone: `+54 11 5550-${String(1000 + number)}`,
+      email: `cliente${String(number).padStart(2, '0')}@example.test`,
+      currentAccount: number % 4 === 0 ? number * 1250 : 0,
+      creditLimit: 50000 + (number % 5) * 25000,
+      status: number === 20 ? 'Inactivo' : 'Activo',
+    }
+  },
+)
 
 const specialties = [
   'Tornillería',
@@ -230,15 +235,18 @@ const specialties = [
   'Fijaciones',
 ]
 
-export const demoSuppliers: DemoSupplier[] = Array.from({ length: 20 }, (_, index) => {
-  const number = index + 1
-  return {
-    code: `PROV-${String(number).padStart(2, '0')}`,
-    name: `Proveedor de Prueba ${String(number).padStart(2, '0')}`,
-    specialty: specialties[index % specialties.length],
-    phone: `+54 11 5551-${String(1000 + number)}`,
-    email: `proveedor${String(number).padStart(2, '0')}@example.test`,
-    balance: number % 3 === 0 ? number * 9750 : 0,
-    status: number === 20 ? 'Inactivo' : 'Activo',
-  }
-})
+export const alonExampleSuppliers: AlonExampleSupplier[] = Array.from(
+  { length: 20 },
+  (_, index) => {
+    const number = index + 1
+    return {
+      code: `PROV-${String(number).padStart(2, '0')}`,
+      name: `Proveedor de Prueba ${String(number).padStart(2, '0')}`,
+      specialty: specialties[index % specialties.length],
+      phone: `+54 11 5551-${String(1000 + number)}`,
+      email: `proveedor${String(number).padStart(2, '0')}@example.test`,
+      balance: number % 3 === 0 ? number * 9750 : 0,
+      status: number === 20 ? 'Inactivo' : 'Activo',
+    }
+  },
+)

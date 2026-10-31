@@ -1,3 +1,4 @@
+// Define y valida los datos necesarios para crear o modificar un proveedor.
 package ar.com.alon.suppliers.dto;
 
 import jakarta.validation.constraints.*;

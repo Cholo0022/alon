@@ -1,3 +1,4 @@
+// Valida y actualiza la galería de fotos de cada artículo.
 package ar.com.alon.articles;
 
 import ar.com.alon.articles.dto.ArticlePhotoInput;
@@ -45,7 +46,8 @@ public class ArticlePhotoService {
 
     @Transactional
     public List<Map<String, Object>> replace(long id, List<ArticlePhotoInput> input) {
-        if (input == null) return List.of(); // Old clients leave existing images untouched.
+        if (input == null)
+            return List.of(); // Si no se envían fotos, se conservan las que ya tiene el artículo.
         identity.require("articulos");
         if (input.size() > 4)
             throw new IllegalArgumentException("Cada artículo admite hasta cuatro fotos.");

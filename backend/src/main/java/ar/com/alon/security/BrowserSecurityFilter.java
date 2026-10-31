@@ -1,3 +1,4 @@
+// Protege las solicitudes del navegador y comprueba el token de las operaciones que guardan datos.
 package ar.com.alon.security;
 
 import jakarta.servlet.FilterChain;

@@ -1,3 +1,4 @@
+// Define y valida los datos necesarios para abrir una caja.
 package ar.com.alon.cash.dto;
 
 import jakarta.validation.constraints.*;

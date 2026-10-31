@@ -1,3 +1,4 @@
+// Añade las fotos a los artículos consultados sin repetir una consulta por cada foto.
 package ar.com.alon.articles;
 
 import java.util.*;
@@ -6,7 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public final class ArticlePhotoQueries {
     private ArticlePhotoQueries() {}
 
-    /** Attach one bounded gallery query to a page, instead of one query per article. */
+    /** Consulta las fotos de toda la página de artículos en una sola operación. */
     public static List<Map<String, Object>> attach(
             JdbcTemplate jdbc, long store, List<Map<String, Object>> articles) {
         if (articles.isEmpty()) return articles;

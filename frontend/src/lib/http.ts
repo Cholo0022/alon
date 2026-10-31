@@ -1,3 +1,4 @@
+// Centraliza las solicitudes de Alon y conserva la clave de una operación cuando debe reintentarse.
 type PendingCommand = { key: string; created: number }
 const pending = new Map<string, PendingCommand>()
 let csrfToken = ''
@@ -24,7 +25,7 @@ async function ensureCsrf() {
   await bootstrap
 }
 
-/** A lost response can be retried with the same operation key, including a manual retry. */
+/** Reutiliza la clave de la operación al reintentar una respuesta perdida. */
 export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const method = (options.method ?? 'GET').toUpperCase()
   const mutation = !['GET', 'HEAD', 'OPTIONS'].includes(method)
@@ -33,6 +34,7 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
     if (mutation) await ensureCsrf()
     const headers = new Headers(options.headers)
     if (mutation) headers.set('X-CSRF-Token', csrfToken)
+    // Reconoce un reintento para no volver a registrar el mismo movimiento.
     const signature = `${method}:${url}:${String(options.body ?? '')}`
     if (mutation && url.startsWith('/api/v1/operations/')) {
       const now = Date.now()

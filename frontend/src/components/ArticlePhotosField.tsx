@@ -1,3 +1,4 @@
+// Permite elegir y organizar las fotos que se guardarán con el artículo.
 import { useRef, useState } from 'react'
 
 import type { ArticlePhoto } from '../lib/articlePhotos'

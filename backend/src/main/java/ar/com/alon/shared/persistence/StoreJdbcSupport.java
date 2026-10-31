@@ -1,3 +1,4 @@
+// Reúne validaciones y consultas comunes que usan los servicios del comercio.
 package ar.com.alon.shared.persistence;
 
 import ar.com.alon.security.RequestIdentity;
@@ -11,7 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 
-/** Shared JDBC primitives; business flows live in services for each module. */
+/** Operaciones comunes de base de datos usadas por los servicios de cada módulo. */
 public abstract class StoreJdbcSupport {
     protected final JdbcTemplate jdbc;
     protected final RequestIdentity identity;
@@ -27,8 +28,20 @@ public abstract class StoreJdbcSupport {
     }
 
     protected void assertBelongs(String table, long id) {
-        if (id <= 0) throw new IllegalArgumentException("Seleccioná un registro válido.");
-        String activeClause = table.equals("rubros") ? "" : " AND estado='ACTIVO'";
+        assertBelongs(table, id, false);
+    }
+
+    protected void assertBelongs(String table, long id, boolean allowInactive) {
+        String label =
+                switch (table) {
+                    case "rubros" -> "El rubro";
+                    case "proveedores" -> "El proveedor";
+                    case "clientes" -> "El cliente";
+                    case "articulos" -> "El artículo";
+                    default -> "El registro";
+                };
+        if (id <= 0) throw new IllegalArgumentException(label + " seleccionado no es válido.");
+        String activeClause = table.equals("rubros") || allowInactive ? "" : " AND estado='ACTIVO'";
         Integer count =
                 jdbc.queryForObject(
                         "SELECT COUNT(*) FROM "
@@ -40,7 +53,9 @@ public abstract class StoreJdbcSupport {
                         identity.storeId());
         if (count == null || count == 0)
             throw new IllegalArgumentException(
-                    "El registro seleccionado no existe o está inactivo.");
+                    label
+                            + " seleccionado no existe en tu comercio"
+                            + (activeClause.isEmpty() ? "." : " o está inactivo."));
     }
 
     protected long insert(String sql, Object... args) {

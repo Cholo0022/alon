@@ -1,3 +1,4 @@
+// Recibe las solicitudes de proveedores y sus cuentas y las deriva al servicio correspondiente.
 package ar.com.alon.suppliers;
 
 import ar.com.alon.shared.commands.CommandExecutor;
@@ -62,13 +63,13 @@ public class SupplierController {
                 "createSupplierReceipt", input, () -> service.createSupplierReceipt(input));
     }
 
-    @GetMapping("/demo/suppliers")
+    @GetMapping("/alon/suppliers")
     public List<Map<String, Object>> suppliers(
             @RequestParam(defaultValue = "false") boolean inactive) {
         return queries.suppliers(inactive);
     }
 
-    @GetMapping("/demo/lookups/suppliers")
+    @GetMapping("/alon/lookups/suppliers")
     public List<Map<String, Object>> lookupSuppliers() {
         return queries.lookupSuppliers();
     }

@@ -1,3 +1,4 @@
+// Organiza las reglas de rubros.
 package ar.com.alon.categories;
 
 import ar.com.alon.categories.dto.CategoryInput;

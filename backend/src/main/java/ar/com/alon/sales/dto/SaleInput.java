@@ -1,3 +1,4 @@
+// Define y valida los datos necesarios para registrar una venta.
 package ar.com.alon.sales.dto;
 
 import jakarta.validation.Valid;

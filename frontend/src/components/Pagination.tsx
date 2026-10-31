@@ -1,3 +1,4 @@
+// Permite avanzar y volver entre páginas de resultados.
 import type { PagedRows } from '../hooks/useApiRows'
 
 export function Pagination({ rows, label = 'registros' }: { rows: PagedRows; label?: string }) {

@@ -1,3 +1,4 @@
+// Configura el reloj de Alon con la zona horaria del comercio.
 package ar.com.alon.config;
 
 import java.time.Clock;

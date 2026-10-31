@@ -1,3 +1,4 @@
+// Da formato a precios y fechas y convierte las fechas ingresadas por el usuario.
 export const currency = new Intl.NumberFormat('es-AR', {
   style: 'currency',
   currency: 'ARS',

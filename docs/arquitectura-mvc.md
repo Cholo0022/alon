@@ -31,7 +31,7 @@ ar.com.alon
 
 Los módulos comerciales usan `Controller`, `Service`, `Queries` y `dto/` según corresponda. Stock expone `StockRepository`; caja expone `CashLedger` para los movimientos coordinados desde ventas, compras y proveedores. La regla de precio pertenece a artículos y la valoración de compras pertenece a compras.
 
-No existen los agregadores `OperationsModel`, `CatalogService`, `DemoDataModel`, `OperationsController` ni `DemoDataController`. Las consultas y operaciones están en el módulo que las posee. `StoreJdbcSupport` conserva únicamente contexto de ejecución y primitivas comunes; no administra ventas, compras, stock o caja.
+Las consultas y las operaciones se organizan por módulo, sin modelos ni controladores agregadores generales. Las consultas y operaciones están en el módulo que las posee. `StoreJdbcSupport` conserva únicamente contexto de ejecución y primitivas comunes; no administra ventas, compras, stock o caja.
 
 ## Transacciones
 

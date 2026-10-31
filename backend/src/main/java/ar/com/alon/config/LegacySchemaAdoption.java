@@ -1,3 +1,4 @@
+// Permite adoptar una base antigua solo cuando se solicita y su estructura está completa.
 package ar.com.alon.config;
 
 import java.sql.Connection;
@@ -8,7 +9,7 @@ import org.springframework.boot.flyway.autoconfigure.FlywayMigrationStrategy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/** Explicit opt-in only. Reject partial legacy installations before recording a baseline. */
+/** Solo adopta una instalación anterior cuando se solicita y su estructura está completa. */
 @Configuration
 @ConditionalOnProperty(name = "alon.adopt-legacy-schema", havingValue = "true")
 public class LegacySchemaAdoption {

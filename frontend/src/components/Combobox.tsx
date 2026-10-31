@@ -1,3 +1,4 @@
+// Muestra un buscador con sugerencias que también se pueden elegir con el teclado.
 import { useEffect, useId, useRef, useState } from 'react'
 
 export type ComboOption = { value: string; label: string }
@@ -14,6 +15,7 @@ export function Combobox({
   valid = true,
   name,
   selectOnFocus = false,
+  onEmptyEnter,
 }: {
   label: string
   value: string
@@ -24,6 +26,7 @@ export function Combobox({
   autoFocus?: boolean
   placeholder?: string
   valid?: boolean
+  onEmptyEnter?: () => void
   selectOnFocus?: boolean
   name?: string
 }) {
@@ -97,6 +100,9 @@ export function Combobox({
           } else if (event.key === 'Enter' && open && active >= 0) {
             event.preventDefault()
             choose(options[active])
+          } else if (event.key === 'Enter' && onEmptyEnter) {
+            event.preventDefault()
+            if (!value.trim()) onEmptyEnter()
           }
         }}
       />

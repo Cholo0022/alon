@@ -1,3 +1,6 @@
+import { useTransactionEntry } from '../hooks/useTransactionEntry'
+// Permite cargar y corregir compras con sus artículos, cantidades, gastos y pagos.
+import { QuantityInput } from '../components/QuantityInput'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import {
@@ -11,8 +14,11 @@ import {
 import { type ApiRow } from '../hooks/useApiRows'
 import { LookupField } from '../components/LookupField'
 import { ApiTable } from '../components/ApiTable'
+import { ArticlePicker } from '../components/ArticlePicker'
 
 export function PurchasesPage() {
+  const [articlePickerOpen, setArticlePickerOpen] = useState(false)
+  const [costEdited, setCostEdited] = useState(false)
   const [selectedPurchase, setSelectedPurchase] = useState<number | null>(null)
   const [selectedArticle, setSelectedArticle] = useState<ApiRow | null>(null)
   const [open, setOpen] = useState(false)
@@ -27,31 +33,39 @@ export function PurchasesPage() {
   const [extraCosts, setExtraCosts] = useState('0')
   const [paymentType, setPaymentType] = useState<'CONTADO' | 'CUENTA_CORRIENTE'>('CONTADO')
   const purchaseFormRef = useRef<HTMLFormElement>(null)
+  useTransactionEntry(purchaseFormRef, open, searchVersion)
   useEffect(() => {
     if (!open) return
     const onShortcut = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key.toLowerCase() === 'g') {
         event.preventDefault()
-        if (!busy) purchaseFormRef.current?.requestSubmit()
+        if (!busy && !articlePickerOpen) purchaseFormRef.current?.requestSubmit()
       }
     }
     window.addEventListener('keydown', onShortcut)
     return () => window.removeEventListener('keydown', onShortcut)
-  }, [open, busy])
-  const addLine = (form: HTMLFormElement) => {
-    const articleId = Number(
-      form.querySelector<HTMLInputElement>('input[name="articleId"]')?.value ?? 0,
-    )
+  }, [open, busy, articlePickerOpen])
+  const addLine = (form: HTMLFormElement, pickedArticle?: ApiRow) => {
+    const articleId = pickedArticle
+      ? numberValue(pickedArticle.id)
+      : Number(form.querySelector<HTMLInputElement>('input[name="articleId"]')?.value ?? 0)
     const quantityValue = Number(quantity)
-    const unitCostValue = Number(unitCost)
-    const article = selectedArticle
+    const unitCostValue =
+      pickedArticle && !costEdited ? numberValue(pickedArticle.costo) : Number(unitCost)
+    const article = pickedArticle ?? selectedArticle
     if (!article || numberValue(article.id) !== articleId) {
       setMessage('Buscá y elegí un artículo del listado.')
-      return
+      return false
     }
-    if (!(quantityValue > 0) || unitCostValue < 0) {
+    if (
+      !Number.isFinite(quantityValue) ||
+      !(quantityValue > 0) ||
+      (costEdited && !unitCost.trim()) ||
+      !Number.isFinite(unitCostValue) ||
+      unitCostValue < 0
+    ) {
       setMessage('Ingresá una cantidad mayor a cero y un costo válido.')
-      return
+      return false
     }
     setLines((current) => [
       ...current,
@@ -66,8 +80,11 @@ export function PurchasesPage() {
     setSearchVersion((current) => current + 1)
     setQuantity('1')
     setUnitCost('0')
+    setCostEdited(false)
     setMessage('Artículo ingresado a la factura. Podés agregar otro.')
+    return true
   }
+  // Guarda la factura o el remito completo junto con sus artículos.
   const submitPurchase = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (lines.length === 0) {
@@ -133,10 +150,27 @@ export function PurchasesPage() {
     )
   return (
     <>
+      {articlePickerOpen && (
+        <ArticlePicker
+          mode="purchase"
+          message={message}
+          unitCostOverride={costEdited ? Number(unitCost) : undefined}
+          onClose={() => {
+            setArticlePickerOpen(false)
+            purchaseFormRef.current
+              ?.querySelector<HTMLInputElement>('[role="combobox"][aria-label="Artículo"]')
+              ?.focus()
+          }}
+          onChoose={(article) => {
+            if (purchaseFormRef.current && addLine(purchaseFormRef.current, article))
+              setArticlePickerOpen(false)
+          }}
+        />
+      )}
       <section className="entry-panel purchase-entry">
         <div className="entry-heading">
           <div>
-            <span className="demo-tag">GESTIÓN DEL COMERCIO</span>
+            <span className="alon-tag">GESTIÓN DEL COMERCIO</span>
             <strong>Cargar factura o remito de proveedor</strong>
           </div>
           <button
@@ -155,86 +189,98 @@ export function PurchasesPage() {
         </div>
         {open && (
           <form className="entry-form" ref={purchaseFormRef} onSubmit={submitPurchase}>
-            <label>
-              Proveedor
-              <LookupField
-                name="supplierId"
-                label="Proveedor"
-                endpoint="/api/v1/demo/lookups/suppliers"
-              />
-            </label>
-            <label>
-              Tipo de comprobante
-              <select name="documentType" required defaultValue="">
-                <option value="" disabled>
-                  Seleccionar…
-                </option>
-                <option value="FACTURA">Factura</option>
-                <option value="REMITO">Remito</option>
-              </select>
-            </label>
-            <label>
-              Número de comprobante
-              <input name="documentNumber" required />
-            </label>
-            <label>
-              Fecha
-              <input
-                name="date"
-                type="text"
-                inputMode="numeric"
-                placeholder="dd/mm/aaaa"
-                pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}"
-                maxLength={10}
-                title="Usá el formato dd/mm/aaaa"
-                required
-                defaultValue={formatDateDisplay(todayLocal())}
-              />
-            </label>
-            <label>
-              Artículo
-              <LookupField
-                key={searchVersion}
-                name="articleId"
-                label="Artículo"
-                endpoint="/api/v1/demo/articles"
-                required={false}
-                autoFocus
-                onSelect={setSelectedArticle}
-              />
-            </label>
-            <label>
-              Cantidad
-              <input
-                type="number"
-                min="0.001"
-                step="0.001"
-                required
-                value={quantity}
-                onChange={(event) => setQuantity(event.target.value)}
-              />
-            </label>
-            <label>
-              Costo unitario
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                required
-                value={unitCost}
-                onChange={(event) => setUnitCost(event.target.value)}
-              />
-            </label>
-            <button
-              className="primary-button purchase-add-button"
-              type="button"
-              onClick={(event) => {
-                const form = event.currentTarget.form
-                if (form) addLine(form)
-              }}
-            >
-              Ingresar
-            </button>
+            <div className="transaction-header">
+              <label>
+                Proveedor
+                <LookupField
+                  name="supplierId"
+                  label="Proveedor"
+                  endpoint="/api/v1/alon/lookups/suppliers"
+                />
+              </label>
+              <label>
+                Tipo de comprobante
+                <select name="documentType" required defaultValue="">
+                  <option value="" disabled>
+                    Seleccionar…
+                  </option>
+                  <option value="FACTURA">Factura</option>
+                  <option value="REMITO">Remito</option>
+                </select>
+              </label>
+              <label>
+                Número de comprobante
+                <input name="documentNumber" required />
+              </label>
+              <label>
+                Fecha
+                <input
+                  name="date"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="dd/mm/aaaa"
+                  pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}"
+                  maxLength={10}
+                  title="Usá el formato dd/mm/aaaa"
+                  required
+                  defaultValue={formatDateDisplay(todayLocal())}
+                />
+              </label>
+            </div>
+            <div className="transaction-article-entry">
+              <label>
+                Artículo
+                <LookupField
+                  key={searchVersion}
+                  searchOnly
+                  onEmptyEnter={() => {
+                    if (!busy) {
+                      setMessage('')
+                      setArticlePickerOpen(true)
+                    }
+                  }}
+                  name="articleId"
+                  label="Artículo"
+                  endpoint="/api/v1/alon/articles"
+                  required={false}
+                  autoFocus
+                  onSelect={setSelectedArticle}
+                />
+              </label>
+              <label>
+                Cantidad
+                <QuantityInput
+                  min="0.001"
+                  required
+                  value={quantity}
+                  onChange={(event) => setQuantity(event.target.value)}
+                />
+              </label>
+              <label>
+                Costo unitario
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  required
+                  value={unitCost}
+                  onChange={(event) => {
+                    setUnitCost(event.target.value)
+                    setCostEdited(true)
+                  }}
+                />
+              </label>
+              <button
+                className="primary-button purchase-add-button"
+                type="button"
+                onClick={(event) => {
+                  const form = event.currentTarget.form
+                  if (form) addLine(form)
+                }}
+              >
+                Ingresar
+              </button>
+            </div>
             {lines.length > 0 && (
               <div className="purchase-lines">
                 <strong>Artículos de esta factura · {lines.length}</strong>
@@ -353,7 +399,7 @@ export function PurchasesPage() {
       <ApiTable
         className="purchases-table"
         title="Compras registradas"
-        endpoint="/api/v1/demo/purchases"
+        endpoint="/api/v1/alon/purchases"
         columns={[
           {
             key: 'numero_documento',
@@ -402,7 +448,7 @@ export function PurchaseReceipt({
   const [message, setMessage] = useState('')
   const loadPurchase = useCallback(
     () =>
-      apiFetch(`/api/v1/demo/purchases/${purchaseId}`)
+      apiFetch(`/api/v1/alon/purchases/${purchaseId}`)
         .then((response) => {
           if (!response.ok) throw new Error('No se pudo cargar el comprobante.')
           return response.json() as Promise<ApiRow>
@@ -493,7 +539,7 @@ export function PurchaseReceipt({
     <section className="entry-panel purchase-receipt-view">
       <div className="entry-heading">
         <div>
-          <span className="demo-tag">COMPROBANTE DE COMPRA</span>
+          <span className="alon-tag">COMPROBANTE DE COMPRA</span>
           <strong>
             {textValue(purchase.tipo_documento)} {textValue(purchase.numero_documento)}
           </strong>
@@ -544,10 +590,8 @@ export function PurchaseReceipt({
                 </span>
                 <label>
                   Cantidad
-                  <input
-                    type="number"
+                  <QuantityInput
                     min="0.001"
-                    step="0.001"
                     value={line.quantity}
                     onChange={(event) =>
                       setLines((current) =>
@@ -588,7 +632,7 @@ export function PurchaseReceipt({
               <LookupField
                 name="addArticleId"
                 label="Agregar artículo"
-                endpoint="/api/v1/demo/articles"
+                endpoint="/api/v1/alon/articles"
                 required={false}
                 onSelect={(article) => {
                   if (article)

@@ -1,3 +1,4 @@
+// Define y valida los datos necesarios para crear o modificar un artículo.
 package ar.com.alon.articles.dto;
 
 import jakarta.validation.constraints.*;
@@ -15,7 +16,7 @@ public record ArticleInput(
         boolean freightByValue,
         boolean freightByPercent,
         BigDecimal marginPercent,
-        boolean roundPrice,
+        Boolean roundPrice,
         BigDecimal initialStock,
         BigDecimal minimumStock,
         BigDecimal salePrice,
@@ -23,4 +24,9 @@ public record ArticleInput(
                 java.util.List<
                                 @jakarta.validation.constraints.NotNull @jakarta.validation.Valid
                                 ArticlePhotoInput>
-                        photos) {}
+                        photos,
+        boolean publishOnWeb) {
+    public ArticleInput {
+        if (roundPrice == null) roundPrice = true;
+    }
+}

@@ -1,3 +1,4 @@
+// Recibe las solicitudes de rubros y las deriva al servicio correspondiente.
 package ar.com.alon.categories;
 
 import ar.com.alon.categories.dto.CategoryInput;
@@ -28,7 +29,7 @@ public class CategoryController {
         return commands.execute("createCategory", input, () -> service.createCategory(input));
     }
 
-    @GetMapping("/demo/categories")
+    @GetMapping("/alon/categories")
     public List<Map<String, Object>> categories() {
         return queries.categories();
     }

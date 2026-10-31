@@ -1,3 +1,4 @@
+// Obtiene el comercio y los permisos de la sesión que ya verificó el servidor.
 package ar.com.alon.security;
 
 import java.util.Arrays;
@@ -8,7 +9,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
-/** Identity is always established by the permission filter, never by a request body. */
+/** La identidad proviene de la sesión verificada, no de los datos que envía el formulario. */
 @Component
 public class RequestIdentity {
     @SuppressWarnings("unchecked")

@@ -1,3 +1,4 @@
+// Organiza las reglas de clientes y sus cuentas.
 package ar.com.alon.customers;
 
 import ar.com.alon.customers.dto.CustomerInput;

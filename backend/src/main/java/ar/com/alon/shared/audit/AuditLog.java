@@ -1,3 +1,4 @@
+// Guarda quién hizo cada cambio y cuáles eran los datos anteriores y los nuevos.
 package ar.com.alon.shared.audit;
 
 import ar.com.alon.security.RequestIdentity;

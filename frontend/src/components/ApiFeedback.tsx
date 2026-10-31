@@ -1,3 +1,4 @@
+// Muestra avisos de carga y errores que informa la conexión con el servidor.
 import { useEffect, useState } from 'react'
 
 export function ApiFeedback() {

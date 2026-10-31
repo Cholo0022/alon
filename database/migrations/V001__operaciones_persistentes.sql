@@ -1,5 +1,5 @@
 -- Seleccionar explícitamente la base de destino antes de ejecutar este script de compatibilidad.
--- Ejecutar una sola vez sobre alon_demo después de database/demo-data.sql.
+-- Ejecutar una sola vez sobre alon después de database/alon-sample-data.sql.
 -- Habilita claves generadas por MySQL para las altas creadas desde la aplicación.
 -- MySQL exige retirar temporalmente las claves foráneas que apuntan a IDs
 -- antes de agregar AUTO_INCREMENT a esas columnas.

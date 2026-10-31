@@ -1,3 +1,4 @@
+// Recibe las solicitudes de clientes y sus cuentas y las deriva al servicio correspondiente.
 package ar.com.alon.customers;
 
 import ar.com.alon.customers.dto.CustomerInput;
@@ -53,13 +54,13 @@ public class CustomerController {
                 () -> service.setCustomerActive(id, true));
     }
 
-    @GetMapping("/demo/customers")
+    @GetMapping("/alon/customers")
     public List<Map<String, Object>> customers(
             @RequestParam(defaultValue = "false") boolean inactive) {
         return queries.customers(inactive);
     }
 
-    @GetMapping("/demo/lookups/customers")
+    @GetMapping("/alon/lookups/customers")
     public List<Map<String, Object>> lookupCustomers() {
         return queries.lookupCustomers();
     }

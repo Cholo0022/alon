@@ -1,3 +1,4 @@
+// Inicia el servidor de Alon y carga los componentes de la aplicación.
 package ar.com.alon;
 
 import org.springframework.boot.SpringApplication;

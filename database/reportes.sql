@@ -1,4 +1,4 @@
-USE alon_demo;
+USE alon;
 
 -- Resumen de ventas y margen bruto por día
 SELECT * FROM vw_ventas_diarias ORDER BY fecha;

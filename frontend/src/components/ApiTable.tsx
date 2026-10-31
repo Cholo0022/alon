@@ -1,3 +1,4 @@
+// Muestra datos del servidor en una tabla con páginas y formatos de importes y fechas.
 import { type ReactNode } from 'react'
 import {
   currency,
@@ -26,8 +27,10 @@ export function ApiTable({
   note,
   onRowClick,
   className = '',
+  rowClassName,
 }: {
   className?: string
+  rowClassName?: (row: ApiRow) => string | undefined
   title: string
   endpoint: string
   columns: ApiColumn[]
@@ -42,7 +45,7 @@ export function ApiTable({
     <section className={'directory-panel report-table ' + className}>
       <div className="directory-toolbar">
         <div>
-          <span className="demo-tag">DATOS DEL COMERCIO</span>
+          <span className="alon-tag">DATOS DEL COMERCIO</span>
           <strong>{title}</strong>
         </div>
         <span className="row-count">{loading ? 'Cargando…' : `${rows.length} registros`}</span>
@@ -72,7 +75,11 @@ export function ApiTable({
               {rows.map((row, index) => (
                 <tr
                   key={`${String(row.codigo ?? row.numero ?? row.id ?? row.fecha ?? index)}-${index}`}
-                  className={onRowClick ? 'clickable-row' : undefined}
+                  className={
+                    [onRowClick ? 'clickable-row' : '', rowClassName?.(row) ?? '']
+                      .filter(Boolean)
+                      .join(' ') || undefined
+                  }
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   onKeyDown={
                     onRowClick

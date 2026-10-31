@@ -1,3 +1,5 @@
+// Recibe las solicitudes de existencias y movimientos de stock y las deriva al servicio
+// correspondiente.
 package ar.com.alon.stock;
 
 import java.util.List;
@@ -13,7 +15,7 @@ public class StockController {
         this.queries = queries;
     }
 
-    @GetMapping("/demo/stock-movements")
+    @GetMapping("/alon/stock-movements")
     public List<Map<String, Object>> stockMovements() {
         return queries.stockMovements();
     }

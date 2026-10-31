@@ -1,3 +1,4 @@
+// Organiza la apertura, los movimientos y el cierre de la caja.
 import { LocalEntryPanel } from '../components/Forms'
 import { ApiTable } from '../components/ApiTable'
 
@@ -44,7 +45,7 @@ export function CashPage() {
       />
       <ApiTable
         title="Historial de cierres de caja"
-        endpoint="/api/v1/demo/reports/cash"
+        endpoint="/api/v1/alon/reports/cash"
         columns={[
           { key: 'fecha', label: 'FECHA', date: true },
           { key: 'sesion', label: 'SESIÓN' },
