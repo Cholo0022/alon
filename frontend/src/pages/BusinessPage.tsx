@@ -1,9 +1,11 @@
+import { shopTemplates } from '../lib/shopTemplates'
+import { ShopTemplatePreview } from '../components/ShopTemplatePreview'
 // Permite guardar el nombre, el slogan y los colores que usan Alon y la tienda web.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import { announceBrand, brandStyle, normalizeBrand, type BusinessBrand } from '../lib/businessBrand'
 
-/** Permite al dueño editar nombre, slogan y colores del negocio con vista previa y sincronización al guardar. */
+/** Permite al dueño personalizar identidad, colores, plantilla y textos de la tienda con vistas previas antes de guardarlos. */
 export function BusinessPage({ brand }: { brand: BusinessBrand }) {
   const [draft, setDraft] = useState(brand)
   const dirty = useRef(false)
@@ -34,6 +36,9 @@ export function BusinessPage({ brand }: { brand: BusinessBrand }) {
           primaryColor: draft.color_principal,
           secondaryColor: draft.color_secundario,
           backgroundColor: draft.color_fondo,
+          shopTemplate: draft.plantilla_tienda,
+          shopTitle: draft.titulo_tienda,
+          shopDescription: draft.descripcion_tienda,
         }),
       })
       const result = await response.json()
@@ -98,6 +103,62 @@ export function BusinessPage({ brand }: { brand: BusinessBrand }) {
             </div>
           </label>
         ))}
+        <fieldset className="business-templates" disabled={busy}>
+          <legend>Plantillas de la tienda online</legend>
+          <p>
+            Elegí un diseño. Todas las plantillas incluyen las mismas funciones y conservan tus
+            productos, clientes y pedidos.
+          </p>
+          <div className="business-template-grid">
+            {shopTemplates.map((template) => (
+              <label
+                className={`business-template-option ${draft.plantilla_tienda === template.id ? 'is-selected' : ''}`}
+                key={template.id}
+              >
+                <span className="business-template-name">
+                  <input
+                    type="radio"
+                    name="shopTemplate"
+                    aria-label={template.name}
+                    value={template.id}
+                    checked={draft.plantilla_tienda === template.id}
+                    onChange={() => change('plantilla_tienda', template.id)}
+                  />
+                  <strong>{template.name}</strong>
+                  {draft.plantilla_tienda === template.id && <small>Seleccionada</small>}
+                </span>
+                <ShopTemplatePreview compact brand={{ ...draft, plantilla_tienda: template.id }} />
+                <span className="business-template-description">{template.description}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <label>
+          Título de bienvenida de la tienda
+          <input
+            value={draft.titulo_tienda}
+            onChange={(event) => change('titulo_tienda', event.target.value)}
+            maxLength={120}
+            required
+            disabled={busy}
+          />
+        </label>
+        <label>
+          Descripción de bienvenida de la tienda
+          <textarea
+            value={draft.descripcion_tienda}
+            onChange={(event) => change('descripcion_tienda', event.target.value)}
+            maxLength={240}
+            required
+            disabled={busy}
+            rows={3}
+          />
+        </label>
+        <div className="business-storefront-preview">
+          <h2>Vista previa de la tienda</h2>
+          <p>Ejemplo del diseño elegido. Los cambios se publican al guardar el negocio.</p>
+          <ShopTemplatePreview brand={draft} />
+        </div>
         <div
           className="business-preview"
           style={brandStyle(draft)}

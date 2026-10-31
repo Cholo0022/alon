@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { currency, formatDateTimeDisplay } from '../lib/format'
 import { shopRequest } from './api'
 import './shop.css'
+import './shop-templates.css'
 import { ProductGallery } from './ProductGallery'
 
 type Product = {
@@ -365,7 +366,11 @@ export default function ShopApp() {
   }
 
   return (
-    <div className="shop-app business-themed" style={brandStyle(brand)}>
+    <div
+      className={`shop-app business-themed shop-template-${brand.plantilla_tienda}`}
+      data-template={brand.plantilla_tienda}
+      style={brandStyle(brand)}
+    >
       {productToAdd && (
         <ArticleEntryDialog
           article={productToAdd}
@@ -573,11 +578,8 @@ export default function ShopApp() {
             <section className="shop-hero">
               <div>
                 <p className="shop-eyebrow">TU COMERCIO, MÁS CERCA</p>
-                <h1>
-                  Todo lo que necesitás,
-                  <br />a un carrito de distancia.
-                </h1>
-                <p>Elegí tus productos. Nosotros preparamos tu pedido.</p>
+                <h1>{brand.titulo_tienda}</h1>
+                <p>{brand.descripcion_tienda}</p>
                 <span className="shop-badge">● Stock disponible</span>
               </div>
               {catalog.heroImage && (

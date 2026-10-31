@@ -2804,3 +2804,97 @@ td.article-actions {
   z-index: 1;
   background: #edf2f6;
 }
+
+.business-templates,
+.business-storefront-preview {
+  grid-column: 1/-1;
+  min-width: 0;
+}
+.business-templates {
+  margin: 12px 0;
+  border: 1px solid #cbd5df;
+  border-radius: 12px;
+  padding: 20px;
+}
+.business-templates legend {
+  padding: 0 8px;
+  font-weight: 700;
+  font-size: 20px;
+}
+.business-templates > p,
+.business-storefront-preview > p {
+  color: #43566b;
+  margin: 0 0 18px;
+  line-height: 1.6;
+}
+.business-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.entry-form .business-template-option {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 2px solid #d0d9e3;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  min-width: 0;
+}
+.entry-form .business-template-option.is-selected {
+  border-color: var(--business-primary, #006b73);
+  background: #f1f8f8;
+  box-shadow: 0 0 0 1px var(--business-primary, #006b73);
+}
+.business-template-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.entry-form .business-template-name input[type='radio'] {
+  width: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--business-primary, #006b73);
+}
+.business-template-name small {
+  margin-left: auto;
+  font-size: 11px;
+  color: #07545c;
+}
+.business-template-description {
+  color: #43566b;
+  font-weight: 400;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.business-storefront-preview {
+  margin: 8px 0 20px;
+}
+.business-storefront-preview > .storefront-preview {
+  border: 1px solid #cbd5df;
+  border-radius: 12px;
+}
+.business-settings textarea {
+  font: inherit;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #65778a;
+  border-radius: 7px;
+  color: #10243a;
+  background: #fff;
+  resize: vertical;
+}
+@media (max-width: 600px) {
+  .business-templates {
+    padding: 12px;
+  }
+  .business-template-grid {
+    grid-template-columns: 1fr;
+  }
+}

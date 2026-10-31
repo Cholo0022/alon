@@ -1,3 +1,5 @@
+import { shopTemplates } from '../lib/shopTemplates'
+import { defaultBrand, normalizeBrand } from '../lib/businessBrand'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -263,4 +265,30 @@ it('rounds fractional stock remaining before proposing the quantity', async () =
   await user.click(within(dialog).getByRole('button', { name: 'Agregar cantidad al carrito' }))
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(JSON.parse(localStorage.getItem('alon-shop-cart')!)[0].quantity).toBe(0.3)
+})
+
+it('switches among all ten templates without changing the cart or shopping controls', async () => {
+  localStorage.setItem('alon-shop-cart', JSON.stringify([{ ...product, quantity: 2 }]))
+  const { container } = render(<ShopApp />)
+  await screen.findByRole('button', { name: '+ Agregar al carrito' }, { timeout: 10000 })
+  for (const template of shopTemplates) {
+    const brand = {
+      ...defaultBrand,
+      plantilla_tienda: template.id,
+      titulo_tienda: 'Bienvenidos ' + template.name,
+      descripcion_tienda: 'Comprá en nuestra tienda',
+    }
+    act(() => window.dispatchEvent(new CustomEvent('alon:business-updated', { detail: brand })))
+    expect(container.querySelector('.shop-app')?.getAttribute('data-template')).toBe(template.id)
+    expect(screen.getByRole('heading', { name: brand.titulo_tienda })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '+ Agregar al carrito' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Enviar pedido →' })).toBeTruthy()
+    expect((screen.getByRole('spinbutton', { name: 'Cantidad' }) as HTMLInputElement).value).toBe(
+      '2',
+    )
+  }
+  expect(
+    normalizeBrand({ plantilla_tienda: 'desconocida' } as unknown as Partial<typeof defaultBrand>)
+      .plantilla_tienda,
+  ).toBe('clasica')
 })

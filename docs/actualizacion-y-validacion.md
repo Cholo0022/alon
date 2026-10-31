@@ -68,3 +68,12 @@ La carga inicia con foco en Proveedor, con **Proveedor sin nombre** y **Remito**
 Después de confirmar el pago, **¿Este comprobante modifica el precio de costo?** permite finalizar con **S / Sí** o **N / No**. Sí reemplaza únicamente el costo del producto por el costo unitario ingresado, sin incorporar gastos adicionales al costo del catálogo ni recalcular precio de venta, flete, margen o redondeo. Si el artículo se repite con costos distintos, queda el último costo ingresado. No conserva todos esos valores. Ambas opciones registran el comprobante, sus importes y el ingreso de stock. Volver permite revisar las condiciones antes de guardar.
 
 Las compras se ordenan por registro más reciente, incluso cuando el comprobante tiene una fecha anterior. El historial de caja muestra primero las sesiones cerradas o abiertas más recientemente, con desempate por fecha y número de sesión.
+
+
+## Diez plantillas de tienda online (V9)
+
+En **Modificar negocio**, el dueño elige entre Clásica, Minimalista, Boutique, Urbana, Editorial, Mercado, Natural, Tecnológica, Artesanal y Vitrina. El selector muestra miniaturas y una vista previa más grande antes de guardar. Cada diseño cambia la composición, tipografía, bordes o proporciones de las tarjetas; todos comparten los mismos componentes de catálogo, cuenta, carrito y pedidos.
+
+Se pueden personalizar colores, nombre y slogan, además del título y la descripción de bienvenida de la tienda. Los diseños de tienda no alteran la distribución de la aplicación de gestión. Cambiar de plantilla no vacía carritos ni modifica productos, precios, stock, clientes o pedidos. La identidad guardada se sincroniza al recuperar el foco y mediante consultas periódicas en pestañas abiertas.
+
+V9 agrega plantilla y textos a `comercios`. El valor inicial Clásica y los textos anteriores conservan el aspecto existente. Las solicitudes antiguas que envían solamente identidad y colores conservan la plantilla y los textos ya guardados. La API rechaza identificadores de plantilla fuera del catálogo permitido y mantiene los controles de dueño, comercio y auditoría.

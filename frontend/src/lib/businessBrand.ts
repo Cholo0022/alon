@@ -1,5 +1,6 @@
 // Comparte la identidad del comercio y actualiza sus colores cuando se guardan cambios.
 import { useEffect, useState, type CSSProperties } from 'react'
+import { isShopTemplate, type ShopTemplateId } from './shopTemplates'
 import { apiFetch } from './http'
 import { shopRequest } from '../shop/api'
 
@@ -9,6 +10,9 @@ export type BusinessBrand = {
   color_principal: string
   color_secundario: string
   color_fondo: string
+  plantilla_tienda: ShopTemplateId
+  titulo_tienda: string
+  descripcion_tienda: string
 }
 export const defaultBrand: BusinessBrand = {
   nombre: 'Mi comercio',
@@ -16,6 +20,9 @@ export const defaultBrand: BusinessBrand = {
   color_principal: '#006b73',
   color_secundario: '#102a43',
   color_fondo: '#f4f7f9',
+  plantilla_tienda: 'clasica',
+  titulo_tienda: 'Todo lo que necesitás, a un carrito de distancia.',
+  descripcion_tienda: 'Elegí tus productos. Nosotros preparamos tu pedido.',
 }
 /** Acepta un color hexadecimal válido o devuelve el color de respaldo para evitar estilos inválidos. */
 const color = (value: unknown, fallback: string) =>
@@ -28,6 +35,11 @@ export function normalizeBrand(value: Partial<BusinessBrand> | null | undefined)
     color_principal: color(value?.color_principal, defaultBrand.color_principal),
     color_secundario: color(value?.color_secundario, defaultBrand.color_secundario),
     color_fondo: color(value?.color_fondo, defaultBrand.color_fondo),
+    plantilla_tienda: isShopTemplate(value?.plantilla_tienda)
+      ? value.plantilla_tienda
+      : defaultBrand.plantilla_tienda,
+    titulo_tienda: value?.titulo_tienda || defaultBrand.titulo_tienda,
+    descripcion_tienda: value?.descripcion_tienda || defaultBrand.descripcion_tienda,
   }
 }
 /** Calcula si conviene texto negro o blanco sobre un color según su luminancia para mantener el contraste. */

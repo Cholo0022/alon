@@ -918,6 +918,85 @@ class MySqlIntegrationTest {
     }
 
     @Test
+    void tenStorefrontTemplatesPersistWithoutChangingCommerceData() {
+        when(identity.user()).thenReturn(Map.of("rol", "DUENO"));
+        jdbc.update("INSERT INTO comercios(id,codigo,nombre) VALUES(2,'OTRO','Otro comercio')");
+        var audit = new AuditLog(jdbc, identity, JsonMapper.builder().build());
+        var business = new ar.com.alon.business.BusinessService(jdbc, identity, audit);
+        var article = jdbc.queryForMap("SELECT * FROM articulos WHERE id=1");
+        assertThat(business.current()).containsEntry("plantilla_tienda", "clasica");
+        for (String template :
+                List.of(
+                        "clasica",
+                        "minimal",
+                        "boutique",
+                        "urbana",
+                        "editorial",
+                        "mercado",
+                        "natural",
+                        "tecnologica",
+                        "artesanal",
+                        "vitrina")) {
+            var input =
+                    new ar.com.alon.business.BusinessService.Input(
+                            "Comercio",
+                            "Slogan",
+                            "#006b73",
+                            "#102a43",
+                            "#f4f7f9",
+                            template,
+                            "Bienvenidos a la tienda",
+                            "Nuestros productos");
+            transaction.execute(status -> business.update(input));
+            assertThat(business.read(1))
+                    .containsEntry("plantilla_tienda", template)
+                    .containsEntry("titulo_tienda", "Bienvenidos a la tienda");
+            assertThat(jdbc.queryForMap("SELECT * FROM articulos WHERE id=1")).isEqualTo(article);
+            assertThat(business.read(2)).containsEntry("plantilla_tienda", "clasica");
+        }
+        transaction.execute(
+                status ->
+                        business.update(
+                                new ar.com.alon.business.BusinessService.Input(
+                                        "Comercio", "Slogan", "#006b73", "#102a43", "#f4f7f9")));
+        assertThat(business.current()).containsEntry("plantilla_tienda", "vitrina");
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        status ->
+                                                business.update(
+                                                        new ar.com.alon.business.BusinessService
+                                                                .Input(
+                                                                "Comercio",
+                                                                "Slogan",
+                                                                "#006b73",
+                                                                "#102a43",
+                                                                "#f4f7f9",
+                                                                "inexistente",
+                                                                "Título",
+                                                                "Descripción"))))
+                .isInstanceOf(IllegalArgumentException.class);
+        when(identity.user()).thenReturn(Map.of("rol", "VENDEDOR"));
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        status ->
+                                                business.update(
+                                                        new ar.com.alon.business.BusinessService
+                                                                .Input(
+                                                                "Comercio",
+                                                                "Slogan",
+                                                                "#006b73",
+                                                                "#102a43",
+                                                                "#f4f7f9",
+                                                                "minimal",
+                                                                "Título",
+                                                                "Descripción"))))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        assertThat(business.current()).containsEntry("plantilla_tienda", "vitrina");
+    }
+
+    @Test
     void businessBrandIsSharedWithShopAndRestrictedToOwner() {
         when(identity.user()).thenReturn(Map.of("rol", "DUENO"));
         jdbc.update("INSERT INTO comercios(id,codigo,nombre) VALUES(2,'OTRO','Otro comercio')");
