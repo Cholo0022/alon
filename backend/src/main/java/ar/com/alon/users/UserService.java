@@ -124,7 +124,7 @@ public class UserService {
         if (!"alon".equals(input.username()))
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "La cuenta del superusuario debe llamarse alon.");
-        validate(input);
+        validate(input, 12);
         return userById(
                 insert(
                         bootstrapStoreId,
@@ -239,7 +239,9 @@ public class UserService {
         String name =
                 input.name() == null || input.name().isBlank() ? input.username() : input.name();
         validateDelegation(role, permissions, null);
-        validate(new Credentials(input.username(), name, input.password(), null));
+        validate(
+                new Credentials(input.username(), name, input.password(), null),
+                "DUENO".equals(role) ? 8 : 12);
         return userById(
                 insert(
                         identity.storeId(),
@@ -307,7 +309,7 @@ public class UserService {
                 && isActive(existing.get("activo"))
                 && !"DUENO".equals(role)) preserveOwner(id);
         String password = input.password() == null ? "" : input.password();
-        if (!password.isBlank()) validatePassword(password);
+        if (!password.isBlank()) validatePassword(password, "DUENO".equals(role) ? 8 : 12);
         if (name.isBlank() || name.length() > 160)
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "El nombre es demasiado largo.");
@@ -445,26 +447,27 @@ public class UserService {
     }
 
     /**
-     * Exige una contraseña de entre doce y ciento veintiocho caracteres antes de derivarla y
-     * guardarla.
+     * Aplica el mínimo del perfil: ocho caracteres para Gerentes y doce para los otros usuarios;
+     * admite hasta 128.
      */
-    private void validatePassword(String password) {
-        if (password == null || password.length() < 12 || password.length() > 128)
+    private void validatePassword(String password, int minimum) {
+        if (password == null || password.length() < minimum || password.length() > 128)
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "La contraseña debe tener entre 12 y 128 caracteres.");
+                    HttpStatus.BAD_REQUEST,
+                    "La contraseña debe tener entre " + minimum + " y 128 caracteres.");
     }
 
     /**
      * Valida formato de usuario, nombre y contraseña para el alta o configuración de una cuenta.
      */
-    private void validate(Credentials c) {
+    private void validate(Credentials c, int minimum) {
         if (c.username() == null || !c.username().trim().matches("[\\p{L}\\p{N}._-]{3,80}"))
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "El usuario debe tener entre 3 y 80 letras o números.");
         if (c.name() == null || c.name().isBlank() || c.name().length() > 160)
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Ingresá el nombre de la persona.");
-        validatePassword(c.password());
+        validatePassword(c.password(), minimum);
     }
 
     /**

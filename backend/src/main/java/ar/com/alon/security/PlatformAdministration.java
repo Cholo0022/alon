@@ -197,7 +197,7 @@ public class PlatformAdministration {
     public record ManagerInput(
             @NotBlank @Size(max = 80) String username,
             @NotBlank @Size(max = 160) String name,
-            @NotBlank @Size(min = 12, max = 128) String password,
+            @NotBlank @Size(min = 8, max = 128) String password,
             @NotBlank @Email @Size(max = 254) String email,
             @NotNull @Size(min = 1, max = 20) List<@NotNull @Size(max = 30) String> permissions,
             @Min(1) @Max(120) int months) {}

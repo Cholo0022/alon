@@ -63,13 +63,23 @@ public class ShopController {
         return accounts.start(accounts.login(input), request);
     }
 
+    /** Actualiza la contraseña exclusivamente de la cuenta compradora que ya inició sesión. */
+    @PostMapping("/password")
+    public Map<String, Object> password(
+            @Valid @RequestBody ShopAccountService.PasswordChange input,
+            HttpServletRequest request) {
+        return accounts.changePassword(input.password(), request);
+    }
+
     /**
      * Retira la cuenta de comprador de la sesión sin modificar otros accesos que pueda contener.
      */
     @PostMapping("/logout")
     public Map<String, Object> logout(HttpServletRequest request) {
-        if (request.getSession(false) != null)
+        if (request.getSession(false) != null) {
             request.getSession(false).removeAttribute("alonShopper");
+            request.getSession(false).removeAttribute("alonShopperCredential");
+        }
         return Map.of("ok", true);
     }
 

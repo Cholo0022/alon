@@ -109,3 +109,24 @@ V11 agrega columnas de vigencia a comercios, amplía la restricción de roles y 
 ### Ingreso del Gerente con credenciales del formulario
 
 El Gerente ingresa directamente con el usuario y la contraseña que alon cargó en **Gerentes y licencias**. No necesita vincular Google Authenticator ni introducir códigos de recuperación. Esta regla también se aplica a Gerentes que ya hubieran configurado un autenticador antes del cambio. Alon conserva su ingreso con Google Authenticator y los empleados conservan las aprobaciones de navegador. La vigencia de licencia, los permisos y la revocación de sesiones siguen verificándose en el servidor. En Seguridad, el Gerente puede administrar solicitudes si tiene ese permiso; su correo y contraseña se administran desde alon. Los controles del autenticador se muestran solamente al superusuario.
+
+El superusuario puede asignar contraseñas de **8 a 128 caracteres al Gerente**, tanto al crearlo como al modificarlo. En la edición, dejar el campo vacío conserva la contraseña existente. Se admiten contraseñas de ocho dígitos; no se exige que sean exclusivamente numéricas.
+
+## Tienda desde el celular por Wi-Fi
+
+Con Alon iniciado, la tienda compilada se publica para la misma subred Wi-Fi mediante `Iniciar-Tienda-Wifi.ps1`. La dirección actual es **http://192.168.1.82:5174/tienda**. El celular debe estar conectado al mismo Wi-Fi y la PC debe permanecer encendida. Si la PC recibe otra dirección IP, el iniciador muestra la nueva URL. Después de reiniciar la PC, iniciar Alon y ejecutar este script; mantener su ventana abierta mientras se utiliza la tienda.
+
+```powershell
+.\Iniciar-Alon.ps1
+.\Iniciar-Tienda-Wifi.ps1
+```
+
+El acceso de Wi-Fi sirve `frontend/dist`, el catálogo, las fotos y la API de compradores. Las rutas de gestión y los archivos fuente se rechazan. La administración continúa en 127.0.0.1:5173 y la API local en 127.0.0.1:8080. Las conexiones del servidor de tienda se limitan a la subred real de la interfaz Wi-Fi. Se aprovechan los permisos existentes de Node.js de esta instalación; no se cambiaron las reglas del firewall ni el router. No es publicación por Internet.
+
+Los cambios de productos, precios y personalización se consultan desde la API. Para cambios en el código de la tienda se debe ejecutar `npm run build` desde frontend, porque la dirección del celular usa la versión compilada. El carrito admite el HTTP de la Wi-Fi con claves aleatorias de pedido generadas mediante getRandomValues cuando randomUUID no está disponible.
+
+Las cuentas de compradores de la tienda online también admiten contraseñas de **8 a 128 caracteres**, incluidos ocho números. El registro por Wi-Fi usa el mismo límite que el servidor; las cuentas existentes conservan sus credenciales. Los compradores ingresan con teléfono y contraseña para enviar el carrito como pedido.
+
+### Cambiar la contraseña del comprador en la tienda
+
+Con la cuenta compradora ya iniciada, el encabezado de la tienda ofrece **Cambiar contraseña**. El formulario solicita únicamente la nueva contraseña, de 8 a 128 caracteres; no pide la anterior ni verificación por correo. No es un restablecimiento anónimo por teléfono: la cuenta se identifica desde la sesión existente. El cambio actualiza solo a ese comprador, conserva su sesión actual y revoca sus otras sesiones. El servidor exige la sesión y el token CSRF y verifica la huella de la credencial antes de reemplazarla. El cambio también está disponible en el acceso por Wi-Fi del celular después de recargar la tienda.

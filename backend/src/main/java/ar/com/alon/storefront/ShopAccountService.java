@@ -54,10 +54,53 @@ public class ShopAccountService {
             @NotBlank @Size(max = 100) String province,
             @NotBlank @Size(max = 100) String country,
             @NotBlank @Size(max = 25) String phone,
-            @NotBlank @Size(min = 12, max = 128) String password) {}
+            @NotBlank @Size(min = 8, max = 128) String password) {}
 
     public record Login(
             @NotBlank @Size(max = 25) String phone, @NotBlank @Size(max = 128) String password) {}
+
+    public record PasswordChange(@NotBlank @Size(min = 8, max = 128) String password) {}
+
+    /**
+     * Cambia únicamente la contraseña del comprador de la sesión, sin pedir la anterior ni códigos.
+     */
+    @Transactional
+    public Map<String, Object> changePassword(String password, HttpServletRequest request) {
+        var user = require(request);
+        if (password == null
+                || password.isBlank()
+                || password.length() < 8
+                || password.length() > 128)
+            throw new IllegalArgumentException(
+                    "La contraseña debe tener entre 8 y 128 caracteres.");
+        long id = ((Number) user.get("id")).longValue();
+        int changed =
+                jdbc.update(
+                        "UPDATE compradores_tienda SET password_hash=? WHERE comercio_id=? AND id=? AND activo=TRUE AND SHA2(password_hash,256)=?",
+                        passwords.hash(password),
+                        storeId,
+                        id,
+                        request.getSession(false).getAttribute("alonShopperCredential"));
+        if (changed != 1)
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, "Ingresá a tu cuenta para cambiar la contraseña.");
+        return start(account(id), request);
+    }
+
+    /**
+     * Obtiene una huella interna de la contraseña para revocar otras sesiones cuando se reemplaza.
+     */
+    private String credentialVersion(long id) {
+        return jdbc
+                .query(
+                        "SELECT SHA2(password_hash,256) FROM compradores_tienda WHERE comercio_id=? AND id=? AND activo=TRUE",
+                        (rs, row) -> rs.getString(1),
+                        storeId,
+                        id)
+                .stream()
+                .findFirst()
+                .orElse("");
+    }
 
     /**
      * Valida el teléfono y lo normaliza al formato internacional con signo más y entre diez y
@@ -141,7 +184,12 @@ public class ShopAccountService {
                 request.getSession(false) == null
                         ? null
                         : request.getSession(false).getAttribute("alonShopper");
-        return saved instanceof Long id ? account(id) : Map.of();
+        if (!(saved instanceof Long id)) return Map.of();
+        Object version = request.getSession(false).getAttribute("alonShopperCredential");
+        if (!(version instanceof String value)
+                || value.isEmpty()
+                || !value.equals(credentialVersion(id))) return Map.of();
+        return account(id);
     }
 
     /**
@@ -163,7 +211,9 @@ public class ShopAccountService {
     public Map<String, Object> start(Map<String, Object> user, HttpServletRequest request) {
         request.getSession(true);
         request.changeSessionId();
-        request.getSession().setAttribute("alonShopper", ((Number) user.get("id")).longValue());
+        long id = ((Number) user.get("id")).longValue();
+        request.getSession().setAttribute("alonShopper", id);
+        request.getSession().setAttribute("alonShopperCredential", credentialVersion(id));
         return user;
     }
 }

@@ -262,7 +262,7 @@ export function PlatformPage() {
               type="text"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              minLength={12}
+              minLength={8}
               maxLength={128}
               autoComplete="new-password"
               required={!editing}

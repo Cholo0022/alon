@@ -377,6 +377,59 @@ class MySqlIntegrationTest {
     }
 
     @Test
+    void shopperChangesOwnPasswordWithoutOldPasswordAndRevokesOtherSessions() {
+        var accounts = new ar.com.alon.storefront.ShopAccountService(jdbc, new PasswordHasher(), 1);
+        var user =
+                transaction.execute(
+                        status ->
+                                accounts.register(
+                                        new ar.com.alon.storefront.ShopAccountService.Registration(
+                                                "Ana",
+                                                "Prueba",
+                                                "30111222",
+                                                "Calle 123",
+                                                "1000",
+                                                "Buenos Aires",
+                                                "Buenos Aires",
+                                                "Argentina",
+                                                "+5491100000000",
+                                                "87654321")));
+        long id = ((Number) user.get("id")).longValue();
+        var first = new MockHttpServletRequest();
+        var second = new MockHttpServletRequest();
+        accounts.start(user, first);
+        accounts.start(user, second);
+        assertThat(accounts.current(first)).isNotEmpty();
+        assertThat(accounts.current(second)).isNotEmpty();
+        assertThatThrownBy(() -> accounts.changePassword("12345678", new MockHttpServletRequest()))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        assertThatThrownBy(() -> accounts.changePassword("1234567", first))
+                .isInstanceOf(IllegalArgumentException.class);
+        jdbc.update(
+                "INSERT INTO compradores_tienda(id,comercio_id,nombre,apellido,dni,domicilio,telefono,password_hash) VALUES(9999,1,'Otro','Comprador','30111223','Calle 124','+5491100000001','hash-ajeno-no-modificar')");
+        var changed = transaction.execute(status -> accounts.changePassword("12345678", first));
+        assertThat(changed).containsEntry("id", id).doesNotContainKey("password_hash");
+        assertThat(accounts.current(first)).isNotEmpty();
+        assertThat(accounts.current(second)).isEmpty();
+        assertThat(
+                        accounts.login(
+                                new ar.com.alon.storefront.ShopAccountService.Login(
+                                        "+5491100000000", "12345678")))
+                .containsEntry("id", id);
+        assertThatThrownBy(
+                        () ->
+                                accounts.login(
+                                        new ar.com.alon.storefront.ShopAccountService.Login(
+                                                "+5491100000000", "87654321")))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT password_hash FROM compradores_tienda WHERE id=9999",
+                                String.class))
+                .isEqualTo("hash-ajeno-no-modificar");
+    }
+
+    @Test
     void registrationStoresLocationAndUsesItInOrderAddress() {
         var accounts = new ar.com.alon.storefront.ShopAccountService(jdbc, new PasswordHasher(), 1);
         var user =

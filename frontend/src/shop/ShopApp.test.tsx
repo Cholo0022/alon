@@ -149,7 +149,8 @@ it('registers location with Argentina selected by default and allows another cou
   await user.type(screen.getByLabelText('Provincia'), 'Montevideo')
   await user.selectOptions(country, 'Uruguay')
   await user.type(screen.getByLabelText('Teléfono con código de país'), '+59899123456')
-  await user.type(screen.getByLabelText(/^Contraseña/), 'Shopper-test-2026!')
+  expect((screen.getByLabelText(/^Contraseña/) as HTMLInputElement).minLength).toBe(8)
+  await user.type(screen.getByLabelText(/^Contraseña/), '12345678')
   await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
   await waitFor(() => expect(request.mock.calls.some(([path]) => path === '/register')).toBe(true))
   const call = request.mock.calls.find(([path]) => path === '/register')!
@@ -291,4 +292,57 @@ it('switches among all ten templates without changing the cart or shopping contr
     normalizeBrand({ plantilla_tienda: 'desconocida' } as unknown as Partial<typeof defaultBrand>)
       .plantilla_tienda,
   ).toBe('clasica')
+})
+
+/** Cambia la contraseña de la cuenta compradora sin pedir la anterior ni solicitar datos de otra persona. */
+it('changes the signed-in shopper password using only a new eight-character password', async () => {
+  const implementation = request.getMockImplementation()!
+  request.mockImplementation(async (path, options) =>
+    path === '/password' ? buyer : implementation(path, options),
+  )
+  const user = userEvent.setup()
+  render(<ShopApp />)
+  await user.click(await screen.findByRole('button', { name: 'Cambiar contraseña' }))
+  const field = screen.getByLabelText(/^Nueva contraseña/) as HTMLInputElement
+  expect(field.minLength).toBe(8)
+  expect(screen.queryByLabelText(/contraseña anterior/i)).toBeNull()
+  expect(screen.queryByLabelText(/código de verificación/i)).toBeNull()
+  await user.type(field, '12345678')
+  await user.click(screen.getByRole('button', { name: 'Guardar nueva contraseña' }))
+  expect(
+    await screen.findByText(
+      'Contraseña actualizada. Usá la nueva contraseña en tus próximos ingresos.',
+    ),
+  ).toBeTruthy()
+  const call = request.mock.calls.find(([path]) => path === '/password')!
+  expect(JSON.parse(String(call[1]?.body))).toEqual({ password: '12345678' })
+})
+
+/** El acceso flotante no aparece con carrito vacío aunque el panel esté fuera de la pantalla. */
+it('hides the cart shortcut until a product has been added', async () => {
+  class Observer {
+    callback: IntersectionObserverCallback
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback
+    }
+    observe(target: Element) {
+      this.callback(
+        [{ target, isIntersecting: false } as IntersectionObserverEntry],
+        this as unknown as IntersectionObserver,
+      )
+    }
+    disconnect() {}
+  }
+  vi.stubGlobal('IntersectionObserver', Observer)
+  try {
+    const user = userEvent.setup()
+    render(<ShopApp />)
+    const add = await screen.findByRole('button', { name: '+ Agregar al carrito' })
+    expect(screen.queryByRole('button', { name: /Ir al carrito/ })).toBeNull()
+    await user.click(add)
+    await user.click(screen.getByRole('button', { name: 'Agregar cantidad al carrito' }))
+    expect(await screen.findByRole('button', { name: /Ir al carrito/ })).toBeTruthy()
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })

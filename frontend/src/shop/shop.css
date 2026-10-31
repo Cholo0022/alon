@@ -697,3 +697,103 @@
 .shop-cart {
   scroll-margin-top: 24px;
 }
+
+/* Cantidad arriba, con espacio adaptado al teclado del celular. */
+@media (max-width: 700px), (max-height: 600px) and (pointer: coarse) {
+  #root .shop-app .article-cart-backdrop {
+    top: var(--cart-viewport-top, 0px);
+    bottom: auto;
+    height: var(--cart-viewport-height, 100dvh);
+    box-sizing: border-box;
+    align-items: start;
+    padding: 8px;
+  }
+  #root .shop-app .article-cart-backdrop .article-entry-dialog {
+    width: 100%;
+    max-height: calc(var(--cart-viewport-height, 100dvh) - 16px);
+    overflow: hidden;
+    margin: 0;
+  }
+  #root .shop-app .article-cart-backdrop .article-entry-dialog > header {
+    padding: 12px 14px;
+    flex-shrink: 0;
+  }
+  #root .shop-app .article-cart-backdrop h2 {
+    font-size: 18px;
+    line-height: 1.25;
+  }
+  #root .shop-app .article-cart-backdrop header p {
+    margin: 6px 0 0;
+    font-size: 14px;
+  }
+  #root .shop-app .article-cart-backdrop .article-entry-dialog > form {
+    min-height: 0;
+    overflow-y: auto;
+    padding: 4px 14px 0;
+    gap: 10px;
+    overscroll-behavior: contain;
+  }
+  #root
+    .shop-app
+    .article-cart-backdrop
+    .article-entry-dialog
+    .quantity-input
+    > input[type='number'][aria-label='Cantidad'] {
+    height: 56px;
+    min-height: 56px;
+    line-height: 1.2;
+    font-size: 28px;
+    font-weight: 700;
+    text-align: center;
+  }
+  #root .shop-app .article-cart-backdrop .article-entry-info {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  #root .shop-app .article-cart-backdrop .article-entry-help {
+    display: none;
+  }
+  #root .shop-app .article-cart-backdrop .article-entry-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    background: #fff;
+    padding: 10px 0 max(10px, env(safe-area-inset-bottom));
+  }
+  #root .shop-app .article-cart-backdrop .article-entry-actions button {
+    width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+    line-height: 1.25;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 700px), (max-height: 600px) and (pointer: coarse) {
+  #root .shop-app .article-cart-backdrop[data-compact='true'] .article-entry-info {
+    display: none;
+  }
+  #root .shop-app .article-cart-backdrop[data-compact='true'] .article-entry-dialog > header {
+    padding: 8px 12px;
+  }
+  #root .shop-app .article-cart-backdrop[data-compact='true'] h2 {
+    font-size: 16px;
+  }
+  #root .shop-app .article-cart-backdrop[data-compact='true'] header p {
+    font-size: 0;
+    margin-top: 4px;
+  }
+  #root .shop-app .article-cart-backdrop[data-compact='true'] header p strong {
+    display: block;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #root .shop-app .article-cart-backdrop[data-compact='true'] header p br {
+    display: none;
+  }
+}

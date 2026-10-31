@@ -1,3 +1,4 @@
+import { shopOrderKey } from './orderKey'
 import { ArticleEntryDialog } from '../components/ArticleEntryDialog'
 // Muestra la tienda web, el carrito, el registro de compradores y sus pedidos.
 import { QuantityInput } from '../components/QuantityInput'
@@ -95,7 +96,7 @@ export default function ShopApp() {
   const [cartOutsideView, setCartOutsideView] = useState(false)
   const [cart, setCart] = useState<CartLine[]>(initialCart)
   const [buyer, setBuyer] = useState<Buyer | null>(null)
-  const [screen, setScreen] = useState<'catalog' | 'account' | 'orders'>('catalog')
+  const [screen, setScreen] = useState<'catalog' | 'account' | 'orders' | 'password'>('catalog')
   const [register, setRegister] = useState(false)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
@@ -295,6 +296,31 @@ export default function ShopApp() {
     }
   }
 
+  /** Guarda una nueva contraseña del comprador autenticado, sin solicitar clave anterior ni verificación por correo. */
+  const changePassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (busy || !buyer) return
+    const form = event.currentTarget
+    const password = String(new FormData(form).get('password') ?? '')
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      const user = await shopRequest<Buyer>('/password', {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+      })
+      setBuyer(user)
+      form.reset()
+      setScreen('catalog')
+      setNotice('Contraseña actualizada. Usá la nueva contraseña en tus próximos ingresos.')
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'No se pudo cambiar la contraseña.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   /** Revalida stock y precios, prepara o recupera la clave del pedido y envía el carrito evitando duplicados en reintentos. */
   const checkout = async () => {
     if (!paymentMethod) {
@@ -338,7 +364,7 @@ export default function ShopApp() {
           expectedPrice: Number(p.precio_venta),
         })),
       })
-      if (pending.current?.body !== body) pending.current = { body, key: crypto.randomUUID() }
+      if (pending.current?.body !== body) pending.current = { body, key: shopOrderKey() }
       try {
         sessionStorage.setItem('alon-shop-pending-order', JSON.stringify(pending.current))
       } catch {
@@ -413,6 +439,15 @@ export default function ShopApp() {
               <button onClick={() => setScreen('orders')}>Mis pedidos</button>
               <button
                 onClick={() => {
+                  setError('')
+                  setNotice('')
+                  setScreen('password')
+                }}
+              >
+                Cambiar contraseña
+              </button>
+              <button
+                onClick={() => {
                   void shopRequest('/logout', { method: 'POST' })
                     .then(() => {
                       setBuyer(null)
@@ -454,7 +489,42 @@ export default function ShopApp() {
             {notice}
           </div>
         )}
-        {screen === 'account' ? (
+        {screen === 'password' && buyer ? (
+          <section className="shop-account">
+            <p className="shop-eyebrow">TU CUENTA EN LA TIENDA</p>
+            <h1>Cambiar contraseña</h1>
+            <p>
+              Guardá una nueva contraseña para tu cuenta. No se solicita la anterior ni un código de
+              verificación.
+            </p>
+            <form className="shop-account-form" onSubmit={(event) => void changePassword(event)}>
+              <label className="shop-wide">
+                Nueva contraseña
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={8}
+                  maxLength={128}
+                  required
+                  autoFocus
+                />
+                <small>Entre 8 y 128 caracteres.</small>
+              </label>
+              <button className="shop-solid shop-wide" disabled={busy}>
+                {busy ? 'Guardando…' : 'Guardar nueva contraseña'}
+              </button>
+              <button
+                className="shop-link shop-wide"
+                type="button"
+                disabled={busy}
+                onClick={() => setScreen('catalog')}
+              >
+                Cancelar
+              </button>
+            </form>
+          </section>
+        ) : screen === 'account' ? (
           <section className="shop-account">
             <p className="shop-eyebrow">TU CUENTA EN ALON</p>
             <h1>{register ? 'Creá tu cuenta' : 'Bienvenido de nuevo'}</h1>
@@ -535,11 +605,11 @@ export default function ShopApp() {
                   name="password"
                   type="password"
                   autoComplete={register ? 'new-password' : 'current-password'}
-                  minLength={register ? 12 : undefined}
+                  minLength={register ? 8 : undefined}
                   maxLength={128}
                   required
                 />
-                {register && <small>Entre 12 y 128 caracteres.</small>}
+                {register && <small>Entre 8 y 128 caracteres.</small>}
               </label>
               <button className="shop-solid shop-wide" disabled={busy}>
                 {busy ? 'Un momento…' : register ? 'Crear cuenta' : 'Ingresar'}
@@ -760,7 +830,7 @@ export default function ShopApp() {
           </>
         )}
       </main>
-      {screen === 'catalog' && cartOutsideView && !productToAdd && (
+      {screen === 'catalog' && cart.length > 0 && cartOutsideView && !productToAdd && (
         <button className="shop-cart-shortcut" type="button" onClick={goToCart}>
           <span aria-hidden="true">🛒</span> Ir al carrito
         </button>

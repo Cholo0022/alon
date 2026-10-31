@@ -30,6 +30,7 @@ export function ArticleEntryDialog({
   const [cost, setCost] = useState(String(initialPrice))
   const id = useId()
   const form = useRef<HTMLFormElement>(null)
+  const backdrop = useRef<HTMLDivElement>(null)
   const priceInput = useRef<HTMLInputElement>(null)
   const origin = useRef(document.activeElement as HTMLElement | null)
   const noStock = mode !== 'purchase' && maxQuantity !== undefined && maxQuantity <= 0
@@ -47,6 +48,30 @@ export function ArticleEntryDialog({
     return () => {
       document.body.style.overflow = overflow
       if (previous?.isConnected) previous.focus()
+    }
+  }, [mode])
+  // Ajusta el carrito al espacio disponible cuando aparece el teclado del celular.
+  useEffect(() => {
+    if (mode !== 'cart') return
+    const viewport = window.visualViewport
+    /** Mantiene el diálogo dentro de la parte visible de la pantalla. */
+    const resize = () => {
+      if (backdrop.current)
+        backdrop.current.dataset.compact = String((viewport?.height ?? window.innerHeight) < 420)
+      backdrop.current?.style.setProperty(
+        '--cart-viewport-height',
+        `${viewport?.height ?? window.innerHeight}px`,
+      )
+      backdrop.current?.style.setProperty('--cart-viewport-top', `${viewport?.offsetTop ?? 0}px`)
+    }
+    resize()
+    viewport?.addEventListener('resize', resize)
+    viewport?.addEventListener('scroll', resize)
+    window.addEventListener('resize', resize)
+    return () => {
+      viewport?.removeEventListener('resize', resize)
+      viewport?.removeEventListener('scroll', resize)
+      window.removeEventListener('resize', resize)
     }
   }, [mode])
   /** Permite confirmar los campos con Enter, cancelar con Escape y mantener Tab dentro del diálogo. */
@@ -85,7 +110,8 @@ export function ArticleEntryDialog({
   }
   return (
     <div
-      className="article-picker-backdrop"
+      ref={backdrop}
+      className={`article-picker-backdrop${mode === 'cart' ? ' article-cart-backdrop' : ''}`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onCancel()
       }}
