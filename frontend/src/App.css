@@ -2898,3 +2898,141 @@ td.article-actions {
     grid-template-columns: 1fr;
   }
 }
+
+.security-login {
+  width: min(100% - 32px, 620px);
+}
+.security-login .entry-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.security-qr {
+  display: block;
+  width: 240px;
+  height: 240px;
+  margin: 20px auto;
+  background: #fff;
+}
+.security-secret {
+  display: block;
+  padding: 14px;
+  background: #eef3f7;
+  color: #10243a;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+  letter-spacing: 1px;
+  margin: 10px 0;
+}
+.security-codes {
+  list-style: none;
+  padding: 14px;
+  background: #f2f6f9;
+  color: #10243a;
+  border: 1px solid #ccd7df;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+}
+.security-codes code {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.security-login .security-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.security-check input[type='checkbox'] {
+  width: 20px;
+  min-width: 20px;
+}
+.security-download {
+  display: inline-block;
+  margin: 10px 0 20px;
+}
+.security-panel-content {
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+}
+.security-panel-content > label {
+  display: grid;
+  gap: 8px;
+  max-width: 540px;
+}
+.security-panel-content > label input {
+  padding: 10px;
+  border: 1px solid #65778a;
+  border-radius: 7px;
+  font: inherit;
+}
+.security-browser-list {
+  display: grid;
+  gap: 12px;
+}
+.security-browser-list article {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #cbd5df;
+  border-radius: 9px;
+  padding: 16px;
+}
+.security-browser-list article small {
+  overflow-wrap: anywhere;
+}
+.security-browser-list article > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.security-access-notice {
+  margin-bottom: 16px;
+}
+.security-recovery-result {
+  border: 2px solid #006b73;
+  border-radius: 10px;
+  padding: 18px;
+}
+
+/* Distribuye el panel de gerentes y las opciones de acceso sin comprimir sus etiquetas. */
+#root .platform-panel {
+  padding: 22px;
+}
+#root .platform-panel > h2 {
+  margin: 8px 0 12px;
+}
+#root .platform-panel > p {
+  line-height: 1.6;
+}
+#root .platform-panel > .entry-form {
+  padding: 20px 0 0;
+}
+#root .platform-panel .permission-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px 20px;
+}
+#root .platform-panel .permission-choices label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+}
+#root .platform-panel .permission-choices input {
+  flex: 0 0 auto;
+}
+#root .platform-panel > label {
+  display: grid;
+  gap: 8px;
+  max-width: 300px;
+  margin-bottom: 14px;
+}
+#root .platform-panel > label input {
+  min-height: 38px;
+  padding: 6px 10px;
+}
+#root .platform-panel > .select-button,
+#root .platform-panel > .primary-button {
+  margin: 8px 10px 8px 0;
+}

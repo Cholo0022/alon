@@ -20,14 +20,25 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 public class PermissionFilter extends OncePerRequestFilter {
     private static final Set<String> AUTH_PUBLIC =
-            Set.of("/api/v1/auth/status", "/api/v1/auth/setup", "/api/v1/auth/login");
+            Set.of(
+                    "/api/v1/auth/status",
+                    "/api/v1/auth/setup",
+                    "/api/v1/auth/login",
+                    "/api/v1/auth/super-login",
+                    "/api/v1/auth/logout",
+                    "/api/v1/auth/security/enroll",
+                    "/api/v1/auth/security/confirm",
+                    "/api/v1/auth/security/continue",
+                    "/api/v1/auth/security/cancel");
     private final UserService auth;
+    private final AccessSecurityService security;
 
     /**
      * Recibe y conserva las dependencias necesarias para la revalidación de usuarios antes de
      * autorizar solicitudes.
      */
-    public PermissionFilter(UserService auth) {
+    public PermissionFilter(UserService auth, AccessSecurityService security) {
+        this.security = security;
         this.auth = auth;
     }
 
@@ -56,7 +67,7 @@ public class PermissionFilter extends OncePerRequestFilter {
             return;
         }
         Map<String, Object> current = auth.sessionUser(user);
-        if (current.isEmpty()) {
+        if (current.isEmpty() || !security.validSession(current, req)) {
             req.getSession(false).invalidate();
             reject(res, 401, "La sesión venció o el acceso fue revocado.");
             return;
@@ -65,25 +76,38 @@ public class PermissionFilter extends OncePerRequestFilter {
         req.setAttribute("alonIdentity", current);
         String role = String.valueOf(current.get("rol"));
         req.setAttribute("alonRole", role);
-        if ("DUENO".equals(role)) {
+        if ("SUPER".equals(role)) {
             chain.doFilter(req, res);
             return;
         }
-        if ("/api/v1/auth/logout".equals(path)) {
+        if (path.startsWith("/api/v1/super/")) {
+            reject(res, 403, "Solo el superusuario puede administrar gerentes y licencias.");
+            return;
+        }
+        if (path.startsWith("/api/v1/auth/security/")) {
+            if (!"DUENO".equals(role)
+                    || !Arrays.asList(String.valueOf(current.get("permisos")).split(","))
+                            .contains("seguridad")) {
+                reject(res, 403, "No tenés habilitada la sección Seguridad.");
+                return;
+            }
             chain.doFilter(req, res);
+            return;
+        }
+        if (!Boolean.TRUE.equals(security.license(current).get("active"))) {
+            reject(
+                    res,
+                    403,
+                    "La licencia del negocio venció. Solicitá al superusuario que active la renovación.");
             return;
         }
         if ("/api/v1/business".equals(path) && "GET".equals(req.getMethod())) {
             chain.doFilter(req, res);
             return;
         }
-        if ("/api/v1/operations/business".equals(path)) {
-            reject(res, 403, "Solo el dueño puede modificar el negocio.");
-            return;
-        }
         String required = permissionFor(path);
-        if ("usuarios".equals(required)) {
-            reject(res, 403, "Solo el dueño puede administrar usuarios.");
+        if (("usuarios".equals(required) || "negocio".equals(required)) && !"DUENO".equals(role)) {
+            reject(res, 403, "Solo el gerente puede administrar esta sección.");
             return;
         }
         Set<String> permissions =
@@ -129,6 +153,7 @@ public class PermissionFilter extends OncePerRequestFilter {
 
     /** Asocia la ruta de la API al permiso funcional requerido para autorizar la solicitud. */
     private String permissionFor(String path) {
+        if (path.equals("/api/v1/operations/business")) return "negocio";
         if (path.startsWith("/api/v1/auth/users")) return "usuarios";
         if (path.startsWith("/api/v1/auth/")) return "usuarios";
         if (path.startsWith("/api/v1/operations/cash")

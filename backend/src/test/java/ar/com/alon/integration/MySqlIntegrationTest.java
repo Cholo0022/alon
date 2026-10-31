@@ -35,6 +35,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.support.JdbcTransactionManager;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -87,6 +88,11 @@ class MySqlIntegrationTest {
                                 try {
                                     for (String table :
                                             List.of(
+                                                    "licencias",
+                                                    "security_recovery_codes",
+                                                    "security_browsers",
+                                                    "security_events",
+                                                    "security_mail_queue",
                                                     "comandos_procesados",
                                                     "auditoria_operaciones",
                                                     "movimientos_stock",
@@ -118,6 +124,7 @@ class MySqlIntegrationTest {
         jdbc.update("INSERT INTO comercios(id,codigo,nombre) VALUES(1,'ALON','Comercio')");
         transaction = new TransactionTemplate(new JdbcTransactionManager(source));
         identity = mock(RequestIdentity.class);
+        when(identity.user()).thenReturn(Map.of("rol", "SUPER", "id", 1L, "comercio_id", 1L));
         when(identity.storeId()).thenReturn(1L);
         when(identity.userId()).thenReturn(1L);
         when(identity.permits(anyString())).thenReturn(true);
@@ -1364,19 +1371,458 @@ class MySqlIntegrationTest {
         }
     }
 
+    /** Obtiene los campos de identidad que usa el ingreso sin leer la contraseña. */
+    private Map<String, Object> securityUser(long id) {
+        return jdbc.queryForMap(
+                "SELECT id,comercio_id,usuario,nombre,rol,permisos,activo,auth_version,mfa_enabled,security_email FROM usuarios WHERE id=?",
+                id);
+    }
+
+    @Test
+    void securityRequiresEnrollmentAndApprovalAndRevokesBrowsers(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        jdbc.update("UPDATE usuarios SET rol='SUPER' WHERE id=1");
+        var crypto = new ar.com.alon.security.TotpSecurity(directory.resolve("mfa.key").toString());
+        var mail = mock(ar.com.alon.security.SecurityNotifications.class);
+        var service =
+                new ar.com.alon.security.AccessSecurityService(
+                        jdbc, auth, identity, crypto, clock, mail, false, true);
+        var owner = new MockHttpServletRequest();
+        owner.setRemoteAddr("127.0.0.1");
+        transaction.execute(
+                status -> {
+                    service.begin(securityUser(1), owner, new MockHttpServletResponse());
+                    return null;
+                });
+        assertThat(service.challenge(owner)).containsEntry("stage", "ENROLL");
+        assertThat(owner.getSession().getAttribute("alonUser")).isNull();
+        var denied = new MockHttpServletResponse();
+        new ar.com.alon.security.PermissionFilter(auth, service)
+                .doFilter(
+                        ownerForPath(owner, "/api/v1/alon/sales"),
+                        denied,
+                        new org.springframework.mock.web.MockFilterChain());
+        assertThat(denied.getStatus()).isEqualTo(401);
+        String secret = service.enrollment(owner).get("secret").toString();
+        var codes =
+                transaction.execute(
+                        status ->
+                                service.confirmEnrollment(
+                                        crypto.code(
+                                                secret, clock.instant().getEpochSecond() / 30, 6),
+                                        "owner@example.test",
+                                        owner));
+        assertThat(codes).hasSize(10).doesNotHaveDuplicates();
+        assertThat(owner.getSession().getAttribute("alonUser")).isNull();
+        transaction.execute(
+                status -> {
+                    service.advance(null, true, owner);
+                    return null;
+                });
+        assertThat(service.validSession(securityUser(1), owner)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT mfa_secret FROM usuarios WHERE id=1", String.class))
+                .doesNotContain(secret);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT security_email FROM usuarios WHERE id=1", String.class))
+                .isEqualTo("owner@example.test");
+        jdbc.update(
+                "INSERT INTO usuarios(id,comercio_id,usuario,nombre,password_hash,rol,permisos) VALUES(2,1,'staff','Personal','unused','VENDEDOR','ventas')");
+        var staff = new MockHttpServletRequest();
+        staff.setRemoteAddr("192.0.2.10");
+        staff.addHeader("User-Agent", "Navegador de prueba");
+        var response = new MockHttpServletResponse();
+        transaction.execute(
+                status -> {
+                    service.begin(securityUser(2), staff, response);
+                    return null;
+                });
+        String token = response.getHeader("Set-Cookie").split(";", 2)[0].split("=", 2)[1];
+        staff.setCookies(new jakarta.servlet.http.Cookie("ALON_BROWSER", token));
+        assertThat(response.getHeader("Set-Cookie")).contains("HttpOnly", "SameSite=Strict");
+        assertThat(service.challenge(staff))
+                .containsEntry("stage", "DEVICE")
+                .containsEntry("deviceStatus", "PENDIENTE");
+        transaction.execute(
+                status -> {
+                    service.advance(null, false, staff);
+                    return null;
+                });
+        assertThat(staff.getSession().getAttribute("alonUser")).isNull();
+        when(identity.user()).thenReturn(Map.of("id", 1L, "comercio_id", 1L, "rol", "DUENO"));
+        String id =
+                jdbc.queryForObject(
+                        "SELECT id FROM security_browsers WHERE usuario_id=2", String.class);
+        assertThat(service.pendingCount()).isEqualTo(1);
+        jdbc.update("INSERT INTO comercios(id,codigo,nombre) VALUES(2,'OTRO','Otro comercio')");
+        jdbc.update(
+                "INSERT INTO usuarios(id,comercio_id,usuario,nombre,password_hash,rol,permisos) VALUES(3,2,'other','Otro dueño','unused','DUENO','ventas')");
+        when(identity.user()).thenReturn(Map.of("id", 3L, "comercio_id", 2L, "rol", "DUENO"));
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        status -> {
+                                            service.decide(id, "approve", owner);
+                                            return null;
+                                        }))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        when(identity.user()).thenReturn(Map.of("id", 1L, "comercio_id", 1L, "rol", "DUENO"));
+        transaction.execute(
+                status -> {
+                    service.decide(id, "approve", owner);
+                    return null;
+                });
+        transaction.execute(
+                status -> {
+                    service.advance(null, false, staff);
+                    return null;
+                });
+        assertThat(service.validSession(securityUser(2), staff)).isTrue();
+        staff.setRemoteAddr("192.0.2.11");
+        assertThat(service.validSession(securityUser(2), staff)).isFalse();
+        staff.setRemoteAddr("192.0.2.10");
+        var future =
+                new ar.com.alon.security.AccessSecurityService(
+                        jdbc,
+                        auth,
+                        identity,
+                        crypto,
+                        Clock.offset(clock, Duration.ofHours(9)),
+                        mail,
+                        false,
+                        true);
+        assertThat(future.validSession(securityUser(2), staff)).isFalse();
+        transaction.execute(
+                status -> {
+                    service.decide(id, "revoke", owner);
+                    return null;
+                });
+        assertThat(service.validSession(securityUser(2), staff)).isFalse();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM security_recovery_codes WHERE used_at IS NULL",
+                                Integer.class))
+                .isEqualTo(10);
+    }
+
+    /** Reutiliza solo la sesión en una nueva solicitud de prueba de permisos. */
+    private MockHttpServletRequest ownerForPath(MockHttpServletRequest original, String path) {
+        var request = new MockHttpServletRequest("GET", path);
+        request.setSession((org.springframework.mock.web.MockHttpSession) original.getSession());
+        return request;
+    }
+
+    @Test
+    void recoveryCodesAreSingleUseAndFailedFactorsAreRateLimited(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) {
+        jdbc.update("UPDATE usuarios SET rol='SUPER' WHERE id=1");
+        var crypto = new ar.com.alon.security.TotpSecurity(directory.resolve("mfa.key").toString());
+        var mail = mock(ar.com.alon.security.SecurityNotifications.class);
+        var service =
+                new ar.com.alon.security.AccessSecurityService(
+                        jdbc, auth, identity, crypto, clock, mail, false, true);
+        var request = new MockHttpServletRequest();
+        transaction.execute(
+                status -> {
+                    service.begin(securityUser(1), request, new MockHttpServletResponse());
+                    return null;
+                });
+        String secret = service.enrollment(request).get("secret").toString();
+        var codes =
+                transaction.execute(
+                        status ->
+                                service.confirmEnrollment(
+                                        crypto.code(
+                                                secret, clock.instant().getEpochSecond() / 30, 6),
+                                        "owner@example.test",
+                                        request));
+        transaction.execute(
+                status -> {
+                    service.advance(null, true, request);
+                    return null;
+                });
+        var login = new MockHttpServletRequest();
+        transaction.execute(
+                status -> {
+                    service.begin(securityUser(1), login, new MockHttpServletResponse());
+                    return null;
+                });
+        assertThat(service.challenge(login)).containsEntry("stage", "MFA");
+        transaction.execute(
+                status -> {
+                    service.advance(codes.getFirst(), false, login);
+                    return null;
+                });
+        assertThat(service.validSession(securityUser(1), login)).isTrue();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM security_recovery_codes WHERE used_at IS NULL",
+                                Integer.class))
+                .isEqualTo(9);
+        var retry = new MockHttpServletRequest();
+        transaction.execute(
+                status -> {
+                    service.begin(securityUser(1), retry, new MockHttpServletResponse());
+                    return null;
+                });
+        transaction.execute(
+                status -> {
+                    assertThatThrownBy(() -> service.advance(codes.getFirst(), false, retry))
+                            .isInstanceOf(
+                                    ar.com.alon.security.AccessSecurityService.SecondFactorRejected
+                                            .class);
+                    return null;
+                });
+        for (int i = 0; i < 4; i++)
+            transaction.execute(
+                    status -> {
+                        assertThatThrownBy(() -> service.advance("invalid", false, retry))
+                                .isInstanceOf(
+                                        ar.com.alon.security.AccessSecurityService
+                                                .SecondFactorRejected.class);
+                        return null;
+                    });
+        assertThat(retry.getSession().getAttribute("alonUser")).isNull();
+        transaction.execute(
+                status -> {
+                    assertThatThrownBy(() -> service.advance(codes.get(1), false, retry))
+                            .isInstanceOf(
+                                    ar.com.alon.security.AccessSecurityService.SecondFactorRejected
+                                            .class);
+                    return null;
+                });
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM security_recovery_codes WHERE used_at IS NULL",
+                                Integer.class))
+                .isEqualTo(9);
+        var expired =
+                new ar.com.alon.security.AccessSecurityService(
+                        jdbc,
+                        auth,
+                        identity,
+                        crypto,
+                        Clock.offset(clock, Duration.ofMinutes(11)),
+                        mail,
+                        false,
+                        true);
+        assertThat(expired.challenge(retry)).isEmpty();
+    }
+
+    @Test
+    void superuserControlsManagerPermissionsAndSingleUseCalendarLicenses(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) {
+        jdbc.update("UPDATE usuarios SET usuario='alon',rol='SUPER' WHERE id=1");
+        var crypto = new ar.com.alon.security.TotpSecurity(directory.resolve("mfa.key").toString());
+        var security =
+                new ar.com.alon.security.AccessSecurityService(
+                        jdbc,
+                        auth,
+                        identity,
+                        crypto,
+                        clock,
+                        mock(ar.com.alon.security.SecurityNotifications.class),
+                        false,
+                        true);
+        var platform =
+                new ar.com.alon.security.PlatformAdministration(
+                        jdbc, identity, auth, crypto, clock);
+        var request = new MockHttpServletRequest();
+        assertThatThrownBy(() -> security.superLogin("123456", request))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        transaction.execute(
+                status -> {
+                    security.begin(securityUser(1), request, new MockHttpServletResponse());
+                    return null;
+                });
+        String secret = security.enrollment(request).get("secret").toString();
+        var codes =
+                transaction.execute(
+                        status ->
+                                security.confirmEnrollment(
+                                        crypto.code(
+                                                secret, clock.instant().getEpochSecond() / 30, 6),
+                                        "super@example.test",
+                                        request));
+        transaction.execute(
+                status -> {
+                    security.advance(null, true, request);
+                    return null;
+                });
+        var login = new MockHttpServletRequest();
+        transaction.execute(
+                status -> {
+                    security.superLogin(codes.getFirst(), login);
+                    return null;
+                });
+        assertThat(security.validSession(securityUser(1), login)).isTrue();
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        status -> {
+                                            security.superLogin(
+                                                    codes.getFirst(), new MockHttpServletRequest());
+                                            return null;
+                                        }))
+                .isInstanceOf(
+                        ar.com.alon.security.AccessSecurityService.SecondFactorRejected.class);
+        var created =
+                transaction.execute(
+                        status ->
+                                platform.create(
+                                        new ar.com.alon.security.PlatformAdministration
+                                                .ManagerInput(
+                                                "manager",
+                                                "Gerente",
+                                                "Contraseña segura 2026",
+                                                "manager@example.test",
+                                                List.of("ventas", "clientes"),
+                                                1)));
+        long manager = ((Number) created.get("managerId")).longValue();
+        String key = ((Map<?, ?>) created.get("license")).get("key").toString();
+        assertThat(security.license(securityUser(manager))).containsEntry("active", false);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT security_email FROM usuarios WHERE id=?",
+                                String.class,
+                                manager))
+                .isEqualTo("manager@example.test");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT permisos FROM usuarios WHERE id=?", String.class, manager))
+                .doesNotContain("usuarios", "costos", "negocio");
+        when(identity.user()).thenReturn(Map.of("rol", "DUENO", "id", manager, "comercio_id", 1L));
+        when(identity.userId()).thenReturn(manager);
+        assertThatThrownBy(() -> platform.issue(2))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        assertThatThrownBy(
+                        () ->
+                                auth.createUser(
+                                        new UserService.UserInput(
+                                                "escalate",
+                                                "Escalada",
+                                                "Contraseña segura 2026",
+                                                "DUENO",
+                                                List.of("ventas"))))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        assertThatThrownBy(() -> platform.activate(key))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        when(identity.user()).thenReturn(Map.of("rol", "SUPER", "id", 1L, "comercio_id", 1L));
+        when(identity.userId()).thenReturn(1L);
+        jdbc.update("INSERT INTO comercios(id,codigo,nombre) VALUES(2,'OTRO','Otro negocio')");
+        when(identity.storeId()).thenReturn(2L);
+        assertThatThrownBy(() -> transaction.execute(status -> platform.activate(key)))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        when(identity.storeId()).thenReturn(1L);
+        var active = transaction.execute(status -> platform.activate(key));
+        assertThat(active.get("expiresAt")).isEqualTo("2026-11-28T12:00");
+        assertThat(security.license(securityUser(manager))).containsEntry("active", true);
+        assertThatThrownBy(() -> transaction.execute(status -> platform.activate(key)))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        when(identity.user()).thenReturn(Map.of("rol", "SUPER", "id", 1L, "comercio_id", 1L));
+        when(identity.userId()).thenReturn(1L);
+        var next = transaction.execute(status -> platform.issue(2));
+        when(identity.user()).thenReturn(Map.of("rol", "DUENO", "id", manager, "comercio_id", 1L));
+        when(identity.userId()).thenReturn(manager);
+        assertThatThrownBy(() -> platform.activate(next.get("key").toString()))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        when(identity.user()).thenReturn(Map.of("rol", "SUPER", "id", 1L, "comercio_id", 1L));
+        when(identity.userId()).thenReturn(1L);
+        var renewed = transaction.execute(status -> platform.activate(next.get("key").toString()));
+        assertThat(renewed.get("expiresAt")).isEqualTo("2027-01-28T12:00");
+        var future =
+                new ar.com.alon.security.AccessSecurityService(
+                        jdbc,
+                        auth,
+                        identity,
+                        crypto,
+                        Clock.offset(clock, Duration.ofDays(120)),
+                        mock(ar.com.alon.security.SecurityNotifications.class),
+                        false,
+                        true);
+        assertThat(future.license(securityUser(manager))).containsEntry("active", false);
+        assertThat(future.license(securityUser(1))).containsEntry("active", true);
+    }
+
+    @Test
+    void managerEntersWithCreatedPasswordWithoutAuthenticator(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        String password = "Contraseña gerente 2026";
+        jdbc.update(
+                "UPDATE usuarios SET password_hash=?,permisos='ventas,seguridad',security_email='gerente@example.test' WHERE id=1",
+                new PasswordHasher().hash(password));
+        var crypto =
+                new ar.com.alon.security.TotpSecurity(directory.resolve("unused.key").toString());
+        var security =
+                new ar.com.alon.security.AccessSecurityService(
+                        jdbc,
+                        auth,
+                        identity,
+                        crypto,
+                        clock,
+                        mock(ar.com.alon.security.SecurityNotifications.class),
+                        false,
+                        true);
+        assertThatThrownBy(
+                        () ->
+                                auth.authenticate(
+                                        new UserService.Credentials(
+                                                "owner", null, "Incorrecta", null)))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        var verified =
+                auth.authenticate(new UserService.Credentials("owner", null, password, null));
+        var request = new MockHttpServletRequest("GET", "/api/v1/alon/sales");
+        transaction.execute(
+                status -> {
+                    security.begin(verified, request, new MockHttpServletResponse());
+                    return null;
+                });
+        assertThat(security.challenge(request)).isEmpty();
+        assertThat(security.validSession(verified, request)).isTrue();
+        assertThat(request.getSession().getAttribute("alonUser")).isNotNull();
+        assertThat(crypto.hasKey()).isFalse();
+        when(identity.user()).thenReturn(Map.of("id", 1L, "comercio_id", 1L, "rol", "DUENO"));
+        assertThat(security.dashboard()).containsEntry("authenticatorRequired", false);
+        assertThatThrownBy(() -> security.regenerate("123456", request))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        var allowed = new MockHttpServletResponse();
+        new ar.com.alon.security.PermissionFilter(auth, security)
+                .doFilter(request, allowed, new org.springframework.mock.web.MockFilterChain());
+        assertThat(allowed.getStatus()).isEqualTo(200);
+        jdbc.update("UPDATE comercios SET licencia_controlada=TRUE,licencia_hasta=NULL WHERE id=1");
+        var blocked = new MockHttpServletResponse();
+        new ar.com.alon.security.PermissionFilter(auth, security)
+                .doFilter(request, blocked, new org.springframework.mock.web.MockFilterChain());
+        assertThat(blocked.getStatus()).isEqualTo(403);
+        assertThat(blocked.getContentAsString()).contains("licencia");
+        jdbc.update(
+                "UPDATE usuarios SET mfa_enabled=TRUE,mfa_secret='No se debe consultar' WHERE id=1");
+        var existingFactor = new MockHttpServletRequest();
+        transaction.execute(
+                status -> {
+                    security.begin(securityUser(1), existingFactor, new MockHttpServletResponse());
+                    return null;
+                });
+        assertThat(security.challenge(existingFactor)).isEmpty();
+        assertThat(security.validSession(securityUser(1), existingFactor)).isTrue();
+    }
+
     @Test
     void realHttpSessionRejectsForgeryAndReplaysOneBusinessOperation(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path imageDirectory) throws Exception {
+        jdbc.update("UPDATE usuarios SET rol='SUPER' WHERE id=1");
         String password = "Clave de prueba segura 2026";
         jdbc.update(
-                "UPDATE usuarios SET password_hash=? WHERE id=1",
-                new PasswordHasher().hash(password));
+                "UPDATE usuarios SET password_hash=?,permisos=? WHERE id=1",
+                new PasswordHasher().hash(password),
+                String.join(",", UserService.ALL_PERMISSIONS));
         var application =
                 new org.springframework.boot.SpringApplication(ar.com.alon.AlonApplication.class);
         try (var context =
                 application.run(
                         "--server.port=0",
                         "--alon.images-directory=" + imageDirectory,
+                        "--alon.security-key-file=" + imageDirectory.resolve("mfa.key"),
                         "--spring.datasource.url=" + System.getenv("ALON_TEST_MYSQL_URL"),
                         "--spring.datasource.username="
                                 + System.getenv().getOrDefault("ALON_TEST_MYSQL_USER", "root"),
@@ -1489,6 +1935,52 @@ class MySqlIntegrationTest {
                                     .build(),
                             java.net.http.HttpResponse.BodyHandlers.ofString());
             assertThat(login.statusCode()).withFailMessage(login.body()).isEqualTo(200);
+            assertThat(mapper.readTree(login.body()).path("challenge").path("stage").asText())
+                    .isEqualTo("ENROLL");
+            var enrollment =
+                    client.send(
+                            java.net.http.HttpRequest.newBuilder(
+                                            java.net.URI.create(
+                                                    origin + "/api/v1/auth/security/enroll"))
+                                    .header("X-CSRF-Token", csrf)
+                                    .POST(java.net.http.HttpRequest.BodyPublishers.noBody())
+                                    .build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofString());
+            assertThat(enrollment.statusCode()).isEqualTo(200);
+            String secret = mapper.readTree(enrollment.body()).path("secret").asText();
+            var crypto = context.getBean(ar.com.alon.security.TotpSecurity.class);
+            String code = crypto.code(secret, java.time.Instant.now().getEpochSecond() / 30, 6);
+            var confirmation =
+                    client.send(
+                            java.net.http.HttpRequest.newBuilder(
+                                            java.net.URI.create(
+                                                    origin + "/api/v1/auth/security/confirm"))
+                                    .header("X-CSRF-Token", csrf)
+                                    .header("Content-Type", "application/json")
+                                    .POST(
+                                            java.net.http.HttpRequest.BodyPublishers.ofString(
+                                                    mapper.writeValueAsString(
+                                                            Map.of(
+                                                                    "code",
+                                                                    code,
+                                                                    "email",
+                                                                    "owner@example.test"))))
+                                    .build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofString());
+            assertThat(confirmation.statusCode()).isEqualTo(200);
+            var finish =
+                    client.send(
+                            java.net.http.HttpRequest.newBuilder(
+                                            java.net.URI.create(
+                                                    origin + "/api/v1/auth/security/continue"))
+                                    .header("X-CSRF-Token", csrf)
+                                    .header("Content-Type", "application/json")
+                                    .POST(
+                                            java.net.http.HttpRequest.BodyPublishers.ofString(
+                                                    "{\"saved\":true}"))
+                                    .build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofString());
+            assertThat(finish.statusCode()).isEqualTo(200);
             var command =
                     java.net.http.HttpRequest.newBuilder(
                                     java.net.URI.create(origin + "/api/v1/operations/customers"))
@@ -1563,7 +2055,14 @@ class MySqlIntegrationTest {
                                     Integer.class))
                     .isZero();
             try (var files = java.nio.file.Files.list(imageDirectory)) {
-                assertThat(files.count()).isZero();
+                assertThat(
+                                files.filter(
+                                                path ->
+                                                        !path.getFileName()
+                                                                .toString()
+                                                                .equals("mfa.key"))
+                                        .count())
+                        .isZero();
             }
             jdbc.update("UPDATE usuarios SET activo=FALSE WHERE id=1");
             var denied =

@@ -4,7 +4,9 @@ import { BusinessPage } from './BusinessPage'
 import { defaultBrand } from '../lib/businessBrand'
 import { apiFetch } from '../lib/http'
 vi.mock('../lib/http', () => ({ apiFetch: vi.fn() }))
-beforeEach(() => vi.mocked(apiFetch).mockReset())
+beforeEach(() => {
+  vi.mocked(apiFetch).mockReset()
+})
 it('saves the identity and announces the persisted appearance', async () => {
   const saved = {
     ...defaultBrand,

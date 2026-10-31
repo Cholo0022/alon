@@ -109,6 +109,18 @@ public class ShopService {
      */
     @Transactional
     public Map<String, Object> checkout(Checkout input, Map<String, Object> buyer, String key) {
+        // El catálogo sigue visible, pero una licencia vencida impide registrar nuevos pedidos.
+        if (jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM comercios WHERE id=? AND licencia_controlada=TRUE AND (licencia_hasta IS NULL OR licencia_hasta<=?)",
+                        Integer.class,
+                        accounts.storeId(),
+                        java.time.LocalDateTime.now(
+                                java.time.ZoneId.of("America/Argentina/Buenos_Aires")))
+                > 0)
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "La tienda temporalmente no recibe pedidos. Contactá al comercio.");
+
         if (input.paymentMethod() == null
                 || !Set.of("EFECTIVO", "TRANSFERENCIA", "MERCADO_PAGO")
                         .contains(input.paymentMethod()))

@@ -69,6 +69,8 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
         .clone()
         .json()
         .catch(() => ({}))) as { error?: string }
+      if (body.error?.startsWith('La licencia del negocio venció'))
+        window.dispatchEvent(new Event('alon:license-required'))
       window.dispatchEvent(
         new CustomEvent('alon:api-error', {
           detail: body.error ?? 'No se pudieron cargar los datos. Volvé a intentar.',

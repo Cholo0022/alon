@@ -4,11 +4,26 @@ export type SessionUser = {
   comercio_id: number
   usuario: string
   nombre: string
-  rol: 'DUENO' | 'VENDEDOR' | 'PERSONALIZADO'
+  rol: 'SUPER' | 'DUENO' | 'VENDEDOR' | 'PERSONALIZADO'
   permisos: string
   activo: boolean
 }
-export type AuthStatus = { setupRequired: boolean; user: SessionUser | null; csrfToken: string }
+export type AccessChallenge = {
+  stage: 'ENROLL' | 'MFA' | 'RECOVERY' | 'DEVICE'
+  username: string
+  email?: string
+  expiresAt: string
+  reference?: string
+  deviceStatus?: string
+  recoveryCodes?: string[]
+}
+export type AuthStatus = {
+  setupRequired: boolean
+  user: SessionUser | null
+  csrfToken: string
+  license?: { active: boolean; managed: boolean; expiresAt: string }
+  challenge?: AccessChallenge | Record<string, never>
+}
 
 /** Comprueba la estructura del usuario recibido antes de tratar una respuesta desconocida como una sesión autenticada. */
 export function isSessionUser(value: unknown): value is SessionUser {
@@ -19,7 +34,7 @@ export function isSessionUser(value: unknown): value is SessionUser {
     typeof row.comercio_id === 'number' &&
     typeof row.usuario === 'string' &&
     typeof row.nombre === 'string' &&
-    ['DUENO', 'VENDEDOR', 'PERSONALIZADO'].includes(String(row.rol)) &&
+    ['SUPER', 'DUENO', 'VENDEDOR', 'PERSONALIZADO'].includes(String(row.rol)) &&
     typeof row.permisos === 'string' &&
     typeof row.activo === 'boolean'
   )

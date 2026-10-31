@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import { announceBrand, brandStyle, normalizeBrand, type BusinessBrand } from '../lib/businessBrand'
 
-/** Permite al dueño personalizar identidad, colores, plantilla y textos de la tienda con vistas previas antes de guardarlos. */
+/** Permite al gerente personalizar identidad, colores, plantilla y textos de la tienda con vistas previas antes de guardarlos. */
 export function BusinessPage({ brand }: { brand: BusinessBrand }) {
   const [draft, setDraft] = useState(brand)
   const dirty = useRef(false)

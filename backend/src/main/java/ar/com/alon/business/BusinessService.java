@@ -66,14 +66,15 @@ public class BusinessService {
     }
 
     /**
-     * Exige rol dueño, bloquea el comercio y actualiza su identidad y colores dejando auditoría de
-     * los valores anteriores y nuevos.
+     * Exige rol gerente, bloquea el comercio y actualiza su identidad y colores dejando auditoría
+     * de los valores anteriores y nuevos.
      */
     @Transactional
     public Map<String, Object> update(Input input) {
-        if (!"DUENO".equals(identity.user().get("rol")))
+        if (!ar.com.alon.security.UserRoles.administrator(identity.user().get("rol"))
+                || !identity.permits("negocio"))
             throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN, "Solo el dueño puede modificar el negocio.");
+                    HttpStatus.FORBIDDEN, "Solo el gerente puede modificar el negocio.");
         jdbc.queryForObject(
                 "SELECT id FROM comercios WHERE id=? FOR UPDATE", Long.class, identity.storeId());
         if (input.shopTitle() != null && input.shopTitle().isBlank())

@@ -12,6 +12,8 @@ export type Section =
   | 'tienda'
   | 'usuarios'
   | 'negocio'
+  | 'seguridad'
+  | 'administracion'
 
 export const navigation: { id: Section; label: string; icon: string }[] = [
   { id: 'inicio', label: 'Resumen', icon: '⌂' },
@@ -25,6 +27,8 @@ export const navigation: { id: Section; label: string; icon: string }[] = [
   { id: 'informes', label: 'Informes', icon: '▤' },
   { id: 'tienda', label: 'Tienda online', icon: '⌑' },
   { id: 'usuarios', label: 'Usuarios y accesos', icon: '♙' },
+  { id: 'seguridad', label: 'Seguridad', icon: '⚿' },
+  { id: 'administracion', label: 'Gerentes y licencias', icon: '♙' },
   { id: 'negocio', label: 'Modificar negocio', icon: '⚙' },
 ]
 
@@ -40,5 +44,7 @@ export const descriptions: Record<Section, string> = {
   informes: 'Revisá ventas, costos y gastos por período.',
   tienda: 'Prepará el catálogo online de tu comercio.',
   usuarios: 'Creá usuarios y elegí a qué secciones pueden acceder.',
+  seguridad: 'Seguridad de ingreso y cuenta del Gerente.',
+  administracion: 'Administrá gerentes, accesos y meses de licencia del negocio.',
   negocio: 'Personalizá el nombre, slogan y colores de Alon y de tu tienda web.',
 }

@@ -1,4 +1,4 @@
-// Administra cuentas, contraseñas y permisos; conserva al menos un dueño activo.
+// Administra cuentas, contraseñas y permisos; conserva al menos un gerente activo.
 package ar.com.alon.users;
 
 import ar.com.alon.security.PasswordHasher;
@@ -39,7 +39,9 @@ public class UserService {
                     "tienda",
                     "usuarios",
                     "descuentos",
-                    "costos");
+                    "costos",
+                    "seguridad",
+                    "negocio");
     private static final Set<String> VENDOR_PERMISSIONS =
             Set.of("ventas", "clientes", "caja", "tienda");
     private final JdbcTemplate jdbc;
@@ -97,7 +99,8 @@ public class UserService {
     }
 
     /**
-     * Indica si el comercio inicial carece de usuarios y necesita crear su primera cuenta dueña.
+     * Indica si el comercio inicial carece de usuarios y necesita crear su primera cuenta
+     * administradora.
      */
     public boolean setupRequired() {
         Integer count =
@@ -109,7 +112,7 @@ public class UserService {
     }
 
     /**
-     * Bloquea el comercio inicial y crea el primer dueño solo si aún no existen usuarios
+     * Bloquea el comercio inicial y crea el primer gerente solo si aún no existen usuarios
      * configurados.
      */
     @Transactional
@@ -118,6 +121,9 @@ public class UserService {
         if (!setupRequired())
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "El comercio ya tiene usuarios configurados.");
+        if (!"alon".equals(input.username()))
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "La cuenta del superusuario debe llamarse alon.");
         validate(input);
         return userById(
                 insert(
@@ -125,7 +131,7 @@ public class UserService {
                         input.username(),
                         input.name(),
                         input.password(),
-                        "DUENO",
+                        "SUPER",
                         ALL_PERMISSIONS),
                 bootstrapStoreId);
     }
@@ -196,7 +202,7 @@ public class UserService {
         return new ar.com.alon.shared.persistence.ReadPage(jdbc)
                 .query(
                         "usuario,nombre",
-                        "SELECT id,usuario,nombre,rol,permisos,activo FROM usuarios WHERE comercio_id=? ORDER BY nombre,id",
+                        "SELECT id,usuario,nombre,rol,permisos,activo FROM usuarios WHERE comercio_id=? AND rol NOT IN ('SUPER','DUENO') ORDER BY nombre,id",
                         identity.storeId());
     }
 
@@ -217,7 +223,9 @@ public class UserService {
                         .collect(Collectors.toSet());
         Set<String> permissions =
                 "DUENO".equals(role)
-                        ? ALL_PERMISSIONS
+                        ? (input.permissions() == null
+                                ? ALL_PERMISSIONS
+                                : Set.copyOf(input.permissions()))
                         : "VENDEDOR".equals(role)
                                 ? VENDOR_PERMISSIONS
                                 : (input.permissions() == null
@@ -230,6 +238,7 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Elegí al menos un acceso.");
         String name =
                 input.name() == null || input.name().isBlank() ? input.username() : input.name();
+        validateDelegation(role, permissions, null);
         validate(new Credentials(input.username(), name, input.password(), null));
         return userById(
                 insert(
@@ -243,8 +252,8 @@ public class UserService {
     }
 
     /**
-     * Valida y actualiza credenciales, rol y permisos; protege al último dueño activo y renueva la
-     * versión que invalida sesiones anteriores.
+     * Valida y actualiza credenciales, rol y permisos; protege al último gerente activo y renueva
+     * la versión que invalida sesiones anteriores.
      */
     @Transactional
     public Map<String, Object> updateUser(long id, UserUpdateInput input) {
@@ -272,7 +281,9 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rol inválido.");
         Set<String> permissions =
                 "DUENO".equals(role)
-                        ? ALL_PERMISSIONS
+                        ? (input.permissions() == null
+                                ? ALL_PERMISSIONS
+                                : Set.copyOf(input.permissions()))
                         : "VENDEDOR".equals(role)
                                 ? VENDOR_PERMISSIONS
                                 : (input.permissions() == null
@@ -291,6 +302,7 @@ public class UserService {
         if (permissions.stream()
                 .noneMatch(permission -> !Set.of("descuentos", "costos").contains(permission)))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Elegí al menos un acceso.");
+        validateDelegation(role, permissions, existing);
         if ("DUENO".equals(existing.get("rol"))
                 && isActive(existing.get("activo"))
                 && !"DUENO".equals(role)) preserveOwner(id);
@@ -301,7 +313,7 @@ public class UserService {
                     HttpStatus.BAD_REQUEST, "El nombre es demasiado largo.");
         if (password.isBlank())
             jdbc.update(
-                    "UPDATE usuarios SET usuario=?,nombre=?,rol=?,permisos=? WHERE id=? AND comercio_id=?",
+                    "UPDATE usuarios SET usuario=?,nombre=?,rol=?,permisos=?,auth_version=auth_version+1 WHERE id=? AND comercio_id=?",
                     username,
                     name,
                     role,
@@ -323,11 +335,13 @@ public class UserService {
 
     /**
      * Cambia el acceso del usuario y revoca sus sesiones anteriores; impide desactivar al último
-     * dueño o la propia sesión.
+     * gerente o la propia sesión.
      */
     @Transactional
     public void setActive(long id, boolean active, long currentUserId) {
         lockStore(identity.storeId());
+        var target = userById(id, identity.storeId());
+        validateDelegation(String.valueOf(target.get("rol")), Set.of(), target);
         if (!active) preserveOwner(id);
         if (id == currentUserId && !active)
             throw new ResponseStatusException(
@@ -374,29 +388,49 @@ public class UserService {
      */
     private Map<String, Object> userById(long id, long storeId) {
         return jdbc.queryForMap(
-                "SELECT id,comercio_id,usuario,nombre,rol,permisos,activo,auth_version FROM usuarios WHERE id=? AND comercio_id=?",
+                "SELECT id,comercio_id,usuario,nombre,rol,permisos,activo,auth_version,mfa_enabled,security_email FROM usuarios WHERE id=? AND comercio_id=?",
                 id,
                 storeId);
     }
 
-    /** Bloquea el comercio para serializar cambios que deben conservar al menos un dueño activo. */
+    /**
+     * Bloquea el comercio para serializar cambios que deben conservar al menos un gerente activo.
+     */
     private void lockStore(long storeId) {
         jdbc.queryForObject("SELECT id FROM comercios WHERE id=? FOR UPDATE", Long.class, storeId);
     }
 
-    /** Rechaza un cambio que dejaría al comercio sin ningún dueño activo. */
+    /** Rechaza un cambio que dejaría al comercio sin ningún gerente activo. */
     private void preserveOwner(long id) {
         Map<String, Object> user = userById(id, identity.storeId());
         if (!"DUENO".equals(user.get("rol")) || !isActive(user.get("activo"))) return;
         Integer others =
                 jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM usuarios WHERE comercio_id=? AND rol='DUENO' AND activo=TRUE AND id<>?",
+                        "SELECT COUNT(*) FROM usuarios WHERE comercio_id=? AND rol IN ('DUENO','SUPER') AND activo=TRUE AND id<>?",
                         Integer.class,
                         identity.storeId(),
                         id);
         if (others == null || others == 0)
             throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "Debe quedar al menos un dueño activo.");
+                    HttpStatus.CONFLICT, "Debe quedar al menos un gerente activo.");
+    }
+
+    /**
+     * Evita que un gerente cree otros gerentes, modifique al superusuario o delegue permisos
+     * superiores.
+     */
+    private void validateDelegation(
+            String role, Set<String> permissions, Map<String, Object> target) {
+        if (target != null && "SUPER".equals(target.get("rol")))
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "La cuenta alon se administra desde Seguridad.");
+        if ("SUPER".equals(identity.user().get("rol"))) return;
+        if ("DUENO".equals(role) || target != null && "DUENO".equals(target.get("rol")))
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Solo el superusuario puede administrar gerentes.");
+        if (permissions.stream().anyMatch(permission -> !identity.permits(permission)))
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "No podés otorgar accesos que no tenés habilitados.");
     }
 
     /** Rechaza permisos desconocidos o nulos dentro de la lista enviada por el formulario. */

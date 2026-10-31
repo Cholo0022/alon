@@ -79,3 +79,9 @@ powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File "D:\Proyecto\Alon\
 ```
 
 Alon queda disponible en `http://127.0.0.1:5173` y su tienda en `/tienda`. Los registros del inicio se guardan en `.validation/runtime/`.
+
+## Doble factor y permisos de ingreso
+
+El primer ingreso del dueño exige vincular una aplicación autenticadora y guardar diez códigos de recuperación. En **Usuarios → Seguridad de ingreso** se configura el correo del dueño y se autorizan o revocan navegadores de empleados. No se permite entrar a gestión con una verificación pendiente. La configuración de avisos por correo, los respaldos de la clave de cifrado y los detalles de actualización están en [la guía de actualización](docs/actualizacion-y-validacion.md#seguridad-de-ingreso-v10).
+
+Desde V11, **alon** es el superusuario: ingresa con Google Authenticator y administra **Gerentes y licencias**. El Gerente recibe los accesos que alon seleccione. El menú **Seguridad** contiene el autenticador y los controles de ingreso. Solo el superusuario activa las licencias del negocio; el Gerente y los empleados no pueden renovarlas desde sus cuentas. Ver el apartado V11 de la guía de actualización.

@@ -42,9 +42,9 @@ public class RequestIdentity {
         return ((Number) user().get("id")).longValue();
     }
 
-    /** Comprueba si el usuario es dueño o tiene el permiso solicitado en su lista de accesos. */
+    /** Comprueba si el usuario es gerente o tiene el permiso solicitado en su lista de accesos. */
     public boolean permits(String permission) {
-        return "DUENO".equals(user().get("rol"))
+        return "SUPER".equals(user().get("rol"))
                 || Arrays.asList(String.valueOf(user().get("permisos")).split(","))
                         .contains(permission);
     }

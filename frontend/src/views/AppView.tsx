@@ -1,3 +1,7 @@
+import { SecurityPanel } from '../components/SecurityPanel'
+import { PlatformPage, LicenseActivation } from '../pages/PlatformPage'
+import { LoginSecurityFlow } from '../components/LoginSecurityFlow'
+import { SecurityRequestsNotice } from '../components/SecurityRequestsNotice'
 // Muestra el ingreso a Alon y, después de iniciar sesión, las secciones permitidas para cada usuario.
 import { useCallback, useEffect, useLayoutEffect, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
@@ -15,14 +19,19 @@ import { CashPage } from '../pages/CashPage'
 import { ReportsPage } from '../pages/ReportsPage'
 import { UsersPage } from '../pages/UsersPage'
 import { StorePage } from '../pages/StorePage'
-import { isSessionUser, type SessionUser, type AuthStatus } from '../lib/session'
+import {
+  isSessionUser,
+  type SessionUser,
+  type AuthStatus,
+  type AccessChallenge,
+} from '../lib/session'
 import { BusinessPage } from '../pages/BusinessPage'
 import { useBusinessBrand, brandStyle } from '../lib/businessBrand'
 import '../App.css'
 
-/** Obtiene los accesos efectivos del usuario; el dueño recibe todas las secciones y los permisos adicionales de costos y descuentos. */
+/** Obtiene los accesos efectivos del usuario; el gerente recibe todas las secciones y los permisos adicionales de costos y descuentos. */
 function userPermissions(user: SessionUser) {
-  return user.rol === 'DUENO'
+  return user.rol === 'SUPER'
     ? [...navigation.map((item) => item.id), 'descuentos', 'costos']
     : textValue(user.permisos).split(',').filter(Boolean)
 }
@@ -34,10 +43,18 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
   const canViewSummary = permissions.includes('inicio')
   const [renderTime] = useState(() => new Date())
   const visibleNavigation = navigation.filter(
-    (item) => permissions.includes(item.id) && (item.id !== 'negocio' || user.rol === 'DUENO'),
+    (item) =>
+      permissions.includes(item.id) &&
+      (item.id !== 'administracion' || user.rol === 'SUPER') &&
+      (!['negocio', 'usuarios', 'seguridad'].includes(item.id) ||
+        ['DUENO', 'SUPER'].includes(user.rol)),
   )
   const initialSection = (
-    permissions.includes('inicio') ? 'inicio' : (visibleNavigation[0]?.id ?? 'ventas')
+    user.rol === 'SUPER'
+      ? 'administracion'
+      : permissions.includes('inicio')
+        ? 'inicio'
+        : (visibleNavigation[0]?.id ?? 'ventas')
   ) as Section
   const [activeSection, setActiveSection] = useState<Section>(initialSection)
   // Comienza cada sección arriba; las actualizaciones dentro de ella conservan la posición.
@@ -71,7 +88,7 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
   if (!activeItem)
     return (
       <main className="auth-shell">
-        <p>Tu cuenta no tiene secciones habilitadas. Consultá al dueño del comercio.</p>
+        <p>Tu cuenta no tiene secciones habilitadas. Consultá al gerente del comercio.</p>
         <button type="button" onClick={onLogout}>
           Cerrar sesión
         </button>
@@ -131,7 +148,12 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
             <span className="session-summary">
               <strong>Sesión iniciada</strong>
               <span>
-                {textValue(user.usuario)} · {textValue(user.rol)}
+                {textValue(user.usuario)} ·{' '}
+                {user.rol === 'DUENO'
+                  ? 'Gerente'
+                  : user.rol === 'SUPER'
+                    ? 'Superusuario'
+                    : textValue(user.rol)}
               </span>
             </span>
             <button className="select-button" type="button" onClick={onLogout}>
@@ -140,6 +162,9 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
           </div>
         </header>
         <div className="page-wrap">
+          {['SUPER', 'DUENO'].includes(user.rol) && permissions.includes('seguridad') && (
+            <SecurityRequestsNotice onOpen={() => setActiveSection('seguridad')} />
+          )}
           {permissions.includes('tienda') && (
             <PendingOrdersNotice onOpen={() => setActiveSection('tienda')} />
           )}
@@ -322,6 +347,13 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
             <StorePage />
           ) : activeSection === 'negocio' ? (
             <BusinessPage brand={brand} />
+          ) : activeSection === 'seguridad' ? (
+            <>
+              <SecurityPanel />
+              <LicenseActivation />
+            </>
+          ) : activeSection === 'administracion' ? (
+            <PlatformPage />
           ) : activeSection === 'usuarios' ? (
             <UsersPage />
           ) : (
@@ -344,15 +376,18 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
   )
 }
 
-/** Muestra el inicio de sesión o la creación de la primera cuenta dueña según el estado del comercio. */
+/** Muestra el inicio de sesión o la creación de la primera cuenta administradora según el estado del comercio. */
 export function AuthScreen({
   setup,
   onAuthenticated,
+  onChallenge,
 }: {
   setup: boolean
-  onAuthenticated: (user: SessionUser) => void
+  onAuthenticated: (status: AuthStatus) => void
+  onChallenge: (challenge: AccessChallenge) => void
 }) {
   const [renderTime] = useState(() => new Date())
+  const [superLogin, setSuperLogin] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   /** Envía las credenciales de acceso o configuración inicial y acepta únicamente una respuesta con estructura de usuario válida. */
@@ -363,22 +398,36 @@ export function AuthScreen({
     const form = new FormData(event.currentTarget)
     try {
       const username = form.get('username')
-      const response = await apiFetch(setup ? '/api/v1/auth/setup' : '/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username,
-          name: form.get('name') || username,
-          password: form.get('password'),
-          storeCode: form.get('storeCode') || null,
-        }),
-      })
+      const response = await apiFetch(
+        setup
+          ? '/api/v1/auth/setup'
+          : superLogin
+            ? '/api/v1/auth/super-login'
+            : '/api/v1/auth/login',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(
+            superLogin
+              ? { code: form.get('code') }
+              : {
+                  username,
+                  name: form.get('name') || username,
+                  password: form.get('password'),
+                  storeCode: form.get('storeCode') || null,
+                },
+          ),
+        },
+      )
       const body: unknown = await response.json().catch(() => ({}))
-      if (!response.ok || !isSessionUser(body)) {
-        const error = body as { error?: string }
-        throw new Error(error.error ?? 'No se pudo iniciar sesión.')
+      const result = body as AuthStatus & { error?: string }
+      if (!response.ok) throw new Error(result.error ?? 'No se pudo iniciar sesión.')
+      if (result.challenge?.stage) {
+        onChallenge(result.challenge as AccessChallenge)
+        return
       }
-      onAuthenticated(body)
+      if (!isSessionUser(result.user)) throw new Error('No se pudo validar la sesión.')
+      onAuthenticated(result)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo conectar con el servidor.')
     } finally {
@@ -395,39 +444,71 @@ export function AuthScreen({
         <h1>{setup ? 'Configurá tu comercio' : 'Iniciar sesión'}</h1>
         <p>
           {setup
-            ? 'Creá la cuenta dueña para administrar el sistema y sus usuarios.'
-            : 'Ingresá con tu usuario y contraseña.'}
+            ? 'Creá tu cuenta de superusuario alon para administrar gerentes y licencias.'
+            : superLogin
+              ? 'Cuenta alon: ingresá el código actual de Google Authenticator o un código de recuperación.'
+              : 'Ingresá con tu usuario y contraseña. Para vincular alon por primera vez, usá la contraseña de tu cuenta anterior.'}
         </p>
+        {!setup && (
+          <button
+            className="select-button"
+            type="button"
+            onClick={() => {
+              setSuperLogin(!superLogin)
+              setError('')
+            }}
+          >
+            {superLogin
+              ? 'Ingresar con contraseña / vincular teléfono'
+              : 'Ingresar como alon con Google Authenticator'}
+          </button>
+        )}
         <form className="entry-form" onSubmit={submit}>
-          {setup && (
+          {superLogin ? (
             <label>
-              Nombre del dueño
-              <input name="name" autoComplete="name" />
+              Código de Google Authenticator o de recuperación
+              <input name="code" autoComplete="one-time-code" maxLength={80} autoFocus required />
             </label>
+          ) : (
+            <>
+              {setup && (
+                <label>
+                  Nombre del superusuario
+                  <input name="name" autoComplete="name" />
+                </label>
+              )}
+              {!setup && (
+                <label>
+                  Código del comercio (opcional)
+                  <input name="storeCode" maxLength={40} autoComplete="organization" />
+                </label>
+              )}
+              <label>
+                Usuario
+                <input
+                  name="username"
+                  defaultValue={setup ? 'alon' : undefined}
+                  readOnly={setup}
+                  autoComplete="username"
+                  minLength={3}
+                  required
+                />
+              </label>
+              <label>
+                Contraseña
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete={setup ? 'new-password' : 'current-password'}
+                  minLength={setup ? 12 : undefined}
+                  maxLength={128}
+                  required
+                />
+              </label>
+            </>
           )}
-          {!setup && (
-            <label>
-              Código del comercio (opcional)
-              <input name="storeCode" maxLength={40} autoComplete="organization" />
-            </label>
-          )}
-          <label>
-            Usuario
-            <input name="username" autoComplete="username" minLength={3} required />
-          </label>
-          <label>
-            Contraseña
-            <input
-              name="password"
-              type="password"
-              autoComplete={setup ? 'new-password' : 'current-password'}
-              minLength={setup ? 12 : undefined}
-              maxLength={128}
-              required
-            />
-          </label>
           <button className="primary-button" type="submit" disabled={busy}>
-            {busy ? 'Ingresando…' : setup ? 'Crear cuenta dueña' : 'Ingresar'}
+            {busy ? 'Ingresando…' : setup ? 'Crear superusuario' : 'Ingresar'}
           </button>
         </form>
         {error && (
@@ -473,13 +554,23 @@ export function App() {
     }
     /** Borra el usuario autenticado cuando la API avisa que la sesión venció para volver a mostrar el acceso. */
     const expired = () => setStatus({ setupRequired: false, user: null, csrfToken: '' })
+    window.addEventListener('alon:license-required', refresh)
     window.addEventListener('alon:refresh', refresh)
     window.addEventListener('focus', refresh)
+    /** Cambia inmediatamente al flujo pendiente cuando el gerente reemplaza su autenticador. */
+    const pendingChange = (event: Event) => setStatus((event as CustomEvent<AuthStatus>).detail)
+    window.addEventListener('alon:auth-pending', pendingChange)
     window.addEventListener('alon:session-expired', expired)
+    const sessionTimer = window.setInterval(() => {
+      if (document.visibilityState !== 'hidden') void loadStatus()
+    }, 60000)
     return () => {
+      window.removeEventListener('alon:license-required', refresh)
       window.removeEventListener('alon:refresh', refresh)
       window.removeEventListener('focus', refresh)
+      window.removeEventListener('alon:auth-pending', pendingChange)
       window.removeEventListener('alon:session-expired', expired)
+      clearInterval(sessionTimer)
     }
   }, [loadStatus])
   /** Solicita cerrar la sesión y retira el usuario de la pantalla solo después de recibir confirmación. */
@@ -503,11 +594,34 @@ export function App() {
         <main className="auth-shell">
           <p>Conectando con Alon…</p>
         </main>
+      ) : status.challenge?.stage ? (
+        <LoginSecurityFlow challenge={status.challenge as AccessChallenge} onState={setStatus} />
       ) : !status.user || Object.keys(status.user).length === 0 ? (
         <AuthScreen
           setup={status.setupRequired}
-          onAuthenticated={(user) => setStatus({ setupRequired: false, user, csrfToken: '' })}
+          onChallenge={(challenge) =>
+            setStatus((current) =>
+              current
+                ? { ...current, user: null, challenge }
+                : { setupRequired: false, user: null, csrfToken: '', challenge },
+            )
+          }
+          onAuthenticated={setStatus}
         />
+      ) : status.license?.active === false ? (
+        <main className="auth-shell">
+          <section className="auth-card">
+            <h1>Licencia del negocio</h1>
+            <p>
+              La licencia venció o todavía no fue activada. Solicitá a alon que active o renueve la
+              licencia.
+            </p>
+            {status.user.rol === 'DUENO' && <LicenseActivation />}
+            <button className="select-button" type="button" onClick={() => void logout()}>
+              Cerrar sesión
+            </button>
+          </section>
+        </main>
       ) : (
         <MainApp
           key={

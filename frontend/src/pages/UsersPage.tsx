@@ -1,4 +1,4 @@
-// Permite al dueño administrar los usuarios y sus permisos.
+// Permite al gerente administrar los usuarios y sus permisos.
 import { useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import { textValue } from '../lib/format'
@@ -18,7 +18,9 @@ export function UsersPage() {
   const [editRole, setEditRole] = useState('VENDEDOR')
   const [editPermissions, setEditPermissions] = useState<string[]>(['ventas', 'clientes', 'caja'])
   const accessOptions = [
-    ...navigation.filter((item) => item.id !== 'usuarios' && item.id !== 'negocio'),
+    ...navigation.filter(
+      (item) => !['usuarios', 'negocio', 'seguridad', 'administracion'].includes(item.id),
+    ),
     { id: 'descuentos', label: 'Autorizar descuentos' },
     { id: 'costos', label: 'Ver y modificar costos' },
   ].map(({ id, label }) => ({ id, label }))
@@ -146,7 +148,7 @@ export function UsersPage() {
               }}
             >
               <option value="VENDEDOR">Vendedor</option>
-              <option value="DUENO">Dueño</option>
+
               <option value="PERSONALIZADO">Accesos personalizados</option>
             </select>
           </label>
@@ -248,7 +250,7 @@ export function UsersPage() {
                 }}
               >
                 <option value="VENDEDOR">Vendedor</option>
-                <option value="DUENO">Dueño</option>
+
                 <option value="PERSONALIZADO">Accesos personalizados</option>
               </select>
             </label>
