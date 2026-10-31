@@ -662,3 +662,38 @@
   border-color: var(--business-primary);
   color: var(--business-on-primary);
 }
+
+.shop-app .article-entry-actions button[type='submit'] {
+  background: var(--business-primary);
+  color: var(--business-on-primary);
+  border-color: var(--business-primary);
+}
+
+/* El acceso flotante ocupa solo una esquina y aparece cuando el carrito queda fuera de vista. */
+.shop-app .shop-cart-shortcut {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border-radius: 24px;
+  background: var(--business-primary);
+  color: var(--business-on-primary);
+  border-color: var(--business-primary);
+  box-shadow: 0 3px 12px #10243a30;
+  font-size: 14px;
+  font-weight: 600;
+}
+.shop-app .shop-cart-shortcut:hover {
+  background: var(--business-primary);
+  color: var(--business-on-primary);
+  filter: brightness(0.95);
+}
+.shop-cart {
+  scroll-margin-top: 24px;
+}

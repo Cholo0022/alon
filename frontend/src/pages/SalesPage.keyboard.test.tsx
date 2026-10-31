@@ -28,6 +28,8 @@ beforeEach(() => {
 it('opens all articles on empty Enter, adds by keyboard repeatedly and saves only at the final step', async () => {
   render(<SalesPage onOpenCash={() => undefined} />)
   fireEvent.click(screen.getByRole('button', { name: /Nueva venta/ }))
+  expect(screen.queryByLabelText('Tipo de venta')).toBeNull()
+  expect(screen.queryByLabelText('Medio de pago')).toBeNull()
   let articleInput = screen.getByRole('combobox', { name: 'Artículo' })
   expect(screen.queryByRole('dialog')).toBeNull()
   fireEvent.keyDown(articleInput, { key: 'Enter' })
@@ -44,6 +46,12 @@ it('opens all articles on empty Enter, adds by keyboard repeatedly and saves onl
       .getAttribute('aria-selected'),
   ).toBe('true')
   fireEvent.keyDown(search, { key: 'Enter' })
+  const amountDialog = screen.getByRole('dialog', { name: 'Cantidad a vender' })
+  expect(screen.queryByText('A2 · Clavos')).toBeNull()
+  const quantityInput = within(amountDialog).getByRole('spinbutton', { name: 'Cantidad' })
+  expect(document.activeElement).toBe(quantityInput)
+  fireEvent.change(quantityInput, { target: { value: '2.5' } })
+  fireEvent.keyDown(quantityInput, { key: 'Enter' })
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(screen.getByText('A2 · Clavos')).toBeTruthy()
   articleInput = screen.getByRole('combobox', { name: 'Artículo' })
@@ -54,6 +62,12 @@ it('opens all articles on empty Enter, adds by keyboard repeatedly and saves onl
   await screen.findByRole('option', { name: /Martillo/ }, { timeout: 10000 })
   expect(screen.queryByRole('option', { name: /Clavos/ })).toBeNull()
   fireEvent.keyDown(nextSearch, { key: 'Enter' })
+  fireEvent.keyDown(
+    within(screen.getByRole('dialog', { name: 'Cantidad a vender' })).getByRole('spinbutton', {
+      name: 'Cantidad',
+    }),
+    { key: 'Enter' },
+  )
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(screen.getByText('A1 · Martillo')).toBeTruthy()
   expect(
@@ -62,6 +76,19 @@ it('opens all articles on empty Enter, adds by keyboard repeatedly and saves onl
     ),
   ).toBe(false)
   fireEvent.click(screen.getByRole('button', { name: 'Guardar venta' }))
+  const paymentDialog = screen.getByRole('dialog', { name: 'Confirmar venta' })
+  expect(
+    request.mock.calls.some(
+      ([url, options]) => url === '/api/v1/operations/sales' && options?.method === 'POST',
+    ),
+  ).toBe(false)
+  fireEvent.change(within(paymentDialog).getByLabelText('Tipo de venta'), {
+    target: { value: 'CONTADO' },
+  })
+  fireEvent.change(within(paymentDialog).getByLabelText('Medio de pago'), {
+    target: { value: 'EFECTIVO' },
+  })
+  fireEvent.click(within(paymentDialog).getByRole('button', { name: 'Confirmar venta' }))
   await waitFor(() =>
     expect(
       request.mock.calls.some(
@@ -73,7 +100,7 @@ it('opens all articles on empty Enter, adds by keyboard repeatedly and saves onl
     ([url, options]) => url === '/api/v1/operations/sales' && options?.method === 'POST',
   )!
   expect(JSON.parse(String(call[1]?.body)).lines).toEqual([
-    { articleId: 2, quantity: 1, discountPercent: 0 },
+    { articleId: 2, quantity: 2.5, discountPercent: 0 },
     { articleId: 1, quantity: 1, discountPercent: 0 },
   ])
 })
@@ -91,7 +118,16 @@ it('keeps an unavailable article out of the sale and returns focus on Escape', a
   const search = screen.getByRole('combobox', { name: 'Buscar en el listado de artículos' })
   fireEvent.keyDown(search, { key: 'Enter' })
   expect(screen.getByRole('dialog')).toBeTruthy()
-  expect(within(screen.getByRole('dialog')).getByText(/supera el stock/)).toBeTruthy()
+  expect(
+    within(screen.getByRole('dialog', { name: 'Cantidad a vender' })).getByText(/No hay stock/),
+  ).toBeTruthy()
+  fireEvent.keyDown(
+    within(screen.getByRole('dialog', { name: 'Cantidad a vender' })).getByRole('spinbutton', {
+      name: 'Cantidad',
+    }),
+    { key: 'Escape' },
+  )
+  expect(screen.getByRole('dialog', { name: 'Elegir artículo' })).toBeTruthy()
   fireEvent.keyDown(search, { key: 'Escape' })
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'Artículo' }))

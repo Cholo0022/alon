@@ -2,6 +2,7 @@
 import { useState } from 'react'
 
 type Photo = { key: string; illustrative: boolean }
+/** Muestra las fotos disponibles del producto y permite recorrerlas sin perder la foto seleccionada si cambia la galería. */
 export function ProductGallery({
   name,
   photos = [],
@@ -20,6 +21,7 @@ export function ProductGallery({
     images.findIndex((p) => p.key === activeKey),
   )
   const photo = images[active]
+  /** Desplaza la selección de foto de forma circular al avanzar o retroceder. */
   const move = (direction: number) =>
     setActiveKey(images[(active + direction + images.length) % images.length].key)
   return (

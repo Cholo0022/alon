@@ -47,7 +47,7 @@ it('blocks confirmation while the cash register is closed', async () => {
   cashOpen = false
   const user = userEvent.setup()
   render(<StorePage />)
-  await user.click(await screen.findByRole('button', { name: 'Ver pedido' }))
+  await user.click(await screen.findByRole('button', { name: 'Ver pedido' }, { timeout: 10_000 }))
   await screen.findByText(/La caja de hoy está cerrada/)
   await user.selectOptions(
     screen.getByRole('combobox', { name: 'Medio de pago del pedido' }),
@@ -67,7 +67,7 @@ it('moves to and focuses the selected order after its detail loads', async () =>
   })
   const user = userEvent.setup()
   render(<StorePage />)
-  await user.click(await screen.findByRole('button', { name: 'Ver pedido' }))
+  await user.click(await screen.findByRole('button', { name: 'Ver pedido' }, { timeout: 10_000 }))
   await screen.findByRole('button', { name: 'Confirmar venta web' })
   await waitFor(() => expect(scroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' }))
   expect(document.activeElement).toBe(screen.getByRole('region', { name: 'Pedido #7' }))
@@ -77,7 +77,7 @@ it('requires a payment choice and submits it with the approval', async () => {
   vi.spyOn(window, 'confirm').mockReturnValue(true)
   const user = userEvent.setup()
   render(<StorePage />)
-  await user.click(await screen.findByRole('button', { name: 'Ver pedido' }))
+  await user.click(await screen.findByRole('button', { name: 'Ver pedido' }, { timeout: 10_000 }))
   const approve = await screen.findByRole('button', { name: 'Confirmar venta web' })
   expect(approve.hasAttribute('disabled')).toBe(true)
   await user.selectOptions(

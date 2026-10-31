@@ -16,6 +16,7 @@ public class StoreOrderQueries {
     private final Clock clock;
     private final ReadPage pages;
 
+    /** Recibe y conserva las dependencias necesarias para el listado y contador de pedidos web. */
     public StoreOrderQueries(JdbcTemplate jdbc, RequestIdentity identity, Clock clock) {
         this.jdbc = jdbc;
         this.identity = identity;
@@ -23,6 +24,7 @@ public class StoreOrderQueries {
         this.pages = new ReadPage(jdbc);
     }
 
+    /** Consulta pedidos web del comercio con estado, datos de cliente y total. */
     public List<Map<String, Object>> storeOrders() {
         return pages.query(
                 "nombre_cliente,contacto,detalle",
@@ -33,6 +35,10 @@ public class StoreOrderQueries {
                 identity.storeId());
     }
 
+    /**
+     * Consulta cantidad total de pedidos pendientes de confirmación, sin limitarla al tamaño de una
+     * página.
+     */
     public long pendingCount() {
         Long count =
                 jdbc.queryForObject(

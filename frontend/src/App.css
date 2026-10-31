@@ -2728,3 +2728,79 @@ td.article-actions {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+#root .sale-entry .transaction-header {
+  grid-template-columns: minmax(0, 2fr) minmax(140px, 1fr);
+}
+@media (max-width: 600px) {
+  #root .sale-entry .transaction-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.report-accordion {
+  border: 1px solid #d0d9e3;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+.report-accordion > h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.report-accordion > h2 > button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 20px 24px;
+  border: 0;
+  color: #10243a;
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.report-accordion > h2 > button:hover,
+.report-accordion > h2 > button[aria-expanded='true'] {
+  background: #f0f5fa;
+}
+.report-accordion > h2 > button:focus-visible {
+  outline: 3px solid #a64700;
+  outline-offset: -3px;
+}
+.report-accordion .report-table {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Ubica el informe elegido arriba y conserva su nombre mientras se recorren sus filas. */
+.report-accordion.report-expanded {
+  overflow: visible;
+  scroll-margin-top: 16px;
+}
+.report-expanded > h2 {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #fff;
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 2px 5px #10243a1a;
+}
+.report-expanded > h2 > button {
+  border-radius: inherit;
+}
+.report-expanded .table-scroll {
+  max-height: max(160px, calc(100dvh - 240px));
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.report-expanded th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #edf2f6;
+}

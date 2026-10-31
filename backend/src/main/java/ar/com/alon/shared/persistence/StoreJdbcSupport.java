@@ -19,6 +19,10 @@ public abstract class StoreJdbcSupport {
     protected final Clock clock;
     protected final AuditLog audit;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para los accesos comunes a datos, identidad,
+     * reloj y auditoría.
+     */
     protected StoreJdbcSupport(
             JdbcTemplate jdbc, RequestIdentity identity, Clock clock, AuditLog audit) {
         this.jdbc = jdbc;
@@ -27,10 +31,18 @@ public abstract class StoreJdbcSupport {
         this.audit = audit;
     }
 
+    /**
+     * Comprueba que el registro exista en el comercio actual y esté activo, salvo que la operación
+     * permita conservar uno inactivo.
+     */
     protected void assertBelongs(String table, long id) {
         assertBelongs(table, id, false);
     }
 
+    /**
+     * Comprueba que el registro exista en el comercio actual y esté activo, salvo que la operación
+     * permita conservar uno inactivo.
+     */
     protected void assertBelongs(String table, long id, boolean allowInactive) {
         String label =
                 switch (table) {
@@ -58,6 +70,10 @@ public abstract class StoreJdbcSupport {
                             + (activeClause.isEmpty() ? "." : " o está inactivo."));
     }
 
+    /**
+     * Ejecuta una inserción parametrizada y devuelve la clave generada; falla si la base no entrega
+     * un identificador.
+     */
     protected long insert(String sql, Object... args) {
         KeyHolder holder = new GeneratedKeyHolder();
         jdbc.update(
@@ -74,31 +90,40 @@ public abstract class StoreJdbcSupport {
         return key.longValue();
     }
 
+    /** Convierte texto nulo en cadena vacía y elimina espacios exteriores. */
     protected static String value(String value) {
         return value == null ? "" : value.trim();
     }
 
+    /** Normaliza un texto y rechaza los valores vacíos con el mensaje de validación indicado. */
     protected static String required(String value, String message) {
         String result = value(value);
         if (result.isBlank()) throw new IllegalArgumentException(message);
         return result;
     }
 
+    /** Valida un importe monetario con hasta dos decimales y exige que sea mayor a cero. */
     protected static BigDecimal positive(BigDecimal value, String message) {
         BigDecimal result = nonNegative(value, message);
         if (result.signum() == 0) throw new IllegalArgumentException(message);
         return result;
     }
 
+    /** Exige una cantidad positiva y valida los límites y tres decimales admitidos para stock. */
     protected static BigDecimal positiveQuantity(BigDecimal value, String message) {
         if (value == null || value.signum() <= 0) throw new IllegalArgumentException(message);
         return DecimalRules.quantity(value, true, message);
     }
 
+    /** Valida un importe no negativo con la precisión y escala monetarias de la base de datos. */
     protected static BigDecimal nonNegative(BigDecimal value, String message) {
         return DecimalRules.money(value, message);
     }
 
+    /**
+     * Normaliza una opción a mayúsculas y guiones bajos y verifica que pertenezca a los valores
+     * admitidos; usa el predeterminado si falta.
+     */
     protected static String enumValue(String value, String fallback, String... allowed) {
         String normalized =
                 value == null || value.isBlank()

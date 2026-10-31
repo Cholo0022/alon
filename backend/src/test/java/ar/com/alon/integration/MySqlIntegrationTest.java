@@ -1002,6 +1002,186 @@ class MySqlIntegrationTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    private PurchaseInput purchaseWithPayment(String document, String condition, String method) {
+        return new PurchaseInput(
+                1,
+                "FACTURA",
+                document,
+                LocalDate.now(clock),
+                List.of(new PurchaseLineInput(1, d("2"), d("100"))),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                condition,
+                method);
+    }
+
+    @Test
+    void purchaseCostChoiceOnlyChangesCostAndAlwaysReceivesStock() {
+        jdbc.update(
+                "UPDATE articulos SET stock=10,costo=50,precio_venta=222,flete_unitario=7,flete_porcentaje=8,margen_porcentaje=40,redondeo_precio=TRUE WHERE id=1");
+        var original =
+                jdbc.queryForMap(
+                        "SELECT precio_venta,flete_unitario,flete_porcentaje,margen_porcentaje,redondeo_precio FROM articulos WHERE id=1");
+        for (boolean update : List.of(false, true)) {
+            buy(
+                    new PurchaseInput(
+                            1,
+                            "REMITO",
+                            "COST-" + update,
+                            LocalDate.now(clock),
+                            List.of(new PurchaseLineInput(1, d("2"), d("80"))),
+                            d("15"),
+                            d("0"),
+                            "CUENTA_CORRIENTE",
+                            null,
+                            update));
+            assertThat(cost()).isEqualByComparingTo(update ? "80" : "50");
+            assertThat(stock()).isEqualByComparingTo(update ? "14" : "12");
+            assertThat(
+                            jdbc.queryForMap(
+                                    "SELECT precio_venta,flete_unitario,flete_porcentaje,margen_porcentaje,redondeo_precio FROM articulos WHERE id=1"))
+                    .isEqualTo(original);
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pagos_proveedores", Integer.class))
+                .isZero();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT saldo_actual FROM proveedores WHERE id=1",
+                                BigDecimal.class))
+                .isEqualByComparingTo("350");
+    }
+
+    @Test
+    void defaultPurchaseSupplierIsReusableAndBelongsToCurrentStore() {
+        var first = transaction.execute(s -> purchases.defaultSupplier());
+        var again = transaction.execute(s -> purchases.defaultSupplier());
+        assertThat(first).isEqualTo(again).containsEntry("nombre", "Proveedor sin nombre");
+        jdbc.update("INSERT INTO comercios(id,codigo,nombre) VALUES(2,'OTRO','Otro')");
+        when(identity.storeId()).thenReturn(2L);
+        var other = transaction.execute(s -> purchases.defaultSupplier());
+        assertThat(other.get("id")).isNotEqualTo(first.get("id"));
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT comercio_id FROM proveedores WHERE id=?",
+                                Long.class,
+                                other.get("id")))
+                .isEqualTo(2L);
+    }
+
+    @Test
+    void purchaseAndCashHistoryShowLatestRegistrationsFirst() {
+        long first = buy(purchase("FIRST", "1", "10", "0"));
+        var older = purchase("BACKDATED", "1", "10", "0");
+        long last =
+                buy(
+                        new PurchaseInput(
+                                older.supplierId(),
+                                older.documentType(),
+                                older.documentNumber(),
+                                LocalDate.now(clock).minusDays(5),
+                                older.lines(),
+                                older.extraCosts(),
+                                older.paid(),
+                                older.paymentType(),
+                                older.paymentMethod()));
+        var queries = new ar.com.alon.purchases.PurchaseQueries(jdbc, identity, clock);
+        assertThat(queries.purchases())
+                .extracting(row -> ((Number) row.get("id")).longValue())
+                .containsExactly(last, first);
+        transaction.execute(s -> cash.openCash(new CashOpenInput(LocalDate.now(clock), d("0"))));
+        transaction.execute(s -> cash.closeCash(new CashCloseInput(LocalDate.now(clock), d("0"))));
+        transaction.execute(s -> cash.openCash(new CashOpenInput(LocalDate.now(clock), d("0"))));
+        transaction.execute(s -> cash.closeCash(new CashCloseInput(LocalDate.now(clock), d("0"))));
+        var cashQueries = new ar.com.alon.cash.CashQueries(jdbc, identity, clock);
+        assertThat(cashQueries.cash())
+                .extracting(row -> ((Number) row.get("sesion")).intValue())
+                .containsExactly(2, 1);
+    }
+
+    @Test
+    void purchasePaymentOriginsRespectCashAndCredit() {
+        var external =
+                transaction.execute(
+                        s ->
+                                purchases.createPurchase(
+                                        purchaseWithPayment("EXT", "EFECTIVO", "EFECTIVO")));
+        long externalId = ((Number) external.get("id")).longValue();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT pagado FROM compras WHERE id=?",
+                                BigDecimal.class,
+                                externalId))
+                .isEqualByComparingTo("200");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT caja_id FROM pagos_proveedores WHERE compra_id=?",
+                                Long.class,
+                                externalId))
+                .isNull();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimientos_caja", Integer.class))
+                .isZero();
+        transaction.execute(
+                s ->
+                        purchases.createPurchase(
+                                purchaseWithPayment("CRED", "CUENTA_CORRIENTE", "TRANSFERENCIA")));
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT saldo_actual FROM proveedores WHERE id=1",
+                                BigDecimal.class))
+                .isEqualByComparingTo("200");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pagos_proveedores", Integer.class))
+                .isEqualTo(1);
+        transaction.execute(s -> cash.openCash(new CashOpenInput(LocalDate.now(clock), d("1000"))));
+        transaction.execute(
+                s ->
+                        purchases.createPurchase(
+                                purchaseWithPayment("CAJA", "EFECTIVO_CAJA", "EFECTIVO")));
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT SUM(importe) FROM movimientos_caja WHERE tipo='EGRESO'",
+                                BigDecimal.class))
+                .isEqualByComparingTo("200");
+        assertThat((BigDecimal) cash.cashSummary(LocalDate.now(clock)).get("efectivo_esperado"))
+                .isEqualByComparingTo("800");
+        var queries = new ar.com.alon.purchases.PurchaseQueries(jdbc, identity, clock);
+        assertThat(queries.purchaseDetails(externalId))
+                .containsEntry("condicion_pago", "EFECTIVO")
+                .containsEntry("medio_pago", "EFECTIVO");
+        assertThat(queries.purchases())
+                .extracting(row -> row.get("condicion_pago"))
+                .containsExactlyInAnyOrder("EFECTIVO", "CUENTA_CORRIENTE", "EFECTIVO_CAJA");
+    }
+
+    @Test
+    void purchaseCashRequiresOpenCashAndValidMethod() {
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s ->
+                                                purchases.createPurchase(
+                                                        purchaseWithPayment(
+                                                                "CERRADA",
+                                                                "EFECTIVO_CAJA",
+                                                                "EFECTIVO"))))
+                .isInstanceOf(BusinessConflict.class);
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s ->
+                                                purchases.createPurchase(
+                                                        purchaseWithPayment(
+                                                                "MEDIO",
+                                                                "EFECTIVO_CAJA",
+                                                                "TRANSFERENCIA"))))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM compras", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pagos_proveedores", Integer.class))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimientos_stock", Integer.class))
+                .isZero();
+        assertThat(stock()).isEqualByComparingTo("0");
+    }
+
     @Test
     void replayIsAtomicAndRejectsKeyReuseWithDifferentData() {
         var request = new MockHttpServletRequest();

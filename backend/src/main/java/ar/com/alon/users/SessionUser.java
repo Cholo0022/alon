@@ -13,6 +13,10 @@ public record SessionUser(
         String rol,
         String permisos,
         boolean activo) {
+    /**
+     * Convierte una fila de usuario en los datos seguros de sesión, excluyendo su contraseña y
+     * admitiendo las representaciones booleanas de JDBC.
+     */
     public static SessionUser from(Map<String, Object> row) {
         if (row.isEmpty()) return null;
         Object active = row.get("activo");

@@ -16,6 +16,7 @@ public class CustomerQueries {
     private final Clock clock;
     private final ReadPage pages;
 
+    /** Recibe y conserva las dependencias necesarias para los clientes y sus buscadores. */
     public CustomerQueries(JdbcTemplate jdbc, RequestIdentity identity, Clock clock) {
         this.jdbc = jdbc;
         this.identity = identity;
@@ -23,6 +24,7 @@ public class CustomerQueries {
         this.pages = new ReadPage(jdbc);
     }
 
+    /** Consulta clientes del comercio filtrados por estado, con sus saldos y límites. */
     public List<Map<String, Object>> customers(boolean inactive) {
         return pages.query(
                 "codigo,nombre,telefono,email",
@@ -34,6 +36,7 @@ public class CustomerQueries {
                 inactive ? "INACTIVO" : "ACTIVO");
     }
 
+    /** Consulta clientes activos con código y nombre para los buscadores. */
     public List<Map<String, Object>> lookupCustomers() {
         return pages.query(
                 "codigo,nombre",

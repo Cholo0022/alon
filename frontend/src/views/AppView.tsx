@@ -1,5 +1,5 @@
 // Muestra el ingreso a Alon y, después de iniciar sesión, las secciones permitidas para cada usuario.
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import { currency, textValue } from '../lib/format'
 import { navigation, descriptions, type Section } from '../lib/navigation'
@@ -20,12 +20,14 @@ import { BusinessPage } from '../pages/BusinessPage'
 import { useBusinessBrand, brandStyle } from '../lib/businessBrand'
 import '../App.css'
 
+/** Obtiene los accesos efectivos del usuario; el dueño recibe todas las secciones y los permisos adicionales de costos y descuentos. */
 function userPermissions(user: SessionUser) {
   return user.rol === 'DUENO'
     ? [...navigation.map((item) => item.id), 'descuentos', 'costos']
     : textValue(user.permisos).split(',').filter(Boolean)
 }
 
+/** Construye la navegación de gestión según permisos, muestra el resumen y presenta la sección activa desde su inicio. */
 export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
   const brand = useBusinessBrand()
   const permissions = userPermissions(user)
@@ -38,12 +40,17 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
     permissions.includes('inicio') ? 'inicio' : (visibleNavigation[0]?.id ?? 'ventas')
   ) as Section
   const [activeSection, setActiveSection] = useState<Section>(initialSection)
+  // Comienza cada sección arriba; las actualizaciones dentro de ella conservan la posición.
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  }, [activeSection])
   const [summary, setSummary] = useState<ApiRow | null>(null)
   const activeItem =
     visibleNavigation.find((item) => item.id === activeSection) ?? visibleNavigation[0]
 
   useEffect(() => {
     if (!canViewSummary) return
+    /** Consulta los indicadores del panel inicial y limpia el resumen si la API no está disponible. */
     const load = () =>
       apiFetch('/api/v1/alon/summary')
         .then((response) => {
@@ -52,6 +59,7 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
         })
         .then(setSummary)
         .catch(() => setSummary(null))
+    /** Vuelve a consultar los datos vinculados a la sesión o al resumen cuando cambia el sistema o se recupera el foco. */
     const refresh = () => {
       void load()
     }
@@ -336,6 +344,7 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
   )
 }
 
+/** Muestra el inicio de sesión o la creación de la primera cuenta dueña según el estado del comercio. */
 export function AuthScreen({
   setup,
   onAuthenticated,
@@ -346,6 +355,7 @@ export function AuthScreen({
   const [renderTime] = useState(() => new Date())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  /** Envía las credenciales de acceso o configuración inicial y acepta únicamente una respuesta con estructura de usuario válida. */
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setBusy(true)
@@ -433,9 +443,11 @@ export function AuthScreen({
   )
 }
 
+/** Consulta la sesión y alterna entre acceso, aplicación y error de conexión; también coordina expiración y cierre de sesión. */
 export function App() {
   const [status, setStatus] = useState<AuthStatus | null>(null)
   const [connectionError, setConnectionError] = useState(false)
+  /** Consulta y valida el estado de autenticación y configuración inicial; actualiza la sesión o el error de conexión. */
   const loadStatus = useCallback(
     () =>
       apiFetch('/api/v1/auth/status')
@@ -455,9 +467,11 @@ export function App() {
   )
   useEffect(() => {
     void loadStatus()
+    /** Vuelve a consultar los datos vinculados a la sesión o al resumen cuando cambia el sistema o se recupera el foco. */
     const refresh = () => {
       void loadStatus()
     }
+    /** Borra el usuario autenticado cuando la API avisa que la sesión venció para volver a mostrar el acceso. */
     const expired = () => setStatus({ setupRequired: false, user: null, csrfToken: '' })
     window.addEventListener('alon:refresh', refresh)
     window.addEventListener('focus', refresh)
@@ -468,6 +482,7 @@ export function App() {
       window.removeEventListener('alon:session-expired', expired)
     }
   }, [loadStatus])
+  /** Solicita cerrar la sesión y retira el usuario de la pantalla solo después de recibir confirmación. */
   const logout = async () => {
     try {
       const response = await apiFetch('/api/v1/auth/logout', { method: 'POST' })

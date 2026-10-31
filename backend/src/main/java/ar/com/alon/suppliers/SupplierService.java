@@ -21,6 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class SupplierService extends StoreJdbcSupport {
     private final CashLedger cashLedger;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para los proveedores, deudas y recibos de pago.
+     */
     public SupplierService(
             JdbcTemplate jdbc,
             RequestIdentity identity,
@@ -31,6 +34,10 @@ public class SupplierService extends StoreJdbcSupport {
         this.cashLedger = cashLedger;
     }
 
+    /**
+     * Crea un proveedor con código propio y datos de identificación y contacto normalizados dentro
+     * del comercio.
+     */
     @Transactional
     public Map<String, Object> createSupplier(SupplierInput input) {
         String name = required(input.name(), "El nombre del proveedor es obligatorio.");
@@ -49,6 +56,9 @@ public class SupplierService extends StoreJdbcSupport {
         return Map.of("id", id, "codigo", code, "nombre", name);
     }
 
+    /**
+     * Bloquea y actualiza los datos del proveedor del comercio sin modificar su deuda pendiente.
+     */
     @Transactional
     public Map<String, Object> updateSupplier(long id, SupplierInput input) {
         jdbc.queryForObject(
@@ -69,6 +79,7 @@ public class SupplierService extends StoreJdbcSupport {
         return Map.of("id", id, "nombre", name);
     }
 
+    /** Activa o desactiva un proveedor sin eliminar sus comprobantes ni saldo. */
     @Transactional
     public Map<String, Object> setSupplierActive(long id, boolean active) {
         int changed =
@@ -81,6 +92,10 @@ public class SupplierService extends StoreJdbcSupport {
         return Map.of("id", id, "estado", active ? "ACTIVO" : "INACTIVO");
     }
 
+    /**
+     * Valida el pago y la caja abierta, lo aplica a las compras con deuda más antiguas y registra
+     * recibos, egreso y saldo restante.
+     */
     @Transactional
     public Map<String, Object> createSupplierReceipt(SupplierReceiptInput input) {
         assertBelongs("proveedores", input.supplierId());

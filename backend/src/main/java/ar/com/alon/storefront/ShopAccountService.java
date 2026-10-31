@@ -22,6 +22,10 @@ public class ShopAccountService {
     private final long storeId;
     private final String dummyHash;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para las cuentas de compradores y el comercio
+     * público configurado.
+     */
     public ShopAccountService(
             JdbcTemplate jdbc,
             PasswordHasher passwords,
@@ -32,6 +36,10 @@ public class ShopAccountService {
         this.dummyHash = passwords.hash("Alon-unknown-account-password");
     }
 
+    /**
+     * Devuelve el comercio configurado para la tienda pública, independientemente de la sesión de
+     * gestión.
+     */
     public long storeId() {
         return storeId;
     }
@@ -51,6 +59,10 @@ public class ShopAccountService {
     public record Login(
             @NotBlank @Size(max = 25) String phone, @NotBlank @Size(max = 128) String password) {}
 
+    /**
+     * Valida el teléfono y lo normaliza al formato internacional con signo más y entre diez y
+     * quince dígitos.
+     */
     public static String normalizePhone(String input) {
         if (input == null || !input.matches("[+0-9 ()-]{8,25}"))
             throw new IllegalArgumentException("Ingresá el teléfono con código de país y área.");
@@ -61,6 +73,10 @@ public class ShopAccountService {
         return "+" + digits;
     }
 
+    /**
+     * Registra al comprador con teléfono normalizado, domicilio y ubicación; deriva su contraseña y
+     * devuelve la cuenta creada.
+     */
     @Transactional
     public Map<String, Object> register(Registration input) {
         var key = new GeneratedKeyHolder();
@@ -88,6 +104,7 @@ public class ShopAccountService {
         return account(Objects.requireNonNull(key.getKey()).longValue());
     }
 
+    /** Comprueba teléfono y contraseña de un comprador activo sin revelar si la cuenta existe. */
     public Map<String, Object> login(Login input) {
         var rows =
                 jdbc.queryForList(
@@ -103,6 +120,9 @@ public class ShopAccountService {
         return account(((Number) rows.getFirst().get("id")).longValue());
     }
 
+    /**
+     * Lee los datos públicos de una cuenta activa del comercio, excluyendo su hash de contraseña.
+     */
     private Map<String, Object> account(long id) {
         var rows =
                 jdbc.queryForList(
@@ -112,6 +132,10 @@ public class ShopAccountService {
         return rows.isEmpty() ? Map.of() : rows.getFirst();
     }
 
+    /**
+     * Recupera la cuenta activa vinculada a la sesión de comprador o devuelve un mapa vacío si no
+     * hay una válida.
+     */
     public Map<String, Object> current(HttpServletRequest request) {
         Object saved =
                 request.getSession(false) == null
@@ -120,6 +144,10 @@ public class ShopAccountService {
         return saved instanceof Long id ? account(id) : Map.of();
     }
 
+    /**
+     * Exige una sesión activa de comprador y devuelve su cuenta; rechaza pedidos de usuarios sin
+     * identificar.
+     */
     public Map<String, Object> require(HttpServletRequest request) {
         var user = current(request);
         if (user.isEmpty())
@@ -128,6 +156,10 @@ public class ShopAccountService {
         return user;
     }
 
+    /**
+     * Renueva el identificador de sesión y vincula la cuenta del comprador para evitar reutilizar
+     * una sesión anterior.
+     */
     public Map<String, Object> start(Map<String, Object> user, HttpServletRequest request) {
         request.getSession(true);
         request.changeSessionId();

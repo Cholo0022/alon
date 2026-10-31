@@ -5,11 +5,13 @@ let csrfToken = ''
 let bootstrap: Promise<void> | null = null
 let activeRequests = 0
 
+/** Actualiza la cantidad de solicitudes activas y emite el evento que controla el indicador global de carga. */
 function activity(delta: number) {
   activeRequests += delta
   window.dispatchEvent(new CustomEvent('alon:activity', { detail: activeRequests }))
 }
 
+/** Obtiene una sola vez el token de protección de la sesión y comparte la consulta entre solicitudes simultáneas. */
 async function ensureCsrf() {
   if (csrfToken) return
   bootstrap ??= fetch('/api/v1/auth/status', { credentials: 'same-origin' })
@@ -25,7 +27,7 @@ async function ensureCsrf() {
   await bootstrap
 }
 
-/** Reutiliza la clave de la operación al reintentar una respuesta perdida. */
+/** Centraliza solicitudes con sesión, CSRF, seguimiento de actividad y claves de operación para reintentos sin duplicar escrituras. */
 export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const method = (options.method ?? 'GET').toUpperCase()
   const mutation = !['GET', 'HEAD', 'OPTIONS'].includes(method)
@@ -43,6 +45,7 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
       pending.set(signature, command)
       headers.set('Idempotency-Key', command.key)
     }
+    /** Envía la solicitud con los encabezados preparados y las credenciales de la sesión actual. */
     const send = () => fetch(url, { ...options, headers, credentials: 'same-origin' })
     const response = await send().catch((error: unknown) => {
       if (!mutation || options.signal?.aborted) throw error

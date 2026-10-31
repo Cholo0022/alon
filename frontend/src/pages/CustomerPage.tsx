@@ -6,6 +6,7 @@ import { useApiRows, type ApiRow } from '../hooks/useApiRows'
 import { Pagination } from '../components/Pagination'
 import { LocalEntryPanel, StatusPill } from '../components/Forms'
 
+/** Muestra clientes activos o inactivos y permite alta, edición y cambio de estado con su cuenta corriente. */
 export function CustomerList() {
   const [query, setQuery] = useState('')
   const [showInactive, setShowInactive] = useState(false)
@@ -29,7 +30,9 @@ export function CustomerList() {
       .toLocaleLowerCase('es-AR')
       .includes(query.toLocaleLowerCase('es-AR')),
   )
+  /** Notifica al sistema que debe volver a consultar los datos de clientes. */
   const refresh = () => window.dispatchEvent(new Event('alon:refresh'))
+  /** Solicita activar o desactivar un cliente, muestra errores y actualiza el listado al confirmar el cambio. */
   const setActive = async (id: number, active: boolean) => {
     const response = await apiFetch(
       `/api/v1/operations/customers/${id}/${active ? 'activate' : 'deactivate'}`,

@@ -23,10 +23,18 @@ public class PermissionFilter extends OncePerRequestFilter {
             Set.of("/api/v1/auth/status", "/api/v1/auth/setup", "/api/v1/auth/login");
     private final UserService auth;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para la revalidación de usuarios antes de
+     * autorizar solicitudes.
+     */
     public PermissionFilter(UserService auth) {
         this.auth = auth;
     }
 
+    /**
+     * Revalida la sesión y sus permisos en cada solicitud, permite las rutas públicas y rechaza
+     * accesos revocados o sin autorización.
+     */
     @Override
     protected void doFilterInternal(
             HttpServletRequest req, HttpServletResponse res, FilterChain chain)
@@ -119,6 +127,7 @@ public class PermissionFilter extends OncePerRequestFilter {
         chain.doFilter(req, res);
     }
 
+    /** Asocia la ruta de la API al permiso funcional requerido para autorizar la solicitud. */
     private String permissionFor(String path) {
         if (path.startsWith("/api/v1/auth/users")) return "usuarios";
         if (path.startsWith("/api/v1/auth/")) return "usuarios";
@@ -145,6 +154,7 @@ public class PermissionFilter extends OncePerRequestFilter {
         return null;
     }
 
+    /** Escribe una respuesta JSON con el estado HTTP y el mensaje de rechazo de acceso. */
     private void reject(HttpServletResponse res, int status, String message) throws IOException {
         res.setStatus(status);
         res.setContentType("application/json;charset=UTF-8");

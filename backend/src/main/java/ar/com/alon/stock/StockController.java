@@ -11,10 +11,15 @@ import org.springframework.web.bind.annotation.*;
 public class StockController {
     private final StockQueries queries;
 
+    /** Recibe y conserva las dependencias necesarias para las consultas de movimientos de stock. */
     public StockController(StockQueries queries) {
         this.queries = queries;
     }
 
+    /**
+     * Expone movimientos de stock del comercio con artículo, referencia y autor mediante la API,
+     * delegando la consulta al repositorio.
+     */
     @GetMapping("/alon/stock-movements")
     public List<Map<String, Object>> stockMovements() {
         return queries.stockMovements();

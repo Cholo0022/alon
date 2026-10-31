@@ -16,6 +16,7 @@ public class ArticlePhotoService {
     private final ArticleImageStorage storage;
     private final AuditLog audit;
 
+    /** Recibe y conserva las dependencias necesarias para las fotos de artículos y su auditoría. */
     public ArticlePhotoService(
             JdbcTemplate jdbc,
             RequestIdentity identity,
@@ -27,6 +28,10 @@ public class ArticlePhotoService {
         this.audit = audit;
     }
 
+    /**
+     * Comprueba permiso y pertenencia del artículo y devuelve sus fotos ordenadas con la marca de
+     * imagen ilustrativa.
+     */
     public List<Map<String, Object>> list(long id) {
         identity.require("articulos");
         jdbc.queryForObject(
@@ -44,6 +49,10 @@ public class ArticlePhotoService {
                 .toList();
     }
 
+    /**
+     * Valida hasta cuatro fotos, conserva claves autorizadas o guarda imágenes nuevas y reemplaza
+     * la galería del artículo con auditoría.
+     */
     @Transactional
     public List<Map<String, Object>> replace(long id, List<ArticlePhotoInput> input) {
         if (input == null)

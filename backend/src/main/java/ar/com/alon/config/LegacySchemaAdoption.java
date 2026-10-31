@@ -13,6 +13,10 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConditionalOnProperty(name = "alon.adopt-legacy-schema", havingValue = "true")
 public class LegacySchemaAdoption {
+    /**
+     * Configura la adopción explícita de una base anterior: valida estructura e integridad antes de
+     * registrar la base y ejecutar Flyway.
+     */
     @Bean
     public FlywayMigrationStrategy adoptLegacySchema() {
         return flyway -> {

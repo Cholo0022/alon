@@ -2,11 +2,13 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/http'
 
+/** Muestra la cantidad actual de pedidos web pendientes y permite abrir su sección para revisarlos. */
 export function PendingOrdersNotice({ onOpen }: { onOpen: () => void }) {
   const [count, setCount] = useState<number | null>(null)
   const [error, setError] = useState(false)
   useEffect(() => {
     let current: AbortController | null = null
+    /** Consulta el contador solo con la pestaña visible; cancela solicitudes anteriores y valida la respuesta antes de actualizar el aviso. */
     const load = () => {
       if (document.visibilityState === 'hidden') return
       current?.abort()

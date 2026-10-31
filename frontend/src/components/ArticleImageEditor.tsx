@@ -9,6 +9,7 @@ import {
   type SavedArticlePhoto,
 } from '../lib/articlePhotos'
 
+/** Carga y edita la galería de un artículo existente, conservando las fotos guardadas hasta confirmar los cambios. */
 export function ArticleImageEditor({
   id,
   name,
@@ -43,6 +44,7 @@ export function ArticleImageEditor({
       })
     return () => controller.abort()
   }, [id, reload])
+  /** Envía la galería completa al servidor, informa errores y cierra el editor solo después de guardarla. */
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (loading || !loaded || reading || busy) return

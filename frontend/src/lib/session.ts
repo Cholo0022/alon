@@ -10,6 +10,7 @@ export type SessionUser = {
 }
 export type AuthStatus = { setupRequired: boolean; user: SessionUser | null; csrfToken: string }
 
+/** Comprueba la estructura del usuario recibido antes de tratar una respuesta desconocida como una sesión autenticada. */
 export function isSessionUser(value: unknown): value is SessionUser {
   if (!value || typeof value !== 'object') return false
   const row = value as Record<string, unknown>

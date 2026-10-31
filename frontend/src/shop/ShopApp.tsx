@@ -1,3 +1,4 @@
+import { ArticleEntryDialog } from '../components/ArticleEntryDialog'
 // Muestra la tienda web, el carrito, el registro de compradores y sus pedidos.
 import { QuantityInput } from '../components/QuantityInput'
 import { countries } from './countries'
@@ -31,11 +32,14 @@ type Catalog = {
   store: { nombre: string }
 }
 type Order = { id: number; estado: string; total_estimado: number; creado_en: string }
+/** Formatea cantidades de la tienda con hasta tres decimales y separadores argentinos. */
 const quantity = (n: number) =>
   new Intl.NumberFormat('es-AR', { maximumFractionDigits: 3 }).format(n)
+/** Convierte el estado del pedido en el texto que ve el comprador. */
 const stateName = (s: string) =>
   s === 'CONFIRMADO' ? 'Confirmado' : s === 'CANCELADO' ? 'Cancelado' : 'Pendiente de confirmación'
 
+/** Recupera y valida el carrito guardado localmente, descarta entradas inválidas y limita la cantidad de productos. */
 function initialCart(): CartLine[] {
   try {
     const saved: unknown = JSON.parse(localStorage.getItem('alon-shop-cart') ?? '[]')
@@ -60,6 +64,7 @@ function initialCart(): CartLine[] {
   }
 }
 
+/** Recupera un envío pendiente de la sesión solo si conserva un cuerpo y una clave de operación válidos para reintentarlo. */
 function pendingOrder(): PendingOrder | null {
   try {
     const value = JSON.parse(sessionStorage.getItem('alon-shop-pending-order') ?? 'null')
@@ -75,6 +80,7 @@ function pendingOrder(): PendingOrder | null {
   }
 }
 
+/** Organiza el catálogo público, la cuenta del comprador, el carrito y el envío y seguimiento de pedidos. */
 export default function ShopApp() {
   const brand = useBusinessBrand(true)
   const [catalog, setCatalog] = useState<Catalog>({
@@ -83,6 +89,9 @@ export default function ShopApp() {
     categories: [],
     store: { nombre: 'Alon' },
   })
+  const [productToAdd, setProductToAdd] = useState<Product | null>(null)
+  const [quantityError, setQuantityError] = useState('')
+  const [cartOutsideView, setCartOutsideView] = useState(false)
   const [cart, setCart] = useState<CartLine[]>(initialCart)
   const [buyer, setBuyer] = useState<Buyer | null>(null)
   const [screen, setScreen] = useState<'catalog' | 'account' | 'orders'>('catalog')
@@ -99,6 +108,16 @@ export default function ShopApp() {
   const [orders, setOrders] = useState<Order[]>([])
   const cartPanel = useRef<HTMLElement>(null)
   const pending = useRef<PendingOrder | null>(pendingOrder())
+  const availableToAdd = productToAdd
+    ? Math.max(
+        0,
+        Math.round(
+          (Number(productToAdd.stock) -
+            (cart.find((line) => line.id === productToAdd.id)?.quantity ?? 0)) *
+            1000,
+        ) / 1000,
+      )
+    : 0
   const total = cart.reduce(
     (sum, p) => sum + Math.round(Number(p.precio_venta) * p.quantity * 100) / 100,
     0,
@@ -164,6 +183,7 @@ export default function ShopApp() {
   useEffect(() => {
     if (screen !== 'orders' || !buyer) return
     const controller = new AbortController()
+    /** Vuelve a consultar los pedidos del comprador y evita informar errores de consultas canceladas. */
     const load = () => {
       void shopRequest<Order[]>('/orders', { signal: controller.signal })
         .then(setOrders)
@@ -179,27 +199,76 @@ export default function ShopApp() {
     }
   }, [screen, buyer, refresh])
 
-  const add = (p: Product) => {
-    setNotice('')
-    setCart((current) => {
-      const existing = current.find((x) => x.id === p.id)
-      if (existing)
-        return current.map((x) =>
-          x.id === p.id
-            ? {
-                ...p,
-                quantity: Math.min(Number(p.stock), Math.round((x.quantity + 1) * 1000) / 1000),
-              }
-            : x,
-        )
-      if (current.length >= 100) {
-        setError('El carrito admite hasta 100 artículos distintos.')
-        return current
-      }
-      return [...current, { ...p, quantity: Math.min(1, Number(p.stock)) }]
+  // Observa la visibilidad del carrito sin ejecutar cálculos en cada movimiento de la página.
+  useEffect(() => {
+    const panel = cartPanel.current
+    if (screen !== 'catalog' || !panel || !window.IntersectionObserver) return
+    let active = true
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries.find((item) => item.target === panel)
+      if (active && entry) setCartOutsideView(!entry.isIntersecting)
+    })
+    observer.observe(panel)
+    return () => {
+      active = false
+      observer.disconnect()
+    }
+  }, [screen])
+
+  /** Lleva al carrito desde el acceso principal o flotante y enfoca su panel sin alterar sus productos. */
+  const goToCart = () => {
+    setScreen('catalog')
+    requestAnimationFrame(() => {
+      const panel = cartPanel.current
+      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+      panel?.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'start' })
+      panel?.focus({ preventScroll: true })
     })
   }
 
+  /** Abre la selección de cantidad del producto sin modificar todavía el carrito. */
+  const add = (product: Product) => {
+    setNotice('')
+    setQuantityError('')
+    setProductToAdd(product)
+  }
+
+  /** Valida la cantidad adicional y el stock restante; acumula el producto y cierra el diálogo solo al confirmarlo. */
+  const confirmCartQuantity = (amount: number) => {
+    if (!productToAdd) return
+    const existing = cart.find((line) => line.id === productToAdd.id)
+    const newQuantity = Math.round(((existing?.quantity ?? 0) + amount) * 1000) / 1000
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      Math.abs(amount * 1000 - Math.round(amount * 1000)) > 0.000001
+    ) {
+      setQuantityError('Ingresá una cantidad mayor a cero, con hasta tres decimales.')
+      return
+    }
+    if (newQuantity > Number(productToAdd.stock)) {
+      setQuantityError(
+        'La cantidad supera el stock disponible, incluyendo lo que ya tenés en el carrito.',
+      )
+      return
+    }
+    if (!existing && cart.length >= 100) {
+      setQuantityError('El carrito admite hasta 100 artículos distintos.')
+      return
+    }
+    const product = productToAdd
+    setCart((current) =>
+      existing
+        ? current.map((line) =>
+            line.id === product.id ? { ...product, quantity: newQuantity } : line,
+          )
+        : [...current, { ...product, quantity: amount }],
+    )
+    setProductToAdd(null)
+    setQuantityError('')
+  }
+
+  /** Inicia sesión o registra al comprador desde el formulario y vuelve al catálogo al completar el acceso. */
   const auth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setBusy(true)
@@ -225,6 +294,7 @@ export default function ShopApp() {
     }
   }
 
+  /** Revalida stock y precios, prepara o recupera la clave del pedido y envía el carrito evitando duplicados en reintentos. */
   const checkout = async () => {
     if (!paymentMethod) {
       setError('Elegí un medio de pago antes de enviar el pedido.')
@@ -296,6 +366,21 @@ export default function ShopApp() {
 
   return (
     <div className="shop-app business-themed" style={brandStyle(brand)}>
+      {productToAdd && (
+        <ArticleEntryDialog
+          article={productToAdd}
+          mode="cart"
+          initialQuantity={String(Math.min(1, availableToAdd))}
+          initialPrice={Number(productToAdd.precio_venta)}
+          maxQuantity={availableToAdd}
+          message={quantityError}
+          onConfirm={(values) => confirmCartQuantity(values.quantity)}
+          onCancel={() => {
+            setProductToAdd(null)
+            setQuantityError('')
+          }}
+        />
+      )}
       <header className="shop-header">
         <button
           className="shop-brand"
@@ -339,15 +424,7 @@ export default function ShopApp() {
           ) : (
             <button onClick={() => setScreen('account')}>Ingresar</button>
           )}
-          <button
-            className="shop-solid"
-            onClick={() => {
-              setScreen('catalog')
-              requestAnimationFrame(() =>
-                cartPanel.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
-              )
-            }}
-          >
+          <button className="shop-solid" onClick={goToCart}>
             Carrito · {quantity(cart.reduce((n, p) => n + p.quantity, 0))}
           </button>
         </div>
@@ -592,7 +669,7 @@ export default function ShopApp() {
                   </button>
                 )}
               </section>
-              <aside className="shop-cart" ref={cartPanel}>
+              <aside className="shop-cart" ref={cartPanel} tabIndex={-1} aria-label="Tu carrito">
                 <h2>Tu carrito</h2>
                 {cart.map((p) => (
                   <div className="shop-cart-line" key={p.id}>
@@ -681,6 +758,11 @@ export default function ShopApp() {
           </>
         )}
       </main>
+      {screen === 'catalog' && cartOutsideView && !productToAdd && (
+        <button className="shop-cart-shortcut" type="button" onClick={goToCart}>
+          <span aria-hidden="true">🛒</span> Ir al carrito
+        </button>
+      )}
       <footer className="shop-footer">
         <strong>
           {brand.nombre} · {brand.slogan || 'Tu comercio conectado'}

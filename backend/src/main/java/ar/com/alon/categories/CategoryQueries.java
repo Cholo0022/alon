@@ -16,6 +16,7 @@ public class CategoryQueries {
     private final Clock clock;
     private final ReadPage pages;
 
+    /** Recibe y conserva las dependencias necesarias para las consultas paginadas de rubros. */
     public CategoryQueries(JdbcTemplate jdbc, RequestIdentity identity, Clock clock) {
         this.jdbc = jdbc;
         this.identity = identity;
@@ -23,6 +24,7 @@ public class CategoryQueries {
         this.pages = new ReadPage(jdbc);
     }
 
+    /** Consulta rubros del comercio ordenados por nombre. */
     public List<Map<String, Object>> categories() {
         return pages.query(
                 "codigo,nombre",

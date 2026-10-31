@@ -1,6 +1,7 @@
 // Mantiene la cabecera a la vista y muestra las últimas filas al cargar artículos.
 import { useLayoutEffect, type RefObject } from 'react'
 
+/** Mantiene visible el formulario de compra o venta abierto y desplaza la lista hacia el último artículo agregado. */
 export function useTransactionEntry(
   form: RefObject<HTMLFormElement | null>,
   open: boolean,

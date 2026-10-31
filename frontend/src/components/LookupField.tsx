@@ -5,7 +5,7 @@ import { apiFetch } from '../lib/http'
 import { Combobox } from './Combobox'
 import { textValue } from '../lib/format'
 
-/** One field searches the entire directory and keeps the chosen record independently of results. */
+/** Busca registros en la API y conserva la selección y su identificador aunque cambien las sugerencias o exista un registro predeterminado. */
 export function LookupField({
   name,
   label,
@@ -17,6 +17,7 @@ export function LookupField({
   defaultName,
   searchOnly = false,
   onEmptyEnter,
+  onEnter,
 }: {
   name: string
   label: string
@@ -25,6 +26,7 @@ export function LookupField({
   autoFocus?: boolean
   defaultName?: string
   onEmptyEnter?: () => void
+  onEnter?: () => void
   searchOnly?: boolean
   initialRecord?: ApiRow
   onSelect?: (row: ApiRow | null) => void
@@ -65,6 +67,7 @@ export function LookupField({
   const rows = useApiRows(endpoint + '?q=' + encodeURIComponent(chosen || !edited ? '' : query))
   const selected =
     chosen ?? (!edited && defaultResult?.key === defaultKey ? defaultResult.row : null)
+  /** Une código y nombre del registro para mostrar una etiqueta reconocible en el buscador. */
   const labelFor = (row: ApiRow) =>
     [row.codigo, row.nombre].filter(Boolean).map(textValue).join(' · ')
   return (
@@ -73,6 +76,7 @@ export function LookupField({
       <Combobox
         label={label}
         onEmptyEnter={onEmptyEnter}
+        onEnter={onEnter}
         value={!edited && selected ? labelFor(selected) : query}
         required={required}
         autoFocus={autoFocus}

@@ -19,39 +19,64 @@ public class CashController {
     private final CashQueries queries;
     private final CommandExecutor commands;
 
+    /** Recibe y conserva las dependencias necesarias para las operaciones y consultas de caja. */
     public CashController(CashService service, CashQueries queries, CommandExecutor commands) {
         this.service = service;
         this.queries = queries;
         this.commands = commands;
     }
 
+    /**
+     * Recibe la solicitud y delega su ejecución al servicio. Abre una nueva sesión de caja para la
+     * fecha y saldo inicial indicados, rechazando otra apertura simultánea para ese día.
+     */
     @PostMapping("/operations/cash/open")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> openCash(@Valid @RequestBody CashOpenInput input) {
         return commands.execute("openCash", input, () -> service.openCash(input));
     }
 
+    /**
+     * Recibe la solicitud y delega su ejecución al servicio. Valida el gasto y exige caja abierta;
+     * guarda su comprobante y el egreso correspondiente en el libro de caja.
+     */
     @PostMapping("/operations/cash/expenses")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> addExpense(@Valid @RequestBody ExpenseInput input) {
         return commands.execute("addExpense", input, () -> service.addExpense(input));
     }
 
+    /**
+     * Recibe la solicitud y delega su ejecución al servicio. Bloquea la sesión abierta, calcula
+     * efectivo esperado y diferencia con el contado y guarda el cierre definitivo.
+     */
     @PostMapping("/operations/cash/close")
     public Map<String, Object> closeCash(@Valid @RequestBody CashCloseInput input) {
         return commands.execute("closeCash", input, () -> service.closeCash(input));
     }
 
+    /**
+     * Recibe la solicitud y delega su ejecución al servicio. Calcula los cobros, egresos y efectivo
+     * esperado de la sesión de caja abierta para la fecha solicitada.
+     */
     @GetMapping("/operations/cash/summary")
     public Map<String, Object> cashSummary(@RequestParam LocalDate date) {
         return service.cashSummary(date);
     }
 
+    /**
+     * Expone estado de la caja de la fecha indicada, priorizando una sesión abierta mediante la
+     * API, delegando la consulta al repositorio.
+     */
     @GetMapping("/alon/cash/status")
     public Map<String, Object> cashStatus(@RequestParam LocalDate date) {
         return queries.cashStatus(date);
     }
 
+    /**
+     * Expone historial de sesiones de caja con sus importes, desde el registro más reciente
+     * mediante la API, delegando la consulta al repositorio.
+     */
     @GetMapping("/alon/reports/cash")
     public List<Map<String, Object>> cash() {
         return queries.cash();

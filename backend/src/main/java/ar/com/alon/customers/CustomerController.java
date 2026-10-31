@@ -16,6 +16,9 @@ public class CustomerController {
     private final CustomerQueries queries;
     private final CommandExecutor commands;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para las operaciones y consultas de clientes.
+     */
     public CustomerController(
             CustomerService service, CustomerQueries queries, CommandExecutor commands) {
         this.service = service;
@@ -23,12 +26,20 @@ public class CustomerController {
         this.commands = commands;
     }
 
+    /**
+     * Recibe la solicitud y delega su ejecución al servicio. Crea un cliente del comercio con
+     * código propio, datos de contacto y límite de crédito validado.
+     */
     @PostMapping("/operations/customers")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> createCustomer(@Valid @RequestBody CustomerInput input) {
         return commands.execute("createCustomer", input, () -> service.createCustomer(input));
     }
 
+    /**
+     * Recibe la solicitud y delega su ejecución al servicio. Bloquea y actualiza los datos y límite
+     * de crédito del cliente sin modificar su saldo de cuenta corriente.
+     */
     @PutMapping("/operations/customers/{id}")
     public Map<String, Object> updateCustomer(
             @PathVariable long id, @Valid @RequestBody CustomerInput input) {
@@ -38,6 +49,10 @@ public class CustomerController {
                 () -> service.updateCustomer(id, input));
     }
 
+    /**
+     * Recibe la baja lógica del cliente y la ejecuta sin borrar su historial, reutilizando la
+     * respuesta en reintentos.
+     */
     @PostMapping("/operations/customers/{id}/deactivate")
     public Map<String, Object> deactivateCustomer(@PathVariable long id) {
         return commands.execute(
@@ -46,6 +61,10 @@ public class CustomerController {
                 () -> service.setCustomerActive(id, false));
     }
 
+    /**
+     * Recibe la reactivación del cliente y la ejecuta dentro del comercio con protección contra
+     * reintentos.
+     */
     @PostMapping("/operations/customers/{id}/activate")
     public Map<String, Object> activateCustomer(@PathVariable long id) {
         return commands.execute(
@@ -54,12 +73,20 @@ public class CustomerController {
                 () -> service.setCustomerActive(id, true));
     }
 
+    /**
+     * Expone clientes del comercio filtrados por estado, con sus saldos y límites mediante la API,
+     * delegando la consulta al repositorio.
+     */
     @GetMapping("/alon/customers")
     public List<Map<String, Object>> customers(
             @RequestParam(defaultValue = "false") boolean inactive) {
         return queries.customers(inactive);
     }
 
+    /**
+     * Expone clientes activos con código y nombre para los buscadores mediante la API, delegando la
+     * consulta al repositorio.
+     */
     @GetMapping("/alon/lookups/customers")
     public List<Map<String, Object>> lookupCustomers() {
         return queries.lookupCustomers();

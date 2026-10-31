@@ -5,9 +5,16 @@ import java.util.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 public final class ArticlePhotoQueries {
+
+    /** Recibe y conserva las dependencias necesarias para las galerías adjuntas a artículos. */
     private ArticlePhotoQueries() {}
 
     /** Consulta las fotos de toda la página de artículos en una sola operación. */
+
+    /**
+     * Adjunta en una sola consulta las galerías ordenadas a las filas de artículos, evitando
+     * consultar cada foto por separado.
+     */
     public static List<Map<String, Object>> attach(
             JdbcTemplate jdbc, long store, List<Map<String, Object>> articles) {
         if (articles.isEmpty()) return articles;

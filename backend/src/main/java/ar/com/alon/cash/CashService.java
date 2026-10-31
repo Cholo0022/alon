@@ -20,6 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class CashService extends StoreJdbcSupport {
     private final CashLedger cashLedger;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para la apertura, gastos, resumen y cierre de
+     * caja.
+     */
     public CashService(
             JdbcTemplate jdbc,
             RequestIdentity identity,
@@ -30,6 +34,10 @@ public class CashService extends StoreJdbcSupport {
         this.cashLedger = cashLedger;
     }
 
+    /**
+     * Abre una nueva sesión de caja para la fecha y saldo inicial indicados, rechazando otra
+     * apertura simultánea para ese día.
+     */
     @Transactional
     public Map<String, Object> openCash(CashOpenInput input) {
         LocalDate date = input.date() == null ? LocalDate.now(clock) : input.date();
@@ -70,6 +78,10 @@ public class CashService extends StoreJdbcSupport {
                 "ABIERTA");
     }
 
+    /**
+     * Valida el gasto y exige caja abierta; guarda su comprobante y el egreso correspondiente en el
+     * libro de caja.
+     */
     @Transactional
     public Map<String, Object> addExpense(ExpenseInput input) {
         LocalDate date = input.date() == null ? LocalDate.now(clock) : input.date();
@@ -98,6 +110,10 @@ public class CashService extends StoreJdbcSupport {
         return Map.of("id", id, "importe", amount);
     }
 
+    /**
+     * Calcula los cobros, egresos y efectivo esperado de la sesión de caja abierta para la fecha
+     * solicitada.
+     */
     public Map<String, Object> cashSummary(LocalDate date) {
         Map<String, Object> cash =
                 jdbc.queryForMap(
@@ -131,6 +147,10 @@ public class CashService extends StoreJdbcSupport {
         return result;
     }
 
+    /**
+     * Bloquea la sesión abierta, calcula efectivo esperado y diferencia con el contado y guarda el
+     * cierre definitivo.
+     */
     @Transactional
     public Map<String, Object> closeCash(CashCloseInput input) {
         LocalDate date = input.date() == null ? LocalDate.now(clock) : input.date();

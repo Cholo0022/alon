@@ -178,3 +178,80 @@
     backdrop-filter: none;
   }
 }
+
+.article-picker-backdrop[hidden] {
+  display: none;
+}
+.article-entry-dialog {
+  width: min(480px, 100%);
+  overflow: auto;
+}
+.article-entry-dialog > form {
+  display: grid;
+  gap: 18px;
+  padding: 0 24px 24px;
+}
+.article-entry-dialog label {
+  display: grid;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #263e55;
+}
+.article-entry-dialog input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  border: 2px solid #65778a;
+  border-radius: 7px;
+  padding: 9px 12px;
+  font: inherit;
+  background: #fff;
+  color: #10243a;
+}
+.article-entry-dialog input:focus {
+  outline: 3px solid #a64700;
+  outline-offset: 2px;
+}
+.article-entry-info {
+  font-size: 14px;
+  line-height: 1.8;
+  margin: 0;
+  color: #43566b;
+}
+.article-entry-help {
+  font-size: 13px;
+  color: #43566b;
+  margin: 0;
+}
+.article-entry-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.payment-confirmation select {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 2px solid #65778a;
+  border-radius: 7px;
+  background: #fff;
+  color: #10243a;
+  font: inherit;
+}
+.payment-confirmation select:focus {
+  outline: 3px solid #a64700;
+  outline-offset: 2px;
+}
+
+.supplier-picker .article-picker-columns,
+.supplier-picker .article-picker-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+.cost-confirmation > p,
+.cost-confirmation > .article-entry-actions {
+  margin: 0 24px 20px;
+  line-height: 1.6;
+}

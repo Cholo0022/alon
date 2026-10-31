@@ -21,6 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class ArticleService extends StoreJdbcSupport {
     private final StockRepository stock;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para las reglas de artículos, precios y stock.
+     */
     public ArticleService(
             JdbcTemplate jdbc,
             RequestIdentity identity,
@@ -31,6 +34,10 @@ public class ArticleService extends StoreJdbcSupport {
         this.stock = stock;
     }
 
+    /**
+     * Valida código, nombre, rubro, proveedor y precios; crea el artículo y registra su stock
+     * inicial.
+     */
     @Transactional
     public Map<String, Object> createArticle(ArticleInput input) {
         if (!identity.permits("compras")) identity.require("costos");
@@ -98,6 +105,10 @@ public class ArticleService extends StoreJdbcSupport {
         return Map.of("id", id, "codigo", code, "nombre", name);
     }
 
+    /**
+     * Bloquea el artículo del comercio, valida sus nuevos datos y actualiza precios y stock dejando
+     * trazabilidad de los ajustes.
+     */
     @Transactional
     public Map<String, Object> updateArticle(long id, ArticleInput input) {
         if (!identity.permits("compras")) identity.require("costos");
@@ -197,6 +208,7 @@ public class ArticleService extends StoreJdbcSupport {
         return Map.of("id", id, "codigo", code, "nombre", name);
     }
 
+    /** Activa o desactiva el artículo del comercio sin borrar su historial de operaciones. */
     @Transactional
     public Map<String, Object> setArticleActive(long id, boolean active) {
         int updated =

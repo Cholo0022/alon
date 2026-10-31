@@ -15,6 +15,9 @@ public class DashboardQueries {
     private final Clock clock;
     private final ReadPage pages;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para los indicadores agregados del comercio.
+     */
     public DashboardQueries(JdbcTemplate jdbc, RequestIdentity identity, Clock clock) {
         this.jdbc = jdbc;
         this.identity = identity;
@@ -22,6 +25,7 @@ public class DashboardQueries {
         this.pages = new ReadPage(jdbc);
     }
 
+    /** Consulta indicadores de ventas, stock, caja y cuentas del panel inicial del comercio. */
     public Map<String, Object> summary() {
         Map<String, Object> result =
                 jdbc.queryForMap(

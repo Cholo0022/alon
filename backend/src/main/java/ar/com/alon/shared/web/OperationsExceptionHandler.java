@@ -11,11 +11,19 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class OperationsExceptionHandler {
+    /**
+     * Convierte una validación de negocio fallida en una respuesta 400 con el mensaje de error para
+     * el usuario.
+     */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> invalidInput(IllegalArgumentException exception) {
         return ResponseEntity.badRequest().body(Map.of("error", exception.getMessage()));
     }
 
+    /**
+     * Devuelve un conflicto 409 ante duplicados o referencias de datos incompatibles sin revelar
+     * detalles SQL.
+     */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> invalidReference(Exception exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -25,12 +33,14 @@ public class OperationsExceptionHandler {
                                 "Ya existe un registro con esos datos o una referencia no es válida."));
     }
 
+    /** Traduce la ausencia de un registro consultado a una respuesta 404 legible. */
     @ExceptionHandler(EmptyResultDataAccessException.class)
     public ResponseEntity<Map<String, String>> notFound(EmptyResultDataAccessException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(Map.of("error", "No se encontró el registro solicitado."));
     }
 
+    /** Conserva el código HTTP de una excepción controlada y devuelve su motivo como error JSON. */
     @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
     public ResponseEntity<Map<String, String>> status(
             org.springframework.web.server.ResponseStatusException exception) {
@@ -43,6 +53,10 @@ public class OperationsExceptionHandler {
                                         : exception.getReason()));
     }
 
+    /**
+     * Responde 400 cuando la estructura, los campos o los formatos de la solicitud no superan la
+     * validación.
+     */
     @ExceptionHandler({
         org.springframework.web.bind.MethodArgumentNotValidException.class,
         org.springframework.http.converter.HttpMessageNotReadableException.class,
@@ -58,12 +72,19 @@ public class OperationsExceptionHandler {
                                 "Revisá los campos obligatorios, formatos, límites y cantidades de la solicitud."));
     }
 
+    /**
+     * Devuelve un conflicto 409 cuando otra operación impide completar la modificación concurrente.
+     */
     @ExceptionHandler(org.springframework.dao.PessimisticLockingFailureException.class)
     public ResponseEntity<Map<String, String>> concurrentChange(Exception exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("error", "Otra operación modificó estos datos. Volvé a intentar."));
     }
 
+    /**
+     * Conserva el código de error del protocolo HTTP y presenta un mensaje sobre ruta, método o
+     * formato de la solicitud.
+     */
     @ExceptionHandler({
         org.springframework.web.HttpRequestMethodNotSupportedException.class,
         org.springframework.web.HttpMediaTypeNotSupportedException.class,
@@ -80,6 +101,10 @@ public class OperationsExceptionHandler {
                                 "Revisá la dirección, el método y el formato de la solicitud."));
     }
 
+    /**
+     * Registra el fallo técnico en el servidor y responde 500 con un mensaje que no expone datos
+     * internos.
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> unexpected(Exception exception) {
         org.slf4j.LoggerFactory.getLogger(getClass())

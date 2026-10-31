@@ -1,3 +1,5 @@
+import { CostConfirmation } from '../components/CostConfirmation'
+import { PaymentConfirmation, type PaymentSelection } from '../components/PaymentConfirmation'
 import { useTransactionEntry } from '../hooks/useTransactionEntry'
 // Permite cargar y corregir compras con sus artículos, cantidades, gastos y pagos.
 import { QuantityInput } from '../components/QuantityInput'
@@ -15,8 +17,17 @@ import { type ApiRow } from '../hooks/useApiRows'
 import { LookupField } from '../components/LookupField'
 import { ApiTable } from '../components/ApiTable'
 import { ArticlePicker } from '../components/ArticlePicker'
+import { ArticleEntryDialog, type ArticleEntryValues } from '../components/ArticleEntryDialog'
 
+/** Gestiona el ingreso de compras, el proveedor predeterminado, los artículos y las confirmaciones de pago y costo, además del historial. */
 export function PurchasesPage() {
+  const [supplierPickerOpen, setSupplierPickerOpen] = useState(false)
+  const [supplier, setSupplier] = useState<ApiRow | undefined>()
+  const [supplierVersion, setSupplierVersion] = useState(0)
+  const [costSelection, setCostSelection] = useState<PaymentSelection | null>(null)
+  const [paymentOpen, setPaymentOpen] = useState(false)
+  const [paymentPartyName, setPaymentPartyName] = useState('')
+  const [pendingArticle, setPendingArticle] = useState<ApiRow | null>(null)
   const [articlePickerOpen, setArticlePickerOpen] = useState(false)
   const [costEdited, setCostEdited] = useState(false)
   const [selectedPurchase, setSelectedPurchase] = useState<number | null>(null)
@@ -31,27 +42,38 @@ export function PurchasesPage() {
   const [quantity, setQuantity] = useState('1')
   const [unitCost, setUnitCost] = useState('0')
   const [extraCosts, setExtraCosts] = useState('0')
-  const [paymentType, setPaymentType] = useState<'CONTADO' | 'CUENTA_CORRIENTE'>('CONTADO')
   const purchaseFormRef = useRef<HTMLFormElement>(null)
   useTransactionEntry(purchaseFormRef, open, searchVersion)
   useEffect(() => {
+    if (open)
+      purchaseFormRef.current?.querySelector<HTMLInputElement>('[aria-label="Proveedor"]')?.focus()
+  }, [open])
+  useEffect(() => {
     if (!open) return
+    /** Abre la confirmación de guardado con Ctrl+G solo cuando no hay otro diálogo o solicitud en curso. */
     const onShortcut = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key.toLowerCase() === 'g') {
         event.preventDefault()
-        if (!busy && !articlePickerOpen) purchaseFormRef.current?.requestSubmit()
+        if (!busy && !articlePickerOpen && !paymentOpen && !supplierPickerOpen && !costSelection)
+          purchaseFormRef.current?.requestSubmit()
       }
     }
     window.addEventListener('keydown', onShortcut)
     return () => window.removeEventListener('keydown', onShortcut)
-  }, [open, busy, articlePickerOpen])
-  const addLine = (form: HTMLFormElement, pickedArticle?: ApiRow) => {
+  }, [open, busy, articlePickerOpen, paymentOpen, supplierPickerOpen, costSelection])
+  /** Valida artículo, cantidad y costo; agrega un renglón al borrador y prepara el buscador para cargar el siguiente. */
+  const addLine = (
+    form: HTMLFormElement,
+    pickedArticle?: ApiRow,
+    entryValues?: ArticleEntryValues,
+  ) => {
     const articleId = pickedArticle
       ? numberValue(pickedArticle.id)
       : Number(form.querySelector<HTMLInputElement>('input[name="articleId"]')?.value ?? 0)
-    const quantityValue = Number(quantity)
+    const quantityValue = entryValues?.quantity ?? Number(quantity)
     const unitCostValue =
-      pickedArticle && !costEdited ? numberValue(pickedArticle.costo) : Number(unitCost)
+      entryValues?.unitCost ??
+      (pickedArticle && !costEdited ? numberValue(pickedArticle.costo) : Number(unitCost))
     const article = pickedArticle ?? selectedArticle
     if (!article || numberValue(article.id) !== articleId) {
       setMessage('Buscá y elegí un artículo del listado.')
@@ -60,7 +82,7 @@ export function PurchasesPage() {
     if (
       !Number.isFinite(quantityValue) ||
       !(quantityValue > 0) ||
-      (costEdited && !unitCost.trim()) ||
+      (!entryValues && costEdited && !unitCost.trim()) ||
       !Number.isFinite(unitCostValue) ||
       unitCostValue < 0
     ) {
@@ -85,26 +107,39 @@ export function PurchasesPage() {
     return true
   }
   // Guarda la factura o el remito completo junto con sus artículos.
-  const submitPurchase = async (event: FormEvent<HTMLFormElement>) => {
+  /** Valida el borrador y su fecha y abre la selección de pago sin guardar todavía la compra. */
+  const submitPurchase = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (lines.length === 0) {
+    if (busy || articlePickerOpen || paymentOpen || supplierPickerOpen || costSelection) return
+    if (!lines.length) {
       setMessage('Ingresá al menos un artículo antes de guardar.')
       return
     }
-    const formElement = event.currentTarget
-    const values = new FormData(formElement)
-    const parsedDate = dateDisplayToIso(values.get('date'))
-    if (!parsedDate) {
+    const date = dateDisplayToIso(new FormData(event.currentTarget).get('date'))
+    if (!date) {
       setMessage('Ingresá una fecha válida con el formato dd/mm/aaaa.')
       return
     }
-    const extraCosts = Number(values.get('extraCosts') ?? 0)
-    const subtotal = lines.reduce((sum, line) => sum + line.quantity * line.unitCost, 0)
-    const paid = paymentType === 'CONTADO' ? subtotal + extraCosts : Number(values.get('paid') ?? 0)
-    if (paid > subtotal + extraCosts) {
-      setMessage('El importe pagado no puede superar el total de la factura.')
+    setPaymentPartyName(
+      event.currentTarget.querySelector<HTMLInputElement>(
+        '[role="combobox"][aria-label="Proveedor"]',
+      )?.value ?? '',
+    )
+    setMessage('')
+    setPaymentOpen(true)
+  }
+  /** Envía la compra con su condición, medio de pago y decisión de costo; limpia el formulario solo si el servidor la confirma. */
+  const confirmPurchase = async (selection: PaymentSelection, updateCost: boolean) => {
+    const formElement = purchaseFormRef.current
+    if (busy || !formElement) return
+    const values = new FormData(formElement)
+    const parsedDate = dateDisplayToIso(values.get('date'))
+    if (!parsedDate) {
+      setMessage('Ingresá una fecha válida.')
       return
     }
+    const extraCosts = Number(values.get('extraCosts') ?? 0)
+    const paid = selection.condition === 'CUENTA_CORRIENTE' ? 0 : invoiceTotal
     setBusy(true)
     setMessage('')
     try {
@@ -123,12 +158,15 @@ export function PurchasesPage() {
           })),
           extraCosts,
           paid,
-          paymentType,
-          paymentMethod: values.get('paymentMethod'),
+          updateCost,
+          paymentType: selection.condition,
+          paymentMethod: selection.paymentMethod,
         }),
       })
       const result = (await response.json().catch(() => ({}))) as { error?: string }
       if (!response.ok) throw new Error(result.error ?? 'No se pudo guardar la factura.')
+      setPaymentOpen(false)
+      setCostSelection(null)
       window.dispatchEvent(new Event('alon:refresh'))
       setMessage('Factura guardada correctamente con ' + lines.length + ' artículos.')
       setLines([])
@@ -143,16 +181,74 @@ export function PurchasesPage() {
     }
   }
   const invoiceTotal =
-    lines.reduce((sum, line) => sum + line.quantity * line.unitCost, 0) + Number(extraCosts)
+    lines.reduce((sum, line) => sum + Math.round(line.quantity * line.unitCost * 100) / 100, 0) +
+    Number(extraCosts)
   if (selectedPurchase !== null)
     return (
       <PurchaseReceipt purchaseId={selectedPurchase} onBack={() => setSelectedPurchase(null)} />
     )
   return (
     <>
+      {supplierPickerOpen && (
+        <ArticlePicker
+          mode="supplier"
+          message=""
+          onClose={() => {
+            setSupplierPickerOpen(false)
+            purchaseFormRef.current
+              ?.querySelector<HTMLInputElement>('[aria-label="Proveedor"]')
+              ?.focus()
+          }}
+          onChoose={(row) => {
+            setSupplier(row)
+            setSupplierVersion((value) => value + 1)
+            setSupplierPickerOpen(false)
+            purchaseFormRef.current
+              ?.querySelector<HTMLInputElement>('[aria-label="Artículo"]')
+              ?.focus()
+          }}
+        />
+      )}
+      {costSelection && (
+        <CostConfirmation
+          busy={busy}
+          message={message}
+          onCancel={() => {
+            setCostSelection(null)
+            setMessage('')
+            setPaymentOpen(true)
+          }}
+          onConfirm={(updateCost) => void confirmPurchase(costSelection, updateCost)}
+        />
+      )}
+      {paymentOpen && (
+        <PaymentConfirmation
+          mode="purchase"
+          total={invoiceTotal}
+          partyName={paymentPartyName}
+          busy={busy}
+          message={message}
+          onChange={() => setMessage('')}
+          onCancel={() => {
+            if (!busy) {
+              setPaymentOpen(false)
+              setMessage('')
+              purchaseFormRef.current
+                ?.querySelector<HTMLButtonElement>('button[type="submit"]')
+                ?.focus()
+            }
+          }}
+          onConfirm={(selection) => {
+            setPaymentOpen(false)
+            setCostSelection(selection)
+            setMessage('')
+          }}
+        />
+      )}
       {articlePickerOpen && (
         <ArticlePicker
           mode="purchase"
+          suspended={!!pendingArticle}
           message={message}
           unitCostOverride={costEdited ? Number(unitCost) : undefined}
           onClose={() => {
@@ -162,8 +258,32 @@ export function PurchasesPage() {
               ?.focus()
           }}
           onChoose={(article) => {
-            if (purchaseFormRef.current && addLine(purchaseFormRef.current, article))
+            setMessage('')
+            setPendingArticle(article)
+          }}
+        />
+      )}
+      {pendingArticle && (
+        <ArticleEntryDialog
+          article={pendingArticle}
+          mode="purchase"
+          initialQuantity={quantity}
+          initialPrice={
+            costEdited && unitCost.trim() ? Number(unitCost) : numberValue(pendingArticle.costo)
+          }
+          message={message}
+          onCancel={() => {
+            setPendingArticle(null)
+            setMessage('')
+          }}
+          onConfirm={(values) => {
+            if (
+              purchaseFormRef.current &&
+              addLine(purchaseFormRef.current, pendingArticle, values)
+            ) {
+              setPendingArticle(null)
               setArticlePickerOpen(false)
+            }
           }}
         />
       )}
@@ -176,12 +296,28 @@ export function PurchasesPage() {
           <button
             className="primary-button"
             type="button"
-            onClick={() => {
-              setOpen((value) => {
-                if (!value) setPaymentType('CONTADO')
-                return !value
-              })
+            disabled={busy}
+            onClick={async () => {
               setMessage('')
+              if (open) {
+                setOpen(false)
+                return
+              }
+              setBusy(true)
+              try {
+                const response = await apiFetch('/api/v1/operations/purchases/default-supplier', {
+                  method: 'POST',
+                })
+                if (!response.ok)
+                  throw new Error('No se pudo preparar el proveedor predeterminado.')
+                setSupplier((await response.json()) as ApiRow)
+                setSupplierVersion(0)
+                setOpen(true)
+              } catch (error) {
+                setMessage(error instanceof Error ? error.message : 'No se pudo abrir la carga.')
+              } finally {
+                setBusy(false)
+              }
             }}
           >
             {open ? 'Cerrar' : '＋ Cargar factura'}
@@ -193,6 +329,11 @@ export function PurchasesPage() {
               <label>
                 Proveedor
                 <LookupField
+                  searchOnly
+                  key={supplierVersion}
+                  initialRecord={supplier}
+                  autoFocus={supplierVersion === 0}
+                  onEnter={() => setSupplierPickerOpen(true)}
                   name="supplierId"
                   label="Proveedor"
                   endpoint="/api/v1/alon/lookups/suppliers"
@@ -200,7 +341,7 @@ export function PurchasesPage() {
               </label>
               <label>
                 Tipo de comprobante
-                <select name="documentType" required defaultValue="">
+                <select name="documentType" required defaultValue="REMITO">
                   <option value="" disabled>
                     Seleccionar…
                   </option>
@@ -243,7 +384,7 @@ export function PurchasesPage() {
                   label="Artículo"
                   endpoint="/api/v1/alon/articles"
                   required={false}
-                  autoFocus
+                  autoFocus={searchVersion > 0}
                   onSelect={setSelectedArticle}
                 />
               </label>
@@ -336,43 +477,6 @@ export function PurchasesPage() {
                 onChange={(event) => setExtraCosts(event.target.value)}
               />
             </label>
-            <label>
-              Medio de pago
-              <select name="paymentMethod" defaultValue="EFECTIVO">
-                <option value="EFECTIVO">Efectivo</option>
-                <option value="TRANSFERENCIA">Transferencia</option>
-                <option value="MERCADO_PAGO">Mercado Pago</option>
-              </select>
-            </label>
-            <fieldset className="purchase-payment-type">
-              <legend>Condición de pago</legend>
-              <label className="entry-checkbox-label">
-                <input
-                  type="checkbox"
-                  name="paymentType"
-                  value="CONTADO"
-                  checked={paymentType === 'CONTADO'}
-                  onChange={() => setPaymentType('CONTADO')}
-                />
-                <span>Contado</span>
-              </label>
-              <label className="entry-checkbox-label">
-                <input
-                  type="checkbox"
-                  name="paymentType"
-                  value="CUENTA_CORRIENTE"
-                  checked={paymentType === 'CUENTA_CORRIENTE'}
-                  onChange={() => setPaymentType('CUENTA_CORRIENTE')}
-                />
-                <span>Cuenta corriente</span>
-              </label>
-            </fieldset>
-            {paymentType === 'CUENTA_CORRIENTE' && (
-              <label>
-                Importe pagado
-                <input name="paid" type="number" min="0" step="0.01" defaultValue="0" />
-              </label>
-            )}
             {lines.length > 0 && (
               <div className="purchase-total">
                 Total estimado de la factura <strong>{currency.format(invoiceTotal)}</strong>
@@ -422,6 +526,23 @@ export function PurchasesPage() {
           { key: 'subtotal', label: 'SUBTOTAL', money: true },
           { key: 'gastos_adicionales', label: 'GASTOS EXTRA', money: true },
           { key: 'total', label: 'TOTAL', money: true },
+          {
+            key: 'condicion_pago',
+            label: 'CONDICIÓN',
+            render: (row) => {
+              const condition = textValue(row.condicion_pago)
+              return condition === 'EFECTIVO'
+                ? 'CONTADO'
+                : condition === 'EFECTIVO_CAJA' || condition === 'CONTADO'
+                  ? 'CONTADO DE CAJA'
+                  : condition.replaceAll('_', ' ')
+            },
+          },
+          {
+            key: 'medio_pago',
+            label: 'MEDIO DE PAGO',
+            render: (row) => textValue(row.medio_pago).replaceAll('_', ' '),
+          },
           { key: 'pagado', label: 'PAGADO', money: true },
           { key: 'saldo', label: 'SALDO', money: true },
         ]}
@@ -432,6 +553,7 @@ export function PurchasesPage() {
   )
 }
 
+/** Carga el detalle de una compra guardada y ofrece su corrección con los renglones y totales actuales. */
 export function PurchaseReceipt({
   purchaseId,
   onBack,
@@ -446,6 +568,7 @@ export function PurchaseReceipt({
   const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  /** Consulta de nuevo la cabecera y los renglones del comprobante y prepara los valores del formulario de corrección. */
   const loadPurchase = useCallback(
     () =>
       apiFetch(`/api/v1/alon/purchases/${purchaseId}`)
@@ -474,6 +597,7 @@ export function PurchaseReceipt({
   useEffect(() => {
     void loadPurchase()
   }, [loadPurchase])
+  /** Valida y envía la corrección de una compra guardada, vuelve a cargar su comprobante e informa el resultado. */
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!purchase) return
@@ -505,8 +629,8 @@ export function PurchaseReceipt({
           })),
           extraCosts: Number(values.get('extraCosts') ?? 0),
           paid: numberValue(purchase.pagado),
-          paymentType: 'CUENTA_CORRIENTE',
-          paymentMethod: 'EFECTIVO',
+          paymentType: textValue(purchase.condicion_pago) || 'CONTADO',
+          paymentMethod: textValue(purchase.medio_pago) || 'EFECTIVO',
         }),
       })
       const result = (await response.json().catch(() => ({}))) as {

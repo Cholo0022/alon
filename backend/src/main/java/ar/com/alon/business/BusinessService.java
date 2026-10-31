@@ -17,6 +17,10 @@ public class BusinessService {
     private final RequestIdentity identity;
     private final AuditLog audit;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para la lectura y modificación de identidad del
+     * comercio.
+     */
     public BusinessService(JdbcTemplate jdbc, RequestIdentity identity, AuditLog audit) {
         this.jdbc = jdbc;
         this.identity = identity;
@@ -30,16 +34,22 @@ public class BusinessService {
             @NotBlank @Pattern(regexp = "#[0-9a-fA-F]{6}") String secondaryColor,
             @NotBlank @Pattern(regexp = "#[0-9a-fA-F]{6}") String backgroundColor) {}
 
+    /** Consulta nombre, slogan y colores del comercio autenticado. */
     public Map<String, Object> current() {
         return read(identity.storeId());
     }
 
+    /** Lee la identidad visual del comercio indicado para gestión o para la tienda pública. */
     public Map<String, Object> read(long storeId) {
         return jdbc.queryForMap(
                 "SELECT nombre,slogan,color_principal,color_secundario,color_fondo FROM comercios WHERE id=?",
                 storeId);
     }
 
+    /**
+     * Exige rol dueño, bloquea el comercio y actualiza su identidad y colores dejando auditoría de
+     * los valores anteriores y nuevos.
+     */
     @Transactional
     public Map<String, Object> update(Input input) {
         if (!"DUENO".equals(identity.user().get("rol")))

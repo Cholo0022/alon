@@ -2,6 +2,7 @@
 let csrf = ''
 let loading: Promise<void> | undefined
 
+/** Realiza solicitudes de la tienda con sesión y CSRF, interpreta la respuesta JSON y convierte respuestas fallidas en errores. */
 export async function shopRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const mutation = options.method && options.method !== 'GET'
   if (mutation && !csrf) {

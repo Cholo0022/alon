@@ -9,6 +9,7 @@ type Preview = {
   expectedHash: string
   sample: { id: number; name: string; previousPrice: number; newPrice: number }[]
 }
+/** Gestiona la vista previa y aplicación de aumentos por rubro, evitando aplicar una simulación que quedó desactualizada. */
 export function CategoryPricePanel() {
   const categories = useApiRows('/api/v1/alon/categories')
   const [open, setOpen] = useState(false)
@@ -18,11 +19,13 @@ export function CategoryPricePanel() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const requestVersion = useRef(0)
+  /** Descarta la simulación anterior e invalida respuestas en curso cuando cambia el rubro o el porcentaje. */
   const invalidate = () => {
     requestVersion.current++
     setPreview(null)
     setMessage('')
   }
+  /** Solicita la simulación o confirma el aumento con su huella de validación; ignora respuestas anteriores e informa conflictos. */
   const request = async (apply: boolean) => {
     if (busy) return
     const current = ++requestVersion.current
@@ -63,6 +66,7 @@ export function CategoryPricePanel() {
       setBusy(false)
     }
   }
+  /** Evita el envío nativo del formulario y solicita una nueva vista previa del aumento. */
   const submit = (event: FormEvent) => {
     event.preventDefault()
     void request(false)

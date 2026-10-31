@@ -1,3 +1,4 @@
+import { PaymentConfirmation, type PaymentSelection } from '../components/PaymentConfirmation'
 import { useTransactionEntry } from '../hooks/useTransactionEntry'
 // Reúne los artículos de la venta y la guarda completa cuando el usuario confirma.
 import { QuantityInput } from '../components/QuantityInput'
@@ -9,7 +10,9 @@ import { LookupField } from '../components/LookupField'
 import { DateTextInput } from '../components/Forms'
 import { ApiTable } from '../components/ApiTable'
 import { ArticlePicker } from '../components/ArticlePicker'
+import { ArticleEntryDialog, type ArticleEntryValues } from '../components/ArticleEntryDialog'
 
+/** Informa si la fecha de venta tiene caja abierta y ofrece ir a Caja cuando hace falta abrirla. */
 export function CashStatusNotice({ onOpenCash }: { onOpenCash: () => void }) {
   const [status, setStatus] = useState<ApiRow | null>(null)
   useEffect(() => {
@@ -35,6 +38,7 @@ export function CashStatusNotice({ onOpenCash }: { onOpenCash: () => void }) {
   )
 }
 
+/** Gestiona el borrador de venta, sus artículos y descuentos, la confirmación de cobro y el historial con anulaciones. */
 export function SalesPage({
   onOpenCash,
   canDiscount = false,
@@ -42,6 +46,9 @@ export function SalesPage({
   onOpenCash: () => void
   canDiscount?: boolean
 }) {
+  const [paymentOpen, setPaymentOpen] = useState(false)
+  const [paymentPartyName, setPaymentPartyName] = useState('')
+  const [pendingArticle, setPendingArticle] = useState<ApiRow | null>(null)
   const [articlePickerOpen, setArticlePickerOpen] = useState(false)
   const [selectedArticle, setSelectedArticle] = useState<ApiRow | null>(null)
   const [open, setOpen] = useState(false)
@@ -64,21 +71,27 @@ export function SalesPage({
   useTransactionEntry(saleFormRef, open, searchVersion)
   useEffect(() => {
     if (!open) return
+    /** Abre la confirmación de venta con Ctrl+G si no hay una operación o diálogo en curso. */
     const onShortcut = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key.toLowerCase() === 'g') {
         event.preventDefault()
-        if (!busy && !articlePickerOpen) saleFormRef.current?.requestSubmit()
+        if (!busy && !articlePickerOpen && !paymentOpen) saleFormRef.current?.requestSubmit()
       }
     }
     window.addEventListener('keydown', onShortcut)
     return () => window.removeEventListener('keydown', onShortcut)
-  }, [open, busy, articlePickerOpen])
+  }, [open, busy, articlePickerOpen, paymentOpen])
   // Agrega el artículo a la venta en pantalla; todavía no guarda ni descuenta stock.
-  const addLine = (form: HTMLFormElement, pickedArticle?: ApiRow) => {
+  /** Valida artículo, cantidad, descuento y stock disponible y agrega el renglón al borrador de venta. */
+  const addLine = (
+    form: HTMLFormElement,
+    pickedArticle?: ApiRow,
+    entryValues?: ArticleEntryValues,
+  ) => {
     const articleId = pickedArticle
       ? numberValue(pickedArticle.id)
       : Number(form.querySelector<HTMLInputElement>('input[name="articleId"]')?.value ?? 0)
-    const quantityValue = Number(quantity)
+    const quantityValue = entryValues?.quantity ?? Number(quantity)
     const discountValue = Number(discountPercent)
     const article = pickedArticle ?? selectedArticle
     if (!article || numberValue(article.id) !== articleId) {
@@ -92,7 +105,10 @@ export function SalesPage({
     const alreadyAdded = lines
       .filter((line) => line.articleId === articleId)
       .reduce((sum, line) => sum + line.quantity, 0)
-    if (alreadyAdded + quantityValue > numberValue(article.stock)) {
+    if (
+      Math.round((alreadyAdded + quantityValue) * 1000) >
+      Math.round(numberValue(article.stock) * 1000)
+    ) {
       setMessage('La cantidad supera el stock disponible de ' + textValue(article.nombre) + '.')
       return false
     }
@@ -114,17 +130,34 @@ export function SalesPage({
     return true
   }
   // Envía todos los renglones juntos cuando el usuario elige guardar la venta.
-  const submitSale = async (event: FormEvent<HTMLFormElement>) => {
+  /** Comprueba artículos y fecha y abre el diálogo para elegir tipo de venta y medio de pago antes de guardar. */
+  const submitSale = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (lines.length === 0) {
-      setMessage('Ingresá al menos un artículo antes de guardar la venta.')
+    if (busy || articlePickerOpen || paymentOpen) return
+    if (!lines.length) {
+      setMessage('Ingresá al menos un artículo antes de guardar.')
       return
     }
-    const formElement = event.currentTarget
+    const date = dateDisplayToIso(new FormData(event.currentTarget).get('date'))
+    if (!date) {
+      setMessage('Ingresá una fecha válida con el formato dd/mm/aaaa.')
+      return
+    }
+    setPaymentPartyName(
+      event.currentTarget.querySelector<HTMLInputElement>('[role="combobox"][aria-label="Cliente"]')
+        ?.value ?? '',
+    )
+    setMessage('')
+    setPaymentOpen(true)
+  }
+  /** Envía la venta con la condición elegida y vacía el borrador únicamente cuando el servidor confirma su registro. */
+  const confirmSale = async (selection: PaymentSelection) => {
+    const formElement = saleFormRef.current
+    if (busy || !formElement) return
     const values = new FormData(formElement)
     const date = dateDisplayToIso(values.get('date'))
     if (!date) {
-      setMessage('Ingresá una fecha válida con el formato dd/mm/aaaa.')
+      setMessage('Ingresá una fecha válida.')
       return
     }
     setBusy(true)
@@ -136,8 +169,8 @@ export function SalesPage({
         body: JSON.stringify({
           customerId: Number(values.get('customerId')),
           date,
-          saleType: values.get('saleType'),
-          paymentMethod: values.get('paymentMethod'),
+          saleType: selection.condition,
+          paymentMethod: selection.paymentMethod,
           lines: lines.map(({ articleId, quantity, discountPercent }) => ({
             articleId,
             quantity,
@@ -147,6 +180,7 @@ export function SalesPage({
       })
       const result = (await response.json().catch(() => ({}))) as { error?: string }
       if (!response.ok) throw new Error(result.error ?? 'No se pudo guardar la venta.')
+      setPaymentOpen(false)
       window.dispatchEvent(new Event('alon:refresh'))
       setMessage('Venta guardada correctamente con ' + lines.length + ' artículos.')
       setLines([])
@@ -159,6 +193,7 @@ export function SalesPage({
       setBusy(false)
     }
   }
+  /** Pide confirmación de anulación, solicita el reverso de venta y actualiza stock, caja y listados al completarse. */
   const cancelSale = async (row: ApiRow) => {
     const saleId = numberValue(row.id)
     if (!saleId || textValue(row.estado) !== 'CONFIRMADA') return
@@ -198,9 +233,30 @@ export function SalesPage({
   )
   return (
     <>
+      {paymentOpen && (
+        <PaymentConfirmation
+          mode="sale"
+          total={saleTotal}
+          partyName={paymentPartyName}
+          busy={busy}
+          message={message}
+          onChange={() => setMessage('')}
+          onCancel={() => {
+            if (!busy) {
+              setPaymentOpen(false)
+              setMessage('')
+              saleFormRef.current
+                ?.querySelector<HTMLButtonElement>('button[type="submit"]')
+                ?.focus()
+            }
+          }}
+          onConfirm={(selection) => void confirmSale(selection)}
+        />
+      )}
       {articlePickerOpen && (
         <ArticlePicker
           message={message}
+          suspended={!!pendingArticle}
           onClose={() => {
             setArticlePickerOpen(false)
             saleFormRef.current
@@ -208,8 +264,37 @@ export function SalesPage({
               ?.focus()
           }}
           onChoose={(article) => {
-            if (saleFormRef.current && addLine(saleFormRef.current, article))
+            setMessage('')
+            setPendingArticle(article)
+          }}
+        />
+      )}
+      {pendingArticle && (
+        <ArticleEntryDialog
+          article={pendingArticle}
+          mode="sale"
+          initialQuantity={quantity}
+          initialPrice={numberValue(pendingArticle.precio_venta)}
+          maxQuantity={Math.max(
+            0,
+            Math.round(
+              (numberValue(pendingArticle.stock) -
+                lines
+                  .filter((line) => line.articleId === numberValue(pendingArticle.id))
+                  .reduce((sum, line) => sum + line.quantity, 0)) *
+                1000,
+            ) / 1000,
+          )}
+          message={message}
+          onCancel={() => {
+            setPendingArticle(null)
+            setMessage('')
+          }}
+          onConfirm={(values) => {
+            if (saleFormRef.current && addLine(saleFormRef.current, pendingArticle, values)) {
+              setPendingArticle(null)
               setArticlePickerOpen(false)
+            }
           }}
         />
       )}
@@ -246,22 +331,6 @@ export function SalesPage({
               <label>
                 Fecha
                 <DateTextInput name="date" />
-              </label>
-              <label>
-                Tipo de venta
-                <select name="saleType" defaultValue="CONTADO">
-                  <option value="CONTADO">Contado</option>
-                  <option value="CUENTA_CORRIENTE">Cuenta corriente</option>
-                </select>
-              </label>
-              <label>
-                Medio de pago
-                <select name="paymentMethod" defaultValue="EFECTIVO">
-                  <option value="EFECTIVO">Efectivo</option>
-                  <option value="TRANSFERENCIA">Transferencia</option>
-                  <option value="MERCADO_PAGO">Mercado Pago</option>
-                  <option value="CUENTA_CORRIENTE">Cuenta corriente</option>
-                </select>
               </label>
             </div>
             <div className="transaction-article-entry">

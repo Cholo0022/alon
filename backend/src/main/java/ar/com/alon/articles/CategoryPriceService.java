@@ -21,6 +21,10 @@ public class CategoryPriceService {
     private final RequestIdentity identity;
     private final AuditLog audit;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para los aumentos por rubro con control de
+     * concurrencia y auditoría.
+     */
     public CategoryPriceService(JdbcTemplate jdbc, RequestIdentity identity, AuditLog audit) {
         this.jdbc = jdbc;
         this.identity = identity;
@@ -33,6 +37,10 @@ public class CategoryPriceService {
                     BigDecimal percent,
             @Pattern(regexp = "[a-f0-9]{64}") String expectedHash) {}
 
+    /**
+     * Valida el porcentaje de aumento, lo aplica al precio actual y respeta el redondeo individual
+     * y la precisión monetaria.
+     */
     public static BigDecimal increasedPrice(BigDecimal price, BigDecimal percent, boolean round) {
         if (percent == null
                 || percent.compareTo(new BigDecimal("0.01")) < 0
@@ -50,6 +58,10 @@ public class CategoryPriceService {
         return DecimalRules.money(result, "El precio supera el máximo permitido.");
     }
 
+    /**
+     * Valida permisos y rubro y prepara los precios anteriores y nuevos de sus artículos activos;
+     * puede bloquearlos al confirmar.
+     */
     private List<Map<String, Object>> changes(Input input, boolean lock) {
         identity.require("articulos");
         if (!identity.permits("compras")) identity.require("costos");
@@ -92,6 +104,10 @@ public class CategoryPriceService {
         return result;
     }
 
+    /**
+     * Calcula una huella de rubro, porcentaje y precios para detectar cambios entre la vista previa
+     * y la aplicación del aumento.
+     */
     private String hash(Input input, List<Map<String, Object>> rows) {
         try {
             var digest = MessageDigest.getInstance("SHA-256");
@@ -119,6 +135,10 @@ public class CategoryPriceService {
         }
     }
 
+    /**
+     * Devuelve cantidad de artículos, hasta diez ejemplos y la huella con la que deberá confirmarse
+     * el aumento.
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> preview(Input input) {
         var rows = changes(input, false);
@@ -131,6 +151,10 @@ public class CategoryPriceService {
                 hash(input, rows));
     }
 
+    /**
+     * Verifica que la simulación siga vigente, actualiza los precios de venta del rubro y audita
+     * cada cambio en una transacción.
+     */
     @Transactional
     public Map<String, Object> apply(Input input) {
         jdbc.queryForObject(

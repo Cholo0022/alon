@@ -20,6 +20,7 @@ public class ArticleImageController {
     private final ArticleImageStorage storage;
     private final CommandExecutor commands;
 
+    /** Recibe y conserva las dependencias necesarias para galerías y archivos de imágenes. */
     public ArticleImageController(
             JdbcTemplate jdbc,
             ArticlePhotoService photos,
@@ -35,6 +36,10 @@ public class ArticleImageController {
 
     public record Gallery(@NotNull @Size(max = 4) List<@NotNull @Valid ArticlePhotoInput> photos) {}
 
+    /**
+     * Recibe una portada y reemplaza la galería mediante una operación protegida contra reintentos
+     * duplicados.
+     */
     @PostMapping("/operations/articles/{id}/image")
     public Map<String, Object> upload(@PathVariable long id, @Valid @RequestBody Upload input) {
         return commands.execute(
@@ -51,11 +56,16 @@ public class ArticleImageController {
                 });
     }
 
+    /** Expone la galería del artículo después de validar su acceso en el servicio. */
     @GetMapping("/operations/articles/{id}/images")
     public List<Map<String, Object>> list(@PathVariable long id) {
         return photos.list(id);
     }
 
+    /**
+     * Recibe la galería completa y solicita su reemplazo con una clave de operación para evitar
+     * duplicados.
+     */
     @PutMapping("/operations/articles/{id}/images")
     public Map<String, Object> replace(@PathVariable long id, @Valid @RequestBody Gallery input) {
         return commands.execute(
@@ -64,6 +74,7 @@ public class ArticleImageController {
                 () -> Map.of("photos", photos.replace(id, input.photos())));
     }
 
+    /** Sirve un archivo PNG solo si la clave es válida y sigue vinculada a un artículo activo. */
     @GetMapping("/shop/images/{key}")
     public ResponseEntity<byte[]> image(@PathVariable String key) throws IOException {
         if (!key.matches("[a-f0-9-]{36}\\.png"))

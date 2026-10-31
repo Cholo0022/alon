@@ -3,6 +3,7 @@ import { useRef, type InputHTMLAttributes } from 'react'
 import './quantity-input.css'
 
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'step'> & { label?: string }
+/** Combina la entrada numérica de cantidad con controles para aumentar o disminuir su valor sin perder precisión decimal. */
 export function QuantityInput({
   label = 'Cantidad',
   onChange,
@@ -12,6 +13,7 @@ export function QuantityInput({
   ...props
 }: Props) {
   const input = useRef<HTMLInputElement>(null)
+  /** Ajusta la cantidad en una unidad respetando límites y bloqueo del campo, y emite el cambio para actualizar React. */
   const move = (direction: number) => {
     const field = input.current
     if (!field || disabled || readOnly) return

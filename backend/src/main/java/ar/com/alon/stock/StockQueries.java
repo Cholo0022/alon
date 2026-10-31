@@ -16,6 +16,7 @@ public class StockQueries {
     private final Clock clock;
     private final ReadPage pages;
 
+    /** Recibe y conserva las dependencias necesarias para el historial de movimientos de stock. */
     public StockQueries(JdbcTemplate jdbc, RequestIdentity identity, Clock clock) {
         this.jdbc = jdbc;
         this.identity = identity;
@@ -23,6 +24,7 @@ public class StockQueries {
         this.pages = new ReadPage(jdbc);
     }
 
+    /** Consulta movimientos de stock del comercio con artículo, referencia y autor. */
     public List<Map<String, Object>> stockMovements() {
         return pages.query(
                 "a.codigo,a.nombre,m.referencia",

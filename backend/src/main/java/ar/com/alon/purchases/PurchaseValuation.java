@@ -8,12 +8,18 @@ import java.util.List;
 
 /** Reparte todos los centavos y deja la diferencia de redondeo en el último renglón. */
 public final class PurchaseValuation {
+
+    /** Impide instanciar esta clase de cálculos estáticos. */
     private PurchaseValuation() {}
 
     public record Line(long articleId, BigDecimal quantity, BigDecimal value) {}
 
     public record ValuedLine(long articleId, BigDecimal quantity, BigDecimal value) {}
 
+    /**
+     * Reparte gastos adicionales según el valor de los renglones o su cantidad si no tienen valor;
+     * asigna el resto al último para conservar el total.
+     */
     public static List<ValuedLine> allocate(List<Line> lines, BigDecimal extras) {
         BigDecimal subtotal =
                 lines.stream().map(Line::value).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -40,6 +46,10 @@ public final class PurchaseValuation {
         return List.copyOf(result);
     }
 
+    /**
+     * Reconstruye el costo ponderado al sustituir una compra anterior y rechaza cantidades o
+     * valores que ya no se puedan reconstruir.
+     */
     public static BigDecimal revisedCost(
             BigDecimal stock,
             BigDecimal cost,

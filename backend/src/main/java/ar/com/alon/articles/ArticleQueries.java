@@ -16,6 +16,10 @@ public class ArticleQueries {
     private final Clock clock;
     private final ReadPage pages;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para las consultas de catálogo con permisos y
+     * paginación.
+     */
     public ArticleQueries(JdbcTemplate jdbc, RequestIdentity identity, Clock clock) {
         this.jdbc = jdbc;
         this.identity = identity;
@@ -23,10 +27,18 @@ public class ArticleQueries {
         this.pages = new ReadPage(jdbc);
     }
 
+    /**
+     * Consulta artículos del comercio, con búsqueda, paginación y datos visibles según los
+     * permisos.
+     */
     public List<Map<String, Object>> articles(String role, boolean inactive) {
         return articles(role, inactive, "");
     }
 
+    /**
+     * Consulta artículos del comercio, con búsqueda, paginación y datos visibles según los
+     * permisos.
+     */
     public List<Map<String, Object>> articles(String role, boolean inactive, String category) {
         if (category.length() > 90)
             throw new IllegalArgumentException("El rubro solicitado no es válido.");

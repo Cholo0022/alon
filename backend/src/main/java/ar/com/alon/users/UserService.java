@@ -44,6 +44,10 @@ public class UserService {
             Set.of("ventas", "clientes", "caja", "tienda");
     private final JdbcTemplate jdbc;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para las cuentas, permisos y derivación de
+     * contraseñas del comercio.
+     */
     public UserService(
             JdbcTemplate jdbc,
             PasswordHasher passwords,
@@ -60,6 +64,11 @@ public class UserService {
 
     // Estas cuentas se crean únicamente si se habilita el perfil local y el comercio no tiene
     // usuarios.
+
+    /**
+     * Crea cuentas locales de prueba únicamente si la opción está habilitada y el comercio aún no
+     * tiene usuarios.
+     */
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void seedLocalAccounts() {
@@ -87,6 +96,9 @@ public class UserService {
                 VENDOR_PERMISSIONS);
     }
 
+    /**
+     * Indica si el comercio inicial carece de usuarios y necesita crear su primera cuenta dueña.
+     */
     public boolean setupRequired() {
         Integer count =
                 jdbc.queryForObject(
@@ -96,6 +108,10 @@ public class UserService {
         return count == null || count == 0;
     }
 
+    /**
+     * Bloquea el comercio inicial y crea el primer dueño solo si aún no existen usuarios
+     * configurados.
+     */
     @Transactional
     public Map<String, Object> setup(Credentials input) {
         lockStore(bootstrapStoreId);
@@ -114,6 +130,10 @@ public class UserService {
                 bootstrapStoreId);
     }
 
+    /**
+     * Verifica comercio, usuario activo y contraseña sin revelar cuentas inexistentes; actualiza
+     * hashes antiguos y devuelve datos de sesión.
+     */
     @Transactional
     public Map<String, Object> authenticate(Credentials input) {
         Long storeId =
@@ -148,6 +168,10 @@ public class UserService {
         return userById(id, storeId);
     }
 
+    /**
+     * Revalida usuario, estado y versión de autenticación contra la base para descartar sesiones
+     * vencidas o revocadas.
+     */
     public Map<String, Object> sessionUser(Map<?, ?> session) {
         if (!(session.get("id") instanceof Number id)
                 || !(session.get("comercio_id") instanceof Number store)) return Map.of();
@@ -164,6 +188,10 @@ public class UserService {
         }
     }
 
+    /**
+     * Consulta usuarios del comercio sin exponer hashes de contraseña y aplica búsqueda y
+     * paginación.
+     */
     public List<Map<String, Object>> users() {
         return new ar.com.alon.shared.persistence.ReadPage(jdbc)
                 .query(
@@ -172,6 +200,10 @@ public class UserService {
                         identity.storeId());
     }
 
+    /**
+     * Valida credenciales, rol y permisos efectivos antes de crear el usuario del comercio con la
+     * contraseña derivada.
+     */
     @Transactional
     public Map<String, Object> createUser(UserInput input) {
         validatePermissions(input.permissions());
@@ -210,6 +242,10 @@ public class UserService {
                 identity.storeId());
     }
 
+    /**
+     * Valida y actualiza credenciales, rol y permisos; protege al último dueño activo y renueva la
+     * versión que invalida sesiones anteriores.
+     */
     @Transactional
     public Map<String, Object> updateUser(long id, UserUpdateInput input) {
         validatePermissions(input.permissions());
@@ -285,6 +321,10 @@ public class UserService {
         return userById(id, identity.storeId());
     }
 
+    /**
+     * Cambia el acceso del usuario y revoca sus sesiones anteriores; impide desactivar al último
+     * dueño o la propia sesión.
+     */
     @Transactional
     public void setActive(long id, boolean active, long currentUserId) {
         lockStore(identity.storeId());
@@ -302,6 +342,10 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No se encontró el usuario.");
     }
 
+    /**
+     * Inserta el usuario con contraseña derivada y permisos serializados y recupera su id dentro
+     * del comercio.
+     */
     private long insert(
             long storeId,
             String username,
@@ -324,6 +368,10 @@ public class UserService {
                 username.trim());
     }
 
+    /**
+     * Consulta un usuario por su identificador y comercio para obtener sus datos y versión de
+     * autenticación.
+     */
     private Map<String, Object> userById(long id, long storeId) {
         return jdbc.queryForMap(
                 "SELECT id,comercio_id,usuario,nombre,rol,permisos,activo,auth_version FROM usuarios WHERE id=? AND comercio_id=?",
@@ -331,10 +379,12 @@ public class UserService {
                 storeId);
     }
 
+    /** Bloquea el comercio para serializar cambios que deben conservar al menos un dueño activo. */
     private void lockStore(long storeId) {
         jdbc.queryForObject("SELECT id FROM comercios WHERE id=? FOR UPDATE", Long.class, storeId);
     }
 
+    /** Rechaza un cambio que dejaría al comercio sin ningún dueño activo. */
     private void preserveOwner(long id) {
         Map<String, Object> user = userById(id, identity.storeId());
         if (!"DUENO".equals(user.get("rol")) || !isActive(user.get("activo"))) return;
@@ -349,6 +399,7 @@ public class UserService {
                     HttpStatus.CONFLICT, "Debe quedar al menos un dueño activo.");
     }
 
+    /** Rechaza permisos desconocidos o nulos dentro de la lista enviada por el formulario. */
     private void validatePermissions(List<String> permissions) {
         if (permissions != null
                 && permissions.stream()
@@ -359,12 +410,19 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Hay permisos no válidos.");
     }
 
+    /**
+     * Exige una contraseña de entre doce y ciento veintiocho caracteres antes de derivarla y
+     * guardarla.
+     */
     private void validatePassword(String password) {
         if (password == null || password.length() < 12 || password.length() > 128)
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "La contraseña debe tener entre 12 y 128 caracteres.");
     }
 
+    /**
+     * Valida formato de usuario, nombre y contraseña para el alta o configuración de una cuenta.
+     */
     private void validate(Credentials c) {
         if (c.username() == null || !c.username().trim().matches("[\\p{L}\\p{N}._-]{3,80}"))
             throw new ResponseStatusException(
@@ -375,6 +433,10 @@ public class UserService {
         validatePassword(c.password());
     }
 
+    /**
+     * Interpreta el indicador de acceso activo tanto si JDBC lo devuelve como booleano como si lo
+     * devuelve como número.
+     */
     private static boolean isActive(Object value) {
         return Boolean.TRUE.equals(value)
                 || value instanceof Number number && number.intValue() != 0;

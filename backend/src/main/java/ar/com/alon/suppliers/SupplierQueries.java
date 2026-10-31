@@ -16,6 +16,7 @@ public class SupplierQueries {
     private final Clock clock;
     private final ReadPage pages;
 
+    /** Recibe y conserva las dependencias necesarias para los proveedores y sus buscadores. */
     public SupplierQueries(JdbcTemplate jdbc, RequestIdentity identity, Clock clock) {
         this.jdbc = jdbc;
         this.identity = identity;
@@ -23,6 +24,9 @@ public class SupplierQueries {
         this.pages = new ReadPage(jdbc);
     }
 
+    /**
+     * Consulta proveedores del comercio filtrados por estado, con identificación y saldo pendiente.
+     */
     public List<Map<String, Object>> suppliers(boolean inactive) {
         return pages.query(
                 "codigo,nombre,telefono,email",
@@ -34,6 +38,7 @@ public class SupplierQueries {
                 inactive ? "INACTIVO" : "ACTIVO");
     }
 
+    /** Consulta proveedores activos con código y nombre para los buscadores. */
     public List<Map<String, Object>> lookupSuppliers() {
         return pages.query(
                 "codigo,nombre",

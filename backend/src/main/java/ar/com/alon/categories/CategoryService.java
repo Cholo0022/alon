@@ -15,11 +15,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CategoryService extends StoreJdbcSupport {
+    /** Recibe y conserva las dependencias necesarias para las reglas de alta de rubros. */
     public CategoryService(
             JdbcTemplate jdbc, RequestIdentity identity, Clock clock, AuditLog audit) {
         super(jdbc, identity, clock, audit);
     }
 
+    /**
+     * Valida que el nombre de rubro no esté repetido en el comercio y crea el registro con un
+     * código propio.
+     */
     @Transactional
     public Map<String, Object> createCategory(CategoryInput input) {
         String name = required(input.name(), "El nombre del rubro es obligatorio.");

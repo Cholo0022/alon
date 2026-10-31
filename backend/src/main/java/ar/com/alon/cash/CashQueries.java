@@ -17,6 +17,7 @@ public class CashQueries {
     private final Clock clock;
     private final ReadPage pages;
 
+    /** Recibe y conserva las dependencias necesarias para el estado e historial de caja. */
     public CashQueries(JdbcTemplate jdbc, RequestIdentity identity, Clock clock) {
         this.jdbc = jdbc;
         this.identity = identity;
@@ -24,6 +25,7 @@ public class CashQueries {
         this.pages = new ReadPage(jdbc);
     }
 
+    /** Consulta estado de la caja de la fecha indicada, priorizando una sesión abierta. */
     public Map<String, Object> cashStatus(LocalDate requestedDate) {
         List<Map<String, Object>> rows =
                 jdbc.queryForList(
@@ -42,10 +44,11 @@ public class CashQueries {
                 rows.getFirst().get("saldo_inicial"));
     }
 
+    /** Consulta historial de sesiones de caja con sus importes, desde el registro más reciente. */
     public List<Map<String, Object>> cash() {
         return pages.query(
                 "fecha",
-                "SELECT * FROM vw_cierre_caja WHERE comercio_id = ? ORDER BY fecha",
+                "SELECT * FROM vw_cierre_caja WHERE comercio_id = ? ORDER BY COALESCE(cerrado_en,abierto_en) DESC, fecha DESC, sesion DESC",
                 identity.storeId());
     }
 }

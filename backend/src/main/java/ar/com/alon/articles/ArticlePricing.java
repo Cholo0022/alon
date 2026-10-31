@@ -4,8 +4,14 @@ package ar.com.alon.articles;
 import java.math.*;
 
 public final class ArticlePricing {
+
+    /** Impide instanciar esta clase de cálculos estáticos. */
     private ArticlePricing() {}
 
+    /**
+     * Calcula el precio desde costo, flete fijo y porcentual y margen; aplica redondeo hacia arriba
+     * a decenas cuando está habilitado.
+     */
     public static BigDecimal calculateSalePrice(
             BigDecimal cost,
             BigDecimal freight,

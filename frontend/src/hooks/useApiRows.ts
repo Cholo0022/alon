@@ -12,6 +12,7 @@ export type PagedRows = ApiRow[] & {
   previous: () => void
 }
 
+/** Carga y pagina registros de una consulta; expone carga, error y navegación y descarta respuestas que ya no corresponden a la búsqueda actual. */
 export function useApiRows(endpoint: string): PagedRows {
   const [position, setPosition] = useState({ endpoint, page: 0 })
   const page = position.endpoint === endpoint ? position.page : 0
@@ -24,6 +25,7 @@ export function useApiRows(endpoint: string): PagedRows {
     let controller = new AbortController()
     // El número de solicitud permite ignorar una respuesta vieja que llegue tarde.
     let sequence = 0
+    /** Cancela la solicitud anterior, consulta la página actual y guarda únicamente la respuesta más reciente que siga vigente. */
     const load = async () => {
       controller.abort()
       controller = new AbortController()
@@ -40,6 +42,7 @@ export function useApiRows(endpoint: string): PagedRows {
           setResult({ url: requestUrl, rows: [], error: true })
       }
     }
+    /** Vuelve a cargar la página actual cuando se dispara una actualización del sistema. */
     const refresh = () => {
       void load()
     }

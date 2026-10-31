@@ -20,6 +20,7 @@ export type ApiColumn = {
   render?: (row: ApiRow) => ReactNode
 }
 
+/** Consulta una página de registros y construye una tabla con formatos, estados de carga, paginación y selección opcional de filas. */
 export function ApiTable({
   title,
   endpoint,
@@ -28,10 +29,12 @@ export function ApiTable({
   onRowClick,
   className = '',
   rowClassName,
+  showTitle = true,
 }: {
   className?: string
   rowClassName?: (row: ApiRow) => string | undefined
   title: string
+  showTitle?: boolean
   endpoint: string
   columns: ApiColumn[]
   note?: string
@@ -44,10 +47,12 @@ export function ApiTable({
   return (
     <section className={'directory-panel report-table ' + className}>
       <div className="directory-toolbar">
-        <div>
-          <span className="alon-tag">DATOS DEL COMERCIO</span>
-          <strong>{title}</strong>
-        </div>
+        {showTitle && (
+          <div>
+            <span className="alon-tag">DATOS DEL COMERCIO</span>
+            <strong>{title}</strong>
+          </div>
+        )}
         <span className="row-count">{loading ? 'Cargando…' : `${rows.length} registros`}</span>
       </div>
       {error ? (

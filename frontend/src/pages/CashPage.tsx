@@ -2,6 +2,7 @@
 import { LocalEntryPanel } from '../components/Forms'
 import { ApiTable } from '../components/ApiTable'
 
+/** Organiza apertura, gastos y cierre de caja junto con el historial de sesiones y sus importes. */
 export function CashPage() {
   return (
     <>

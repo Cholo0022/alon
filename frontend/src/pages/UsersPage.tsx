@@ -7,6 +7,7 @@ import { useApiRows, type ApiRow } from '../hooks/useApiRows'
 import { Pagination } from '../components/Pagination'
 import { ApiTable } from '../components/ApiTable'
 
+/** Permite administrar usuarios, roles, permisos y estados de acceso del comercio. */
 export function UsersPage() {
   const users = useApiRows('/api/v1/auth/users')
   const [message, setMessage] = useState('')
@@ -21,6 +22,7 @@ export function UsersPage() {
     { id: 'descuentos', label: 'Autorizar descuentos' },
     { id: 'costos', label: 'Ver y modificar costos' },
   ].map(({ id, label }) => ({ id, label }))
+  /** Envía el alta del usuario con su rol y permisos y limpia el formulario cuando el servidor lo crea. */
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const formElement = event.currentTarget
@@ -50,6 +52,7 @@ export function UsersPage() {
       setBusy(false)
     }
   }
+  /** Invierte el estado de acceso del usuario en el servidor y actualiza el listado si se confirma. */
   const toggleActive = async (id: unknown, active: boolean) => {
     const response = await apiFetch(`/api/v1/auth/users/${id}/active`, {
       method: 'PATCH',
@@ -58,6 +61,7 @@ export function UsersPage() {
     })
     if (response.ok) window.dispatchEvent(new Event('alon:refresh'))
   }
+  /** Carga los datos y permisos correspondientes al rol del usuario elegido para preparar su edición. */
   const startEditing = (user: ApiRow) => {
     const currentRole = textValue(user.rol)
     setEditing(user)
@@ -70,6 +74,7 @@ export function UsersPage() {
           : textValue(user.permisos).split(',').filter(Boolean),
     )
   }
+  /** Envía los cambios de usuario, contraseña opcional, rol y permisos e informa si se guardaron. */
   const saveEdit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!editing) return

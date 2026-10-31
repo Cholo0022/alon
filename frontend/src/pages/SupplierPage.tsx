@@ -12,6 +12,7 @@ import { useApiRows, type ApiRow } from '../hooks/useApiRows'
 import { Pagination } from '../components/Pagination'
 import { DateTextInput, LocalEntryPanel, StatusPill } from '../components/Forms'
 
+/** Administra proveedores, sus datos y estados, el listado de deudas y el flujo de pago con recibo imprimible. */
 export function SupplierList() {
   const [query, setQuery] = useState('')
   const [showInactive, setShowInactive] = useState(false)
@@ -50,6 +51,7 @@ export function SupplierList() {
   const owedSuppliers = filtered.filter(
     (supplier) => supplier.balance > 0 && supplier.status === 'Activo',
   )
+  /** Activa o desactiva un proveedor y notifica la actualización del directorio. */
   const setSupplierActive = async (id: number, active: boolean) => {
     const response = await apiFetch(
       `/api/v1/operations/suppliers/${id}/${active ? 'activate' : 'deactivate'}`,
@@ -62,6 +64,7 @@ export function SupplierList() {
     }
     window.dispatchEvent(new Event('alon:refresh'))
   }
+  /** Selecciona al proveedor a pagar, propone su saldo y desplaza la pantalla al formulario del recibo. */
   const startReceipt = (supplier: { id: number; name: string; balance: number }) => {
     setShowDebtList(true)
     setSelectedSupplier(supplier)
@@ -73,6 +76,7 @@ export function SupplierList() {
       60,
     )
   }
+  /** Limpia el recibo y la selección y vuelve al listado de proveedores con saldo pendiente. */
   const finishReceipt = () => {
     setReceipt(null)
     setSelectedSupplier(null)
@@ -84,10 +88,12 @@ export function SupplierList() {
       60,
     )
   }
+  /** Abre la impresión del recibo y luego prepara el flujo para registrar otro pago. */
   const printReceipt = () => {
     window.print()
     finishReceipt()
   }
+  /** Valida fecha e importe, registra el pago al proveedor y muestra el recibo con el saldo restante. */
   const saveReceipt = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!selectedSupplier) return

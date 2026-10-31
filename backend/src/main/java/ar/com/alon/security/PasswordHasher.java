@@ -14,6 +14,10 @@ public class PasswordHasher {
     private static final int ITERATIONS = 600_000;
     private final SecureRandom random = new SecureRandom();
 
+    /**
+     * Genera una sal aleatoria y deriva la contraseña con PBKDF2; guarda algoritmo, iteraciones,
+     * sal y resultado.
+     */
     public String hash(String password) {
         byte[] salt = new byte[16];
         random.nextBytes(salt);
@@ -25,6 +29,10 @@ public class PasswordHasher {
                 + Base64.getEncoder().encodeToString(derive(password, salt, ITERATIONS));
     }
 
+    /**
+     * Valida el formato del hash y compara la contraseña derivada en tiempo constante, aceptando
+     * también el formato anterior.
+     */
     public boolean verify(String password, String stored) {
         if (password == null || password.length() > 128 || stored == null) return false;
         try {
@@ -43,10 +51,18 @@ public class PasswordHasher {
         }
     }
 
+    /**
+     * Indica si el hash guardado usa un formato o cantidad de iteraciones anterior a la
+     * configuración actual.
+     */
     public boolean needsUpgrade(String stored) {
         return !stored.startsWith("pbkdf2$" + ITERATIONS + "$");
     }
 
+    /**
+     * Deriva una clave de 256 bits con PBKDF2-HMAC-SHA256 y limpia de memoria los caracteres
+     * temporales de la contraseña.
+     */
     private byte[] derive(String password, byte[] salt, int iterations) {
         char[] chars = password.toCharArray();
         PBEKeySpec spec = new PBEKeySpec(chars, salt, iterations, 256);

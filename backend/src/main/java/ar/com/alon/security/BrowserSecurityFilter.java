@@ -17,6 +17,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class BrowserSecurityFilter extends OncePerRequestFilter {
+    /**
+     * Obtiene o crea en la sesión un token CSRF, sincronizando su generación para solicitudes
+     * simultáneas.
+     */
     public static String token(HttpServletRequest request) {
         var session = request.getSession(true);
         synchronized (session) {
@@ -26,6 +30,10 @@ public class BrowserSecurityFilter extends OncePerRequestFilter {
         }
     }
 
+    /**
+     * Agrega encabezados de seguridad y evita caché en la API; exige un token CSRF válido para
+     * solicitudes que modifican datos.
+     */
     @Override
     protected void doFilterInternal(
             HttpServletRequest request, HttpServletResponse response, FilterChain chain)

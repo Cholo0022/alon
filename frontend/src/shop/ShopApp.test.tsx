@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ShopApp from './ShopApp'
 import { shopRequest } from './api'
@@ -49,6 +49,7 @@ it('requires choosing a payment method before submitting', async () => {
   await user.click(
     await screen.findByRole('button', { name: '+ Agregar al carrito' }, { timeout: 10000 }),
   )
+  await user.click(screen.getByRole('button', { name: 'Agregar cantidad al carrito' }))
   await user.click(screen.getByRole('button', { name: 'Enviar pedido →' }))
   expect(screen.getByRole('alert').textContent).toContain('Elegí un medio de pago')
   expect(request.mock.calls.some(([path]) => path === '/orders')).toBe(false)
@@ -63,6 +64,7 @@ it('requires login before submitting an order', async () => {
   const user = userEvent.setup()
   render(<ShopApp />)
   await user.click(await screen.findByRole('button', { name: '+ Agregar al carrito' }))
+  await user.click(screen.getByRole('button', { name: 'Agregar cantidad al carrito' }))
   await user.selectOptions(screen.getByRole('combobox', { name: 'Medio de pago' }), 'EFECTIVO')
   await user.click(screen.getByRole('button', { name: 'Enviar pedido →' }))
   expect(screen.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeTruthy()
@@ -79,6 +81,7 @@ it('requires reviewing a changed price before placing the order', async () => {
   const user = userEvent.setup()
   render(<ShopApp />)
   await user.click(await screen.findByRole('button', { name: '+ Agregar al carrito' }))
+  await user.click(screen.getByRole('button', { name: 'Agregar cantidad al carrito' }))
   await user.selectOptions(screen.getByRole('combobox', { name: 'Medio de pago' }), 'EFECTIVO')
   await user.click(screen.getByRole('button', { name: 'Enviar pedido →' }))
   await waitFor(() =>
@@ -100,6 +103,7 @@ it('reuses the operation key when retrying after a lost response', async () => {
   const user = userEvent.setup()
   const view = render(<ShopApp />)
   await user.click(await screen.findByRole('button', { name: '+ Agregar al carrito' }))
+  await user.click(screen.getByRole('button', { name: 'Agregar cantidad al carrito' }))
   await user.selectOptions(screen.getByRole('combobox', { name: 'Medio de pago' }), 'EFECTIVO')
   await user.click(screen.getByRole('button', { name: 'Enviar pedido →' }))
   await screen.findByText('Respuesta perdida')
@@ -184,4 +188,79 @@ it('uses the business identity and refreshes it when a saved brand is announced'
   expect(
     (container.firstElementChild as HTMLElement).style.getPropertyValue('--business-primary'),
   ).toBe('#114477')
+})
+
+it('asks for quantity before adding, accumulates decimal amounts and respects remaining stock', async () => {
+  const user = userEvent.setup()
+  render(<ShopApp />)
+  const add = await screen.findByRole(
+    'button',
+    { name: '+ Agregar al carrito' },
+    { timeout: 10000 },
+  )
+  await user.click(add)
+  let dialog = screen.getByRole('dialog', { name: 'Cantidad para agregar al carrito' })
+  expect(screen.getByText('Elegí productos para empezar tu pedido.')).toBeTruthy()
+  let input = within(dialog).getByRole('spinbutton', { name: 'Cantidad' })
+  expect(document.activeElement).toBe(input)
+  await user.clear(input)
+  await user.type(input, '2.5')
+  await user.keyboard('{Enter}')
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect((screen.getByRole('spinbutton', { name: 'Cantidad' }) as HTMLInputElement).value).toBe(
+    '2.5',
+  )
+  await user.click(add)
+  dialog = screen.getByRole('dialog')
+  input = within(dialog).getByRole('spinbutton', { name: 'Cantidad' })
+  expect(input.getAttribute('max')).toBe('2.5')
+  await user.clear(input)
+  await user.type(input, '3')
+  await user.click(within(dialog).getByRole('button', { name: 'Agregar cantidad al carrito' }))
+  expect(screen.getByRole('dialog')).toBeTruthy()
+  expect(JSON.parse(localStorage.getItem('alon-shop-cart')!)[0].quantity).toBe(2.5)
+  await user.clear(input)
+  await user.type(input, '2.5')
+  await user.click(within(dialog).getByRole('button', { name: 'Agregar cantidad al carrito' }))
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect((add as HTMLButtonElement).disabled).toBe(true)
+  expect(JSON.parse(localStorage.getItem('alon-shop-cart')!)[0].quantity).toBe(5)
+})
+
+it('cancels the quantity dialog without changing the cart', async () => {
+  const user = userEvent.setup()
+  render(<ShopApp />)
+  const add = await screen.findByRole(
+    'button',
+    { name: '+ Agregar al carrito' },
+    { timeout: 10000 },
+  )
+  await user.click(add)
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(screen.getByText('Elegí productos para empezar tu pedido.')).toBeTruthy()
+  expect(document.activeElement).toBe(add)
+})
+
+it('rounds fractional stock remaining before proposing the quantity', async () => {
+  const fractional = { ...product, stock: 0.3 }
+  localStorage.setItem('alon-shop-cart', JSON.stringify([{ ...fractional, quantity: 0.1 }]))
+  const implementation = request.getMockImplementation()!
+  request.mockImplementation(async (path, options) =>
+    path.startsWith('/catalog')
+      ? { items: [fractional], total: 1, categories: [], store: { nombre: 'Comercio' } }
+      : implementation(path, options),
+  )
+  const user = userEvent.setup()
+  render(<ShopApp />)
+  await user.click(
+    await screen.findByRole('button', { name: '+ Agregar al carrito' }, { timeout: 10000 }),
+  )
+  const dialog = screen.getByRole('dialog')
+  expect(
+    (within(dialog).getByRole('spinbutton', { name: 'Cantidad' }) as HTMLInputElement).value,
+  ).toBe('0.2')
+  await user.click(within(dialog).getByRole('button', { name: 'Agregar cantidad al carrito' }))
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(JSON.parse(localStorage.getItem('alon-shop-cart')!)[0].quantity).toBe(0.3)
 })

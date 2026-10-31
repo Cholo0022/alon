@@ -15,10 +15,18 @@ public class LoginThrottle {
     private final ConcurrentHashMap<String, Window> windows = new ConcurrentHashMap<>();
     private final Clock clock;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para el reloj de las ventanas de intentos de
+     * acceso.
+     */
     public LoginThrottle(Clock clock) {
         this.clock = clock;
     }
 
+    /**
+     * Registra intentos de acceso por dirección, limpia ventanas vencidas y bloquea el exceso de
+     * intentos dentro de quince minutos.
+     */
     public synchronized void check(String address) {
         long now = clock.millis();
         windows.entrySet().removeIf(entry -> now - entry.getValue().start() >= 900_000);
@@ -28,6 +36,9 @@ public class LoginThrottle {
         windows.put(address, new Window(window.start(), window.attempts() + 1));
     }
 
+    /**
+     * Interrumpe el acceso con estado 429 e indica que debe esperarse antes de intentar nuevamente.
+     */
     private void reject() {
         throw new ResponseStatusException(
                 HttpStatus.TOO_MANY_REQUESTS,

@@ -24,6 +24,10 @@ public class PurchaseService extends StoreJdbcSupport {
     private final CashLedger cashLedger;
     private final StockRepository stock;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para las compras, costos, stock y pagos de
+     * proveedores.
+     */
     public PurchaseService(
             JdbcTemplate jdbc,
             RequestIdentity identity,
@@ -36,6 +40,48 @@ public class PurchaseService extends StoreJdbcSupport {
         this.cashLedger = cashLedger;
     }
 
+    /**
+     * Devuelve el proveedor activo sin nombre del comercio o lo crea bajo bloqueo para evitar
+     * duplicados concurrentes.
+     */
+    @Transactional
+    public Map<String, Object> defaultSupplier() {
+        // Serializa la creación para evitar duplicados por comercio.
+        jdbc.queryForObject(
+                "SELECT id FROM comercios WHERE id=? FOR UPDATE", Long.class, identity.storeId());
+        var rows =
+                jdbc.queryForList(
+                        "SELECT id,codigo,nombre FROM proveedores WHERE comercio_id=? AND LOWER(nombre)=LOWER(?) AND estado='ACTIVO' ORDER BY id LIMIT 1",
+                        identity.storeId(),
+                        "Proveedor sin nombre");
+        if (!rows.isEmpty()) return rows.getFirst();
+        long id =
+                insert(
+                        "INSERT INTO proveedores(comercio_id,codigo,nombre,cuit,especialidad,telefono,email) VALUES(?,?,?,?,?,?,?)",
+                        identity.storeId(),
+                        "PROV-"
+                                + java.util
+                                        .UUID
+                                        .randomUUID()
+                                        .toString()
+                                        .substring(0, 8)
+                                        .toUpperCase(),
+                        "Proveedor sin nombre",
+                        "",
+                        "",
+                        "",
+                        "");
+        return jdbc.queryForMap(
+                "SELECT id,codigo,nombre FROM proveedores WHERE id=? AND comercio_id=?",
+                id,
+                identity.storeId());
+    }
+
+    /**
+     * Registra cabecera, renglones, stock y deuda o pago de la compra. La decisión explícita de
+     * costo modifica solo costo o conserva precios; las solicitudes anteriores mantienen el cálculo
+     * histórico.
+     */
     @Transactional
     public Map<String, Object> createPurchase(PurchaseInput input) {
         assertBelongs("proveedores", input.supplierId());
@@ -80,19 +126,45 @@ public class PurchaseService extends StoreJdbcSupport {
         subtotal = subtotal.setScale(2, RoundingMode.HALF_UP);
         BigDecimal total = subtotal.add(extras).setScale(2, RoundingMode.HALF_UP);
         String paymentType =
-                enumValue(input.paymentType(), "CONTADO", "CONTADO", "CUENTA_CORRIENTE");
+                enumValue(
+                        input.paymentType(),
+                        "CONTADO",
+                        "CONTADO",
+                        "EFECTIVO_CAJA",
+                        "EFECTIVO",
+                        "CUENTA_CORRIENTE");
         BigDecimal paid =
-                "CONTADO".equals(paymentType)
+                !"CUENTA_CORRIENTE".equals(paymentType)
                         ? total
                         : nonNegative(
                                 input.paid() == null ? BigDecimal.ZERO : input.paid(),
                                 "El importe pagado no puede ser negativo.");
         if (paid.compareTo(total) > 0)
             throw new IllegalArgumentException("El pago no puede superar el total de la compra.");
-        Long cashId = paid.signum() > 0 ? cashLedger.requireOpenCash(date) : null;
+        String paymentMethod =
+                enumValue(
+                        input.paymentMethod(),
+                        "EFECTIVO",
+                        "EFECTIVO",
+                        "TRANSFERENCIA",
+                        "MERCADO_PAGO",
+                        "CUENTA_CORRIENTE");
+        if ("CUENTA_CORRIENTE".equals(paymentType) && paid.signum() == 0)
+            paymentMethod = "CUENTA_CORRIENTE";
+        else if ("CUENTA_CORRIENTE".equals(paymentMethod))
+            throw new IllegalArgumentException("Elegí un medio de pago válido.");
+        if ("EFECTIVO_CAJA".equals(paymentType) && !"EFECTIVO".equals(paymentMethod))
+            throw new IllegalArgumentException(
+                    "Efectivo de caja debe utilizar el medio de pago Efectivo.");
+        // El pago externo se registra con el proveedor, sin descontarlo del arqueo.
+        // Se conserva el comportamiento de las solicitudes anteriores que usaban CONTADO.
+        boolean fromCash =
+                "EFECTIVO_CAJA".equals(paymentType)
+                        || paid.signum() > 0 && !"EFECTIVO".equals(paymentType);
+        Long cashId = fromCash ? cashLedger.requireOpenCash(date) : null;
         long purchaseId =
                 insert(
-                        "INSERT INTO compras (comercio_id,proveedor_id,tipo_documento,numero_documento,fecha,subtotal,gastos_adicionales,total,pagado,saldo,estado) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                        "INSERT INTO compras (comercio_id,proveedor_id,tipo_documento,numero_documento,fecha,subtotal,gastos_adicionales,total,pagado,saldo,estado,condicion_pago,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         identity.storeId(),
                         input.supplierId(),
                         docType,
@@ -103,7 +175,9 @@ public class PurchaseService extends StoreJdbcSupport {
                         total,
                         paid,
                         total.subtract(paid),
-                        paid.compareTo(total) == 0 ? "PAGADA" : "PENDIENTE");
+                        paid.compareTo(total) == 0 ? "PAGADA" : "PENDIENTE",
+                        "CONTADO".equals(paymentType) ? "EFECTIVO_CAJA" : paymentType,
+                        paymentMethod);
         BigDecimal allocatedExtras = BigDecimal.ZERO;
         int row = 1;
         for (PreparedLine prepared : lines) {
@@ -144,13 +218,29 @@ public class PurchaseService extends StoreJdbcSupport {
                             : roundFlag instanceof Number number && number.intValue() != 0;
             BigDecimal salePrice =
                     calculateSalePrice(weightedCost, freight, freightPercent, margin, roundPrice);
-            jdbc.update(
-                    "UPDATE articulos SET stock=stock+?,costo=?,precio_venta=? WHERE id=? AND comercio_id=?",
-                    prepared.quantity(),
-                    weightedCost,
-                    salePrice,
-                    prepared.line().articleId(),
-                    identity.storeId());
+            if (input.updateCost() == null) {
+                // Compatibilidad con solicitudes anteriores a la confirmación de costo.
+                jdbc.update(
+                        "UPDATE articulos SET stock=stock+?,costo=?,precio_venta=? WHERE id=? AND comercio_id=?",
+                        prepared.quantity(),
+                        weightedCost,
+                        salePrice,
+                        prepared.line().articleId(),
+                        identity.storeId());
+            } else if (input.updateCost()) {
+                jdbc.update(
+                        "UPDATE articulos SET stock=stock+?,costo=? WHERE id=? AND comercio_id=?",
+                        prepared.quantity(),
+                        prepared.cost(),
+                        prepared.line().articleId(),
+                        identity.storeId());
+            } else {
+                jdbc.update(
+                        "UPDATE articulos SET stock=stock+? WHERE id=? AND comercio_id=?",
+                        prepared.quantity(),
+                        prepared.line().articleId(),
+                        identity.storeId());
+            }
             this.stock.addStockMovement(
                     prepared.line().articleId(),
                     "COMPRA",
@@ -165,13 +255,7 @@ public class PurchaseService extends StoreJdbcSupport {
                 identity.storeId());
         if (paid.signum() > 0) {
             String receipt = "PAG-COMPRA-" + purchaseId;
-            String paymentMethod =
-                    enumValue(
-                            input.paymentMethod(),
-                            "EFECTIVO",
-                            "EFECTIVO",
-                            "TRANSFERENCIA",
-                            "MERCADO_PAGO");
+
             insert(
                     "INSERT INTO pagos_proveedores (comercio_id,compra_id,proveedor_id,caja_id,fecha,medio_pago,importe,numero_recibo) VALUES (?,?,?,?,?,?,?,?)",
                     identity.storeId(),
@@ -182,15 +266,16 @@ public class PurchaseService extends StoreJdbcSupport {
                     paymentMethod,
                     paid,
                     receipt);
-            cashLedger.addCashMovement(
-                    cashId,
-                    "EGRESO",
-                    "PAGO_PROVEEDOR",
-                    paymentMethod,
-                    date,
-                    paid,
-                    receipt,
-                    "Pago de compra " + docNumber);
+            if (cashId != null)
+                cashLedger.addCashMovement(
+                        cashId,
+                        "EGRESO",
+                        "PAGO_PROVEEDOR",
+                        paymentMethod,
+                        date,
+                        paid,
+                        receipt,
+                        "Pago de compra " + docNumber);
         }
         return Map.of(
                 "id",
@@ -207,6 +292,10 @@ public class PurchaseService extends StoreJdbcSupport {
                 total.subtract(paid));
     }
 
+    /**
+     * Corrige una compra reconstruyendo cantidades y costo ponderado, ajusta saldo del proveedor y
+     * audita; rechaza cambios incompatibles con pagos o salidas posteriores.
+     */
     @Transactional
     public Map<String, Object> updatePurchase(long id, PurchaseInput input) {
         Map<String, Object> current =

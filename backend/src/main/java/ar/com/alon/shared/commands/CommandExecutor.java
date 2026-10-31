@@ -24,6 +24,10 @@ public class CommandExecutor {
     private final HttpServletRequest request;
     private final JsonMapper mapper;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para las operaciones con clave, identidad y
+     * respuesta persistida.
+     */
     public CommandExecutor(
             JdbcTemplate jdbc,
             RequestIdentity identity,
@@ -35,6 +39,10 @@ public class CommandExecutor {
         this.mapper = mapper;
     }
 
+    /**
+     * Serializa las escrituras del comercio y ejecuta una operación una sola vez por clave;
+     * devuelve la respuesta guardada al reintentar y rechaza claves reutilizadas con otros datos.
+     */
     @Transactional
     public Map<String, Object> execute(
             String command, Object input, Supplier<Map<String, Object>> action) {
@@ -70,6 +78,10 @@ public class CommandExecutor {
         return result;
     }
 
+    /**
+     * Calcula una huella SHA-256 hexadecimal para comparar contenidos sin conservar su
+     * representación completa como clave.
+     */
     private String digest(String text) {
         try {
             return HexFormat.of()

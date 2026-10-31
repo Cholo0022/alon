@@ -16,4 +16,32 @@ public record PurchaseInput(
         BigDecimal extraCosts,
         BigDecimal paid,
         @Size(max = 30) String paymentType,
-        @Size(max = 30) String paymentMethod) {}
+        @Size(max = 30) String paymentMethod,
+        Boolean updateCost) {
+    /**
+     * Mantiene compatible el constructor anterior de compras y deja sin especificar la nueva
+     * decisión de costo para conservar su comportamiento histórico.
+     */
+    public PurchaseInput(
+            long supplierId,
+            String documentType,
+            String documentNumber,
+            LocalDate date,
+            List<PurchaseLineInput> lines,
+            BigDecimal extraCosts,
+            BigDecimal paid,
+            String paymentType,
+            String paymentMethod) {
+        this(
+                supplierId,
+                documentType,
+                documentNumber,
+                date,
+                lines,
+                extraCosts,
+                paid,
+                paymentType,
+                paymentMethod,
+                null);
+    }
+}

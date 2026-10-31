@@ -17,6 +17,7 @@ public class SalesQueries {
     private final Clock clock;
     private final ReadPage pages;
 
+    /** Recibe y conserva las dependencias necesarias para el historial de ventas. */
     public SalesQueries(JdbcTemplate jdbc, RequestIdentity identity, Clock clock) {
         this.jdbc = jdbc;
         this.identity = identity;
@@ -24,6 +25,7 @@ public class SalesQueries {
         this.pages = new ReadPage(jdbc);
     }
 
+    /** Consulta ventas del comercio con cliente, importes y estado. */
     public List<Map<String, Object>> sales(LocalDate date, int page, int size) {
         int safePage = Math.max(0, page);
         int safeSize = Math.min(200, Math.max(1, size));

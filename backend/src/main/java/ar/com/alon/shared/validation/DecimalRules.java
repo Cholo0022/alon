@@ -5,8 +5,14 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 
 public final class DecimalRules {
+
+    /** Impide instanciar esta clase de cálculos estáticos. */
     private DecimalRules() {}
 
+    /**
+     * Valida cantidades de hasta tres decimales y quince dígitos, exigiendo valor positivo cuando
+     * lo solicita la operación.
+     */
     public static BigDecimal quantity(BigDecimal value, boolean strictlyPositive, String message) {
         if (value == null || value.signum() < 0) throw new IllegalArgumentException(message);
         final BigDecimal normalized;
@@ -20,6 +26,10 @@ public final class DecimalRules {
         return normalized;
     }
 
+    /**
+     * Valida importes no negativos de hasta dos decimales y quince dígitos sin redondearlos
+     * silenciosamente.
+     */
     public static BigDecimal money(BigDecimal value, String message) {
         if (value == null || value.signum() < 0) throw new IllegalArgumentException(message);
         final BigDecimal normalized;

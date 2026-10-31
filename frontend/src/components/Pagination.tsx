@@ -1,6 +1,7 @@
 // Permite avanzar y volver entre páginas de resultados.
 import type { PagedRows } from '../hooks/useApiRows'
 
+/** Muestra el número de página y los botones para recorrer los resultados, bloqueando acciones durante la carga. */
 export function Pagination({ rows, label = 'registros' }: { rows: PagedRows; label?: string }) {
   return (
     <nav aria-label={'Páginas de ' + label} className="pagination">

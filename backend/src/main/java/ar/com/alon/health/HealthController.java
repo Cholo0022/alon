@@ -8,6 +8,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class HealthController {
+    /**
+     * Recibe la solicitud y delega su ejecución al servicio. Devuelve un estado básico de
+     * disponibilidad de la API con nombre del servicio y hora de respuesta.
+     */
     @GetMapping("/api/v1/health")
     public Map<String, String> health() {
         return Map.of("status", "ok", "service", "alon-api", "time", Instant.now().toString());

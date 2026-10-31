@@ -10,6 +10,7 @@ import { ApiTable } from '../components/ApiTable'
 import { ArticleImageEditor } from '../components/ArticleImageEditor'
 import type { SavedArticlePhoto } from '../components/ArticlePhotosField'
 
+/** Presenta el catálogo con búsquedas, altas, edición, fotos, cambios de estado y aumentos por rubro según los permisos. */
 export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }) {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('Todos los rubros')
@@ -56,7 +57,9 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
     return matchesQuery && (category === 'Todos los rubros' || article.category === category)
   })
 
+  /** Prepara la definición del formulario de artículo, incluyendo sus valores actuales y las opciones de rubros y proveedores. */
   const articleFields = (row?: ApiRow): EntryField[] => {
+    /** Lee un dato del artículo que se edita o devuelve el valor inicial para un alta. */
     const value = (key: string, fallback = '') => (row ? textValue(row[key] ?? fallback) : fallback)
     const selectedCategory = value('rubro_id')
     const selectedSupplier = value('proveedor_principal_id')
@@ -168,7 +171,9 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
         : []),
     ]
   }
+  /** Emite el evento de actualización para recargar los listados después de una modificación. */
   const refresh = () => window.dispatchEvent(new Event('alon:refresh'))
+  /** Activa o desactiva un artículo en el servidor y recarga los listados si la operación se completa. */
   const setActive = async (id: number, active: boolean) => {
     const response = await apiFetch(
       `/api/v1/operations/articles/${id}/${active ? 'activate' : 'deactivate'}`,
@@ -390,6 +395,7 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
   )
 }
 
+/** Presenta el alta y el listado de rubros usados para organizar los artículos. */
 export function CategoriesPage() {
   const rows = useApiRows('/api/v1/alon/categories')
   return (

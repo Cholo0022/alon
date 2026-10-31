@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 
 export type ComboOption = { value: string; label: string }
 
+/** Combina un campo de búsqueda con sugerencias accesibles y selección por teclado, manteniendo la validación del registro elegido. */
 export function Combobox({
   label,
   value,
@@ -16,6 +17,7 @@ export function Combobox({
   name,
   selectOnFocus = false,
   onEmptyEnter,
+  onEnter,
 }: {
   label: string
   value: string
@@ -27,6 +29,7 @@ export function Combobox({
   placeholder?: string
   valid?: boolean
   onEmptyEnter?: () => void
+  onEnter?: () => void
   selectOnFocus?: boolean
   name?: string
 }) {
@@ -40,6 +43,7 @@ export function Combobox({
     )
   }, [required, value, valid])
   const active = options.findIndex((option) => option.value === activeKey)
+  /** Notifica la opción elegida, cierra las sugerencias y limpia los errores de validación del campo. */
   const choose = (option: ComboOption) => {
     onChoose(option)
     setOpen(false)
@@ -81,6 +85,12 @@ export function Combobox({
           event.target.setCustomValidity('')
         }}
         onKeyDown={(event) => {
+          if (event.key === 'Enter' && onEnter && !event.nativeEvent.isComposing) {
+            event.preventDefault()
+            event.stopPropagation()
+            onEnter()
+            return
+          }
           if (event.key === 'Escape') {
             event.preventDefault()
             setOpen(false)

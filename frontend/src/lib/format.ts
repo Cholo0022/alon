@@ -5,14 +5,18 @@ export const currency = new Intl.NumberFormat('es-AR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 })
+/** Convierte valores desconocidos en texto y representa los valores nulos como una cadena vacía. */
 export const textValue = (value: unknown) => String(value ?? '')
+/** Convierte el valor recibido en número, usando cero cuando es nulo o no está definido. */
 export const numberValue = (value: unknown) => Number(value ?? 0)
 const businessZone = 'America/Argentina/Buenos_Aires'
+/** Reconoce fechas con zona horaria o marcas de tiempo válidas sin reinterpretar fechas de calendario como instantes. */
 function timestamp(value: unknown) {
   if (typeof value !== 'number' && !/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(textValue(value))) return null
   const date = new Date(value as string | number)
   return Number.isFinite(date.getTime()) ? date : null
 }
+/** Muestra una fecha como día/mes/año; convierte instantes a la zona argentina y conserva las fechas de calendario. */
 export const formatDateDisplay = (value: unknown) => {
   const instant = timestamp(value)
   if (instant)
@@ -26,6 +30,7 @@ export const formatDateDisplay = (value: unknown) => {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw)
   return match ? `${match[3]}/${match[2]}/${match[1]}` : raw || '—'
 }
+/** Muestra fecha y hora en formato argentino, diferenciando instantes con zona de fechas y horas locales. */
 export const formatDateTimeDisplay = (value: unknown) => {
   const instant = timestamp(value)
   if (instant)
@@ -45,11 +50,13 @@ export const formatDateTimeDisplay = (value: unknown) => {
     ? `${match[3]}/${match[2]}/${match[1]} - ${match[4]}:${match[5]}`
     : formatDateDisplay(raw)
 }
+/** Convierte un período año-mes en mes/año y conserva los valores que no coinciden con ese formato. */
 export const formatMonthDisplay = (value: unknown) => {
   const raw = textValue(value)
   const match = /^(\d{4})-(\d{2})$/.exec(raw)
   return match ? `${match[2]}/${match[1]}` : raw || '—'
 }
+/** Devuelve la fecha actual del negocio en Argentina como año-mes-día, independientemente de la zona del navegador. */
 export const todayLocal = () =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Argentina/Buenos_Aires',
@@ -58,6 +65,7 @@ export const todayLocal = () =>
     day: '2-digit',
   }).format(new Date())
 
+/** Valida que día, mes y año formen una fecha real y la convierte a año-mes-día; devuelve null si es inválida. */
 export const dateDisplayToIso = (value: unknown) => {
   const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(textValue(value).trim())
   if (!match) return null

@@ -24,11 +24,19 @@ public class ShopService {
     @org.springframework.beans.factory.annotation.Value("${alon.shop.hero-image:}")
     private String heroImage = "";
 
+    /**
+     * Recibe y conserva las dependencias necesarias para el catálogo público y la validación de
+     * carritos y pedidos.
+     */
     public ShopService(JdbcTemplate jdbc, ShopAccountService accounts) {
         this.jdbc = jdbc;
         this.accounts = accounts;
     }
 
+    /**
+     * Busca y pagina productos activos publicados en la web con stock, adjuntando sus fotos y
+     * rubros disponibles.
+     */
     public Map<String, Object> catalog(String query, String category, int page) {
         if (query.length() > 100 || category.length() > 90 || page < 0 || page > 10000)
             throw new IllegalArgumentException("La búsqueda no es válida.");
@@ -78,6 +86,9 @@ public class ShopService {
 
     public record CartInput(@NotEmpty @Size(max = 100) List<@NotNull @Positive Long> ids) {}
 
+    /**
+     * Consulta precios, stock y fotos actuales de los artículos publicados que componen el carrito.
+     */
     public List<Map<String, Object>> cart(CartInput input) {
         var args = new ArrayList<Object>();
         args.add(accounts.storeId());
@@ -92,6 +103,10 @@ public class ShopService {
                         args.toArray()));
     }
 
+    /**
+     * Valida comprador, medio, renglones, precios y stock y guarda un pedido pendiente; reutiliza
+     * la respuesta si se reintenta la misma clave.
+     */
     @Transactional
     public Map<String, Object> checkout(Checkout input, Map<String, Object> buyer, String key) {
         if (input.paymentMethod() == null
@@ -221,6 +236,7 @@ public class ShopService {
         return Map.of("id", id, "estado", "PENDIENTE_CONFIRMACION", "total", total);
     }
 
+    /** Devuelve los últimos cien pedidos del comprador dentro del comercio de la tienda. */
     public List<Map<String, Object>> orders(long buyer) {
         return jdbc.queryForList(
                 "SELECT id,estado,total_estimado,creado_en,medio_pago FROM pedidos_tienda WHERE comercio_id=? AND comprador_id=? ORDER BY id DESC LIMIT 100",
@@ -228,6 +244,10 @@ public class ShopService {
                 buyer);
     }
 
+    /**
+     * Calcula una huella SHA-256 hexadecimal para comparar contenidos sin conservar su
+     * representación completa como clave.
+     */
     private String digest(String text) {
         try {
             return HexFormat.of()

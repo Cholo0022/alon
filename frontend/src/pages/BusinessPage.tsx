@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import { announceBrand, brandStyle, normalizeBrand, type BusinessBrand } from '../lib/businessBrand'
 
+/** Permite al dueño editar nombre, slogan y colores del negocio con vista previa y sincronización al guardar. */
 export function BusinessPage({ brand }: { brand: BusinessBrand }) {
   const [draft, setDraft] = useState(brand)
   const dirty = useRef(false)
@@ -11,11 +12,13 @@ export function BusinessPage({ brand }: { brand: BusinessBrand }) {
   useEffect(() => {
     if (!dirty.current) setDraft(brand)
   }, [brand])
+  /** Actualiza un campo del borrador y marca la edición pendiente para no sobrescribirla con datos externos. */
   const change = (key: keyof BusinessBrand, value: string) => {
     dirty.current = true
     setDraft((current) => ({ ...current, [key]: value }))
     setMessage('')
   }
+  /** Guarda la identidad del negocio y, si la API confirma, publica el resultado a las demás pantallas y pestañas. */
   const save = async (event: FormEvent) => {
     event.preventDefault()
     if (busy) return

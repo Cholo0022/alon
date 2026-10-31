@@ -18,6 +18,9 @@ public class ArticleController {
     private final CommandExecutor commands;
     private final ArticlePhotoService photos;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para altas, edición y consultas de artículos.
+     */
     public ArticleController(
             ArticleService service,
             ArticleQueries queries,
@@ -29,6 +32,10 @@ public class ArticleController {
         this.photos = photos;
     }
 
+    /**
+     * Recibe la solicitud y delega su ejecución al servicio. Valida código, nombre, rubro,
+     * proveedor y precios; crea el artículo con sus fotos y registra el stock inicial.
+     */
     @PostMapping("/operations/articles")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> createArticle(@Valid @RequestBody ArticleInput input) {
@@ -42,6 +49,11 @@ public class ArticleController {
                 });
     }
 
+    /**
+     * Recibe la solicitud y delega su ejecución al servicio. Bloquea el artículo del comercio,
+     * valida sus nuevos datos y actualiza precios, fotos y stock dejando trazabilidad de los
+     * ajustes.
+     */
     @PutMapping("/operations/articles/{id}")
     public Map<String, Object> updateArticle(
             @PathVariable long id, @Valid @RequestBody ArticleInput input) {
@@ -55,6 +67,10 @@ public class ArticleController {
                 });
     }
 
+    /**
+     * Recibe la baja lógica del artículo y la ejecuta sin borrar su historial, reutilizando la
+     * respuesta en reintentos.
+     */
     @PostMapping("/operations/articles/{id}/deactivate")
     public Map<String, Object> deactivateArticle(@PathVariable long id) {
         return commands.execute(
@@ -63,6 +79,10 @@ public class ArticleController {
                 () -> service.setArticleActive(id, false));
     }
 
+    /**
+     * Recibe la reactivación del artículo y la ejecuta dentro del comercio con protección contra
+     * reintentos.
+     */
     @PostMapping("/operations/articles/{id}/activate")
     public Map<String, Object> activateArticle(@PathVariable long id) {
         return commands.execute(
@@ -71,6 +91,10 @@ public class ArticleController {
                 () -> service.setArticleActive(id, true));
     }
 
+    /**
+     * Expone artículos del comercio, con búsqueda, paginación y datos visibles según los permisos
+     * mediante la API, delegando la consulta al repositorio.
+     */
     @GetMapping("/alon/articles")
     public List<Map<String, Object>> articles(
             HttpServletRequest request,

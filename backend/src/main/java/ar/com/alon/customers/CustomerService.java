@@ -15,11 +15,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CustomerService extends StoreJdbcSupport {
+    /** Recibe y conserva las dependencias necesarias para las reglas de clientes y crédito. */
     public CustomerService(
             JdbcTemplate jdbc, RequestIdentity identity, Clock clock, AuditLog audit) {
         super(jdbc, identity, clock, audit);
     }
 
+    /**
+     * Crea un cliente del comercio con código propio, datos de contacto y límite de crédito
+     * validado.
+     */
     @Transactional
     public Map<String, Object> createCustomer(CustomerInput input) {
         String name = required(input.name(), "El nombre del cliente es obligatorio.");
@@ -38,6 +43,10 @@ public class CustomerService extends StoreJdbcSupport {
         return Map.of("id", id, "codigo", code, "nombre", name);
     }
 
+    /**
+     * Bloquea y actualiza los datos y límite de crédito del cliente sin modificar su saldo de
+     * cuenta corriente.
+     */
     @Transactional
     public Map<String, Object> updateCustomer(long id, CustomerInput input) {
         jdbc.queryForObject(
@@ -57,6 +66,7 @@ public class CustomerService extends StoreJdbcSupport {
         return Map.of("id", id, "nombre", name);
     }
 
+    /** Cambia el estado del cliente del comercio y conserva sus ventas y cuenta corriente. */
     @Transactional
     public Map<String, Object> setCustomerActive(long id, boolean active) {
         int changed =

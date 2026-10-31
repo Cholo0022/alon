@@ -16,6 +16,9 @@ public class ReportQueries {
     private final Clock clock;
     private final ReadPage pages;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para las consultas agregadas de los informes.
+     */
     public ReportQueries(JdbcTemplate jdbc, RequestIdentity identity, Clock clock) {
         this.jdbc = jdbc;
         this.identity = identity;
@@ -23,6 +26,7 @@ public class ReportQueries {
         this.pages = new ReadPage(jdbc);
     }
 
+    /** Consulta ventas y ganancia bruta agrupadas por día, con descuentos y ticket promedio. */
     public List<Map<String, Object>> dailySales() {
         return pages.query(
                 "fecha",
@@ -30,6 +34,7 @@ public class ReportQueries {
                 identity.storeId());
     }
 
+    /** Consulta totales de ventas, costo y ganancia bruta agrupados por mes. */
     public List<Map<String, Object>> monthlySales() {
         return pages.query(
                 "mes",
@@ -37,6 +42,7 @@ public class ReportQueries {
                 identity.storeId());
     }
 
+    /** Consulta importes y operaciones de ventas agrupados por medio de pago. */
     public List<Map<String, Object>> paymentMethods() {
         return pages.query(
                 "medio_pago",
@@ -47,6 +53,7 @@ public class ReportQueries {
                 identity.storeId());
     }
 
+    /** Consulta ranking de clientes por consumo junto con deuda y límite de crédito. */
     public List<Map<String, Object>> topCustomers() {
         return jdbc.queryForList(
                 """
@@ -56,6 +63,7 @@ public class ReportQueries {
                 identity.storeId());
     }
 
+    /** Consulta artículos más vendidos con unidades, importe y margen bruto. */
     public List<Map<String, Object>> topArticles() {
         return jdbc.queryForList(
                 """
@@ -65,6 +73,7 @@ public class ReportQueries {
                 identity.storeId());
     }
 
+    /** Consulta compras agrupadas por artículo y proveedor con unidades e importes. */
     public List<Map<String, Object>> purchasesByArticle() {
         return pages.query(
                 "codigo,articulo,proveedor",
@@ -75,6 +84,7 @@ public class ReportQueries {
                 identity.storeId());
     }
 
+    /** Consulta proveedores del comercio con sus saldos pendientes. */
     public List<Map<String, Object>> supplierBalances() {
         return pages.query(
                 "codigo,nombre",
@@ -85,6 +95,7 @@ public class ReportQueries {
                 identity.storeId());
     }
 
+    /** Consulta gastos del comercio agrupados por día y categoría. */
     public List<Map<String, Object>> expenses() {
         return pages.query(
                 "fecha,categoria",
@@ -92,6 +103,7 @@ public class ReportQueries {
                 identity.storeId());
     }
 
+    /** Consulta artículos cuyo stock está por debajo del mínimo configurado. */
     public List<Map<String, Object>> lowStock() {
         return pages.query(
                 "codigo,nombre",

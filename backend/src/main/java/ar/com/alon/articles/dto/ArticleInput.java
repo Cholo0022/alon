@@ -26,6 +26,7 @@ public record ArticleInput(
                                 ArticlePhotoInput>
                         photos,
         boolean publishOnWeb) {
+    /** Aplica redondeo de precio por defecto cuando el formulario no especifica esa preferencia. */
     public ArticleInput {
         if (roundPrice == null) roundPrice = true;
     }

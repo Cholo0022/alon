@@ -16,6 +16,7 @@ public class CategoryController {
     private final CategoryQueries queries;
     private final CommandExecutor commands;
 
+    /** Recibe y conserva las dependencias necesarias para el alta y consulta de rubros. */
     public CategoryController(
             CategoryService service, CategoryQueries queries, CommandExecutor commands) {
         this.service = service;
@@ -23,12 +24,20 @@ public class CategoryController {
         this.commands = commands;
     }
 
+    /**
+     * Recibe la solicitud y delega su ejecución al servicio. Valida que el nombre de rubro no esté
+     * repetido en el comercio y crea el registro con un código propio.
+     */
     @PostMapping("/operations/categories")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> createCategory(@Valid @RequestBody CategoryInput input) {
         return commands.execute("createCategory", input, () -> service.createCategory(input));
     }
 
+    /**
+     * Expone rubros del comercio ordenados por nombre mediante la API, delegando la consulta al
+     * repositorio.
+     */
     @GetMapping("/alon/categories")
     public List<Map<String, Object>> categories() {
         return queries.categories();

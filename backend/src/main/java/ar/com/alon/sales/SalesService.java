@@ -23,6 +23,10 @@ public class SalesService extends StoreJdbcSupport {
     private final CashLedger cashLedger;
     private final StockRepository stock;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para las ventas, sus reversos y movimientos
+     * asociados.
+     */
     public SalesService(
             JdbcTemplate jdbc,
             RequestIdentity identity,
@@ -35,12 +39,21 @@ public class SalesService extends StoreJdbcSupport {
         this.cashLedger = cashLedger;
     }
 
+    /**
+     * Valida artículos, cantidades, descuentos y stock; registra la venta y sus movimientos de
+     * stock y caja o deuda dentro de una transacción.
+     */
     @Transactional
     public Map<String, Object> createSale(SaleInput input) {
         return createSale(input, null, Map.of());
     }
 
     /** Los precios del pedido revisado se conservan al confirmar su venta web. */
+
+    /**
+     * Registra una venta vinculada a un pedido web usando sus precios acordados y verificando que
+     * cada artículo tenga precio válido.
+     */
     @Transactional
     public Map<String, Object> createWebSale(
             SaleInput input, long orderId, Map<Long, BigDecimal> prices) {
@@ -51,6 +64,10 @@ public class SalesService extends StoreJdbcSupport {
         return createSale(input, orderId, prices);
     }
 
+    /**
+     * Valida artículos, cantidades, descuentos y stock; registra la venta y sus movimientos de
+     * stock y caja o deuda dentro de una transacción.
+     */
     private Map<String, Object> createSale(
             SaleInput input, Long orderId, Map<Long, BigDecimal> prices) {
         assertBelongs("clientes", input.customerId());
@@ -219,6 +236,10 @@ public class SalesService extends StoreJdbcSupport {
                 "INTERNO_NO_FISCAL");
     }
 
+    /**
+     * Revierte una venta confirmada, repone stock y contrapartidas de cobro o deuda y audita la
+     * anulación sin borrar el comprobante.
+     */
     @Transactional
     public Map<String, Object> cancelSale(long id) {
         Map<String, Object> sale =

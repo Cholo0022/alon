@@ -15,10 +15,18 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 public class ReadPage {
     private final JdbcTemplate jdbc;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para la búsqueda y paginación de consultas
+     * JDBC.
+     */
     public ReadPage(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
+    /**
+     * Aplica búsqueda literal y paginación a la consulta parametrizada, respetando los límites de
+     * página y tamaño de la solicitud.
+     */
     public List<Map<String, Object>> query(String columns, String sql, Object... parameters) {
         var request =
                 RequestContextHolder.getRequestAttributes()
@@ -47,12 +55,20 @@ public class ReadPage {
         return jdbc.queryForList(sql + " LIMIT ? OFFSET ?", concat(args, size, (long) page * size));
     }
 
+    /**
+     * Agrega tamaño y desplazamiento a los parámetros SQL y devuelve el arreglo listo para LIMIT y
+     * OFFSET.
+     */
     private Object[] concat(List<Object> args, int size, long offset) {
         args.add(size);
         args.add(offset);
         return args.toArray();
     }
 
+    /**
+     * Lee un parámetro entero dentro de sus límites, usa el valor de respaldo si falta y rechaza
+     * valores inválidos.
+     */
     private int integer(String value, int fallback, int minimum, int maximum) {
         if (value == null) return fallback;
         try {

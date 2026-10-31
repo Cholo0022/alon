@@ -17,12 +17,17 @@ public class CashLedger {
     private final RequestIdentity identity;
     private final Clock clock;
 
+    /** Recibe y conserva las dependencias necesarias para el registro de movimientos en caja. */
     public CashLedger(JdbcTemplate jdbc, RequestIdentity identity, Clock clock) {
         this.jdbc = jdbc;
         this.identity = identity;
         this.clock = clock;
     }
 
+    /**
+     * Busca y bloquea la caja abierta de la fecha dentro del comercio; devuelve su id o rechaza la
+     * operación si no existe.
+     */
     public long requireOpenCash(LocalDate date) {
         List<Long> ids =
                 jdbc.query(
@@ -36,6 +41,10 @@ public class CashLedger {
         return ids.getFirst();
     }
 
+    /**
+     * Registra un ingreso o egreso con categoría, medio, importe, referencia y hora del negocio en
+     * la caja indicada.
+     */
     public void addCashMovement(
             long cashId,
             String type,

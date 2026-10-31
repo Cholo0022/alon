@@ -18,6 +18,10 @@ public class StoreOrderService extends StoreJdbcSupport {
     private final ar.com.alon.sales.SalesService sales;
     private final ar.com.alon.customers.CustomerService customers;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para las reglas de revisión y conversión de
+     * pedidos en ventas.
+     */
     public StoreOrderService(
             JdbcTemplate jdbc,
             RequestIdentity identity,
@@ -30,6 +34,10 @@ public class StoreOrderService extends StoreJdbcSupport {
         this.customers = customers;
     }
 
+    /**
+     * Guarda un pedido ingresado desde gestión con datos de cliente y total estimado, pendiente de
+     * confirmación.
+     */
     @Transactional
     public Map<String, Object> createStoreOrder(StoreOrderInput input) {
         long id =
@@ -45,6 +53,10 @@ public class StoreOrderService extends StoreJdbcSupport {
         return Map.of("id", id, "estado", "PENDIENTE_CONFIRMACION");
     }
 
+    /**
+     * Devuelve cabecera y renglones del pedido del comercio, junto con disponibilidad y estado de
+     * caja para revisarlo.
+     */
     public Map<String, Object> detail(long id) {
         var order =
                 jdbc.queryForMap(
@@ -68,6 +80,10 @@ public class StoreOrderService extends StoreJdbcSupport {
         return order;
     }
 
+    /**
+     * Bloquea un pedido pendiente, excluye el renglón indicado, recalcula su total y audita el
+     * cambio.
+     */
     @Transactional
     public Map<String, Object> exclude(long id, long lineId) {
         identity.require("tienda");
@@ -86,6 +102,10 @@ public class StoreOrderService extends StoreJdbcSupport {
         return Map.of("id", id, "ok", true);
     }
 
+    /**
+     * Exige pedido pendiente, medio válido y caja abierta; crea la venta vinculada con los
+     * renglones incluidos y conserva sus precios acordados.
+     */
     @Transactional
     public Map<String, Object> approve(long id, String paymentMethod) {
         identity.require("tienda");
@@ -172,6 +192,7 @@ public class StoreOrderService extends StoreJdbcSupport {
                 sale.get("numero"));
     }
 
+    /** Bloquea el pedido pendiente y lo marca cancelado con auditoría, sin generar una venta. */
     @Transactional
     public Map<String, Object> cancel(long id) {
         identity.require("tienda");
@@ -184,6 +205,7 @@ public class StoreOrderService extends StoreJdbcSupport {
         return Map.of("id", id, "estado", "CANCELADO");
     }
 
+    /** Bloquea comercio y pedido y rechaza modificarlo si ya fue confirmado o cancelado. */
     private Map<String, Object> lockPending(long id) {
         jdbc.queryForObject(
                 "SELECT id FROM comercios WHERE id=? FOR UPDATE", Long.class, identity.storeId());
@@ -198,6 +220,9 @@ public class StoreOrderService extends StoreJdbcSupport {
         return order;
     }
 
+    /**
+     * Actualiza el total estimado del pedido sumando solo los renglones que permanecen incluidos.
+     */
     private void recalculate(long id) {
         jdbc.update(
                 "UPDATE pedidos_tienda SET total_estimado=(SELECT COALESCE(SUM(ROUND(cantidad*precio_unitario,2)),0) FROM pedido_tienda_detalle WHERE comercio_id=? AND pedido_id=? AND incluido=TRUE) WHERE comercio_id=? AND id=?",

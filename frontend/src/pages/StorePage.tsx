@@ -29,6 +29,7 @@ type Order = {
   venta_id: number | null
   cash_open: boolean
 }
+/** Traduce el estado interno de un pedido a una etiqueta legible. */
 const statusLabel = (state: string) =>
   state === 'CONFIRMADO'
     ? 'Confirmado'
@@ -36,6 +37,7 @@ const statusLabel = (state: string) =>
       ? 'Cancelado'
       : 'Pendiente de confirmación'
 
+/** Presenta pedidos web y su detalle para quitar artículos, elegir cobro, confirmar la venta o cancelar el pedido. */
 export function StorePage() {
   const [selected, setSelected] = useState<number | null>(null)
   const [order, setOrder] = useState<Order | null>(null)
@@ -81,6 +83,7 @@ export function StorePage() {
     }, 20000)
     return () => clearInterval(timer)
   }, [])
+  /** Envía la acción elegida sobre el pedido, incluye el medio al aprobarlo y recarga el detalle y los contadores al completarse. */
   const action = async (suffix: string) => {
     if (!order || busy) return
     setBusy(true)

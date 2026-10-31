@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import type { ArticlePhoto } from '../lib/articlePhotos'
 export type { ArticlePhoto, SavedArticlePhoto } from '../lib/articlePhotos'
 
+/** Administra las fotos del formulario, sus vistas previas y la marca de imagen ilustrativa. */
 export function ArticlePhotosField({
   value,
   onChange,
@@ -18,6 +19,7 @@ export function ArticlePhotosField({
   const [error, setError] = useState('')
   const [reading, setReading] = useState(false)
   const chooser = useRef<HTMLInputElement>(null)
+  /** Valida cantidad, formato y tamaño de los archivos; los lee como datos de imagen y agrega sus vistas previas al formulario. */
   const add = async (files: File[]) => {
     setError('')
     if (files.length + value.length > 4) {

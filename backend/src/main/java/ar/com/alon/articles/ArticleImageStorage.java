@@ -15,11 +15,19 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class ArticleImageStorage {
     private final Path directory;
 
+    /**
+     * Recibe y conserva las dependencias necesarias para el directorio de almacenamiento seguro de
+     * imágenes.
+     */
     public ArticleImageStorage(
             @Value("${alon.images-directory:./data/article-images}") String directory) {
         this.directory = Path.of(directory).toAbsolutePath().normalize();
     }
 
+    /**
+     * Valida y decodifica una imagen JPG o PNG de hasta 5 MB, la normaliza a PNG y coordina su
+     * archivo con la confirmación o reversión de la transacción.
+     */
     public String write(String data) {
         if (!TransactionSynchronizationManager.isSynchronizationActive())
             throw new IllegalStateException(
@@ -57,6 +65,11 @@ public class ArticleImageStorage {
         Path file = directory.resolve(key);
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
+
+                    /**
+                     * Elimina el archivo de imagen recién creado si la transacción no se confirma,
+                     * evitando archivos huérfanos tras una reversión.
+                     */
                     @Override
                     public void afterCompletion(int status) {
                         if (status != STATUS_COMMITTED)
@@ -80,6 +93,10 @@ public class ArticleImageStorage {
         return key;
     }
 
+    /**
+     * Lee una imagen guardada solo si su clave tiene formato permitido y corresponde a un archivo
+     * existente.
+     */
     public byte[] read(String key) throws IOException {
         if (!key.matches("[a-f0-9-]{36}\\.png") || !Files.isRegularFile(directory.resolve(key)))
             throw new org.springframework.web.server.ResponseStatusException(

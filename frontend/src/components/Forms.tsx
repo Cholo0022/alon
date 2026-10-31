@@ -32,6 +32,7 @@ export type EntryField = {
   checkedByDefault?: boolean
 }
 
+/** Sugiere nombres de artículos existentes mientras permite escribir un nombre nuevo para el alta. */
 export function ArticleNameSearch({ field }: { field: EntryField }) {
   const [value, setValue] = useState(field.defaultValue ?? '')
   const options = (field.suggestions ?? [])
@@ -51,6 +52,7 @@ export function ArticleNameSearch({ field }: { field: EntryField }) {
   )
 }
 
+/** Muestra las opciones de un campo como buscador y conserva el identificador correspondiente a la opción seleccionada. */
 export function SearchableEntryField({
   field,
   autoFocus = false,
@@ -82,6 +84,7 @@ export function SearchableEntryField({
   )
 }
 
+/** Presenta un campo de fecha con formato argentino y la fecha local como valor inicial cuando no se indica otra. */
 export function DateTextInput({ name, defaultValue }: { name: string; defaultValue?: string }) {
   return (
     <input
@@ -98,6 +101,7 @@ export function DateTextInput({ name, defaultValue }: { name: string; defaultVal
   )
 }
 
+/** Construye los formularios de alta o edición a partir de su definición, valida sus campos y envía los datos y fotos a la API. */
 export function LocalEntryPanel({
   title,
   action,
@@ -146,6 +150,7 @@ export function LocalEntryPanel({
           ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
       )
   }, [initialOpen, panelId])
+  /** Consulta los importes esperados de la caja de la fecha indicada para preparar su cierre. */
   const refreshCashSummary = (date: string) => {
     if (!endpoint.endsWith('/cash/close') || !date) return
     apiFetch(
@@ -160,6 +165,7 @@ export function LocalEntryPanel({
       })
       .catch(() => setCashSummary(null))
   }
+  /** Actualiza la vista previa de precios y, en el cierre de caja, vuelve a consultar el resumen si la fecha es válida. */
   const handleFormChange = (event: FormEvent<HTMLFormElement>) => {
     updatePricePreview(event)
     if (endpoint.endsWith('/cash/close')) {
@@ -168,6 +174,7 @@ export function LocalEntryPanel({
       else setCashSummary(null)
     }
   }
+  /** Calcula el precio sugerido desde costo, flete, margen y redondeo, respetando los cambios manuales del precio final. */
   const updatePricePreview = (event: FormEvent<HTMLFormElement>) => {
     if (!pricePreview) return
     const values = new FormData(event.currentTarget)
@@ -188,6 +195,7 @@ export function LocalEntryPanel({
     }
     setCalculatedPrice(price)
   }
+  /** Valida duplicados, fechas y campos del formulario; transforma valores y fotos, guarda el registro y notifica el resultado. */
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (busy || readingPhotos) return
@@ -530,6 +538,7 @@ export function LocalEntryPanel({
   )
 }
 
+/** Representa visualmente el estado de un registro mediante una etiqueta y su color asociado. */
 export function StatusPill({ active }: { active: boolean }) {
   return (
     <span className={`status-pill ${active ? 'status-active' : 'status-inactive'}`}>

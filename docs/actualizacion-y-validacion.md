@@ -50,3 +50,21 @@ V7 agrega slogan y colores al comercio. El dueño puede modificarlos en **Modifi
 En **Artículos y stock → Modificar precios**, seleccionar un rubro y un porcentaje positivo. La vista previa muestra la cantidad total de artículos activos y hasta diez ejemplos. Al aplicar se actualizan todos los precios de venta del rubro, incluidos los artículos habilitados en la web, respetando el redondeo individual. Los costos, stock y márgenes configurados no cambian; una compra posterior conserva la regla existente de recalcular el precio desde esos costos y márgenes.
 
 La aplicación es atómica, auditada y protegida frente a reintentos. Si cambian los precios o el conjunto de artículos después de la vista previa, se requiere revisarla nuevamente. Los usuarios necesitan acceso a Artículos y a Costos o Compras para realizar el aumento.
+
+
+## Confirmación de pagos y origen del dinero (V8)
+
+Guardar una venta o una factura abre una ventana para elegir la condición y el medio de pago. La cuenta corriente no muestra medio de pago. En compras, la escritura se realiza después de responder la confirmación final de actualización de costo. Cancelar conserva los artículos y los datos cargados.
+
+En compras, **CONTADO DE CAJA** selecciona automáticamente Efectivo como medio fijo, requiere una caja abierta en la fecha del comprobante, utiliza el medio Efectivo y registra el egreso en el arqueo. **CONTADO** permite elegir Efectivo, Transferencia o Mercado Pago y registra el pago al proveedor fuera de caja, sin alterar el arqueo. **CUENTA CORRIENTE** deja el total pendiente; no solicita medio de pago ni registra un pago inicial.
+
+V8 guarda la condición y el medio en la compra y permite que un pago externo tenga `caja_id` nulo. Las compras anteriores se clasifican conservando el medio de su comprobante original. Las solicitudes antiguas con `CONTADO` mantienen el comportamiento de pago desde caja.
+
+
+## Carga de compras y confirmación de costo
+
+La carga inicia con foco en Proveedor, con **Proveedor sin nombre** y **Remito** seleccionados. El proveedor predeterminado se crea una sola vez por comercio cuando se necesita y queda disponible también en los selectores de artículos. Enter en Proveedor abre el listado flotante con búsqueda, páginas, flechas y Enter para elegir.
+
+Después de confirmar el pago, **¿Este comprobante modifica el precio de costo?** permite finalizar con **S / Sí** o **N / No**. Sí reemplaza únicamente el costo del producto por el costo unitario ingresado, sin incorporar gastos adicionales al costo del catálogo ni recalcular precio de venta, flete, margen o redondeo. Si el artículo se repite con costos distintos, queda el último costo ingresado. No conserva todos esos valores. Ambas opciones registran el comprobante, sus importes y el ingreso de stock. Volver permite revisar las condiciones antes de guardar.
+
+Las compras se ordenan por registro más reciente, incluso cuando el comprobante tiene una fecha anterior. El historial de caja muestra primero las sesiones cerradas o abiertas más recientemente, con desempate por fecha y número de sesión.
