@@ -41,6 +41,7 @@ public class CashService extends StoreJdbcSupport {
     @Transactional
     public Map<String, Object> openCash(CashOpenInput input) {
         LocalDate date = input.date() == null ? LocalDate.now(clock) : input.date();
+        assertAccountingPeriod(date);
         BigDecimal opening =
                 nonNegative(input.openingBalance(), "El saldo inicial no puede ser negativo.");
         Integer openCount =
@@ -85,6 +86,7 @@ public class CashService extends StoreJdbcSupport {
     @Transactional
     public Map<String, Object> addExpense(ExpenseInput input) {
         LocalDate date = input.date() == null ? LocalDate.now(clock) : input.date();
+        assertAccountingPeriod(date);
         BigDecimal amount = positive(input.amount(), "El importe del gasto debe ser mayor a cero.");
         String method =
                 enumValue(
@@ -154,6 +156,7 @@ public class CashService extends StoreJdbcSupport {
     @Transactional
     public Map<String, Object> closeCash(CashCloseInput input) {
         LocalDate date = input.date() == null ? LocalDate.now(clock) : input.date();
+        assertAccountingPeriod(date);
         Map<String, Object> cash =
                 jdbc.queryForMap(
                         "SELECT id,numero_sesion,saldo_inicial FROM cajas WHERE comercio_id=? AND fecha=? AND estado='ABIERTA' FOR UPDATE",

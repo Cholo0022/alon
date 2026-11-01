@@ -62,7 +62,10 @@ export function ArticlePhotosField({
   return (
     <fieldset className="article-photos-field" disabled={disabled || reading}>
       <legend>Fotos del artículo · {value.length}/4</legend>
-      <p>La primera será la portada de la tienda. Podés agregar hasta cuatro fotos JPG o PNG.</p>
+      <p>
+        La primera será la portada de la tienda. Las fotos se centran y ajustan automáticamente, sin
+        estirar ni recortar el producto. Podés agregar hasta cuatro fotos JPG o PNG de hasta 5 MB.
+      </p>
       <div className="article-photos-grid">
         {value.map((p, i) => (
           <div className="article-photo-tile" key={p.key ?? p.preview}>

@@ -99,7 +99,9 @@ public class ArticleController {
     public List<Map<String, Object>> articles(
             HttpServletRequest request,
             @RequestParam(defaultValue = "false") boolean inactive,
-            @RequestParam(defaultValue = "") String category) {
-        return queries.articles((String) request.getAttribute("alonRole"), inactive, category);
+            @RequestParam(defaultValue = "") String category,
+            @RequestParam(defaultValue = "") String kind) {
+        return queries.articles(
+                (String) request.getAttribute("alonRole"), inactive, category, kind);
     }
 }

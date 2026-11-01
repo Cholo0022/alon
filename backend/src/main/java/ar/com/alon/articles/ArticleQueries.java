@@ -40,6 +40,19 @@ public class ArticleQueries {
      * permisos.
      */
     public List<Map<String, Object>> articles(String role, boolean inactive, String category) {
+        return articles(role, inactive, category, "");
+    }
+
+    public List<Map<String, Object>> articles(
+            String role, boolean inactive, String category, String kind) {
+        if (!java.util.Set.of("", "ARTICULO", "VESTIMENTA").contains(kind))
+            throw new IllegalArgumentException("El tipo de producto no es válido.");
+        String kindSql =
+                kind.equals("ARTICULO")
+                        ? " AND a.tipo_producto='ARTICULO' "
+                        : kind.equals("VESTIMENTA")
+                                ? " AND a.tipo_producto IN ('INDUMENTARIA','CALZADO') "
+                                : " ";
         if (category.length() > 90)
             throw new IllegalArgumentException("El rubro solicitado no es válido.");
         if (!identity.permits("costos") && !identity.permits("compras"))
@@ -48,7 +61,9 @@ public class ArticleQueries {
                     identity.storeId(),
                     pages.query(
                             "a.codigo,a.nombre,r.nombre",
-                            "SELECT a.id,a.codigo,a.nombre,a.stock,a.unidad,a.precio_venta,a.imagen_clave,a.imagen_ilustrativa,r.nombre AS rubro FROM articulos a JOIN rubros r ON r.id=a.rubro_id WHERE a.comercio_id=? AND a.estado=? AND (?='' OR r.nombre=?) ORDER BY a.nombre,a.id",
+                            "SELECT a.id,a.tipo_producto,a.modelo,a.marca,a.talle,a.sistema_talle,a.color,a.material,a.publico,a.temporada,a.descripcion,a.codigo,a.nombre,a.stock,a.unidad,a.precio_venta,a.imagen_clave,a.imagen_ilustrativa,r.nombre AS rubro FROM articulos a JOIN rubros r ON r.id=a.rubro_id WHERE a.comercio_id=? AND a.estado=? AND (?='' OR r.nombre=?) "
+                                    + kindSql
+                                    + " ORDER BY a.nombre,a.id",
                             identity.storeId(),
                             inactive ? "INACTIVO" : "ACTIVO",
                             category,
@@ -59,14 +74,15 @@ public class ArticleQueries {
                 pages.query(
                         "a.codigo,a.nombre,r.nombre",
                         """
-                SELECT a.id, a.codigo, a.nombre, a.rubro_id, a.proveedor_principal_id, r.nombre AS rubro, a.stock, a.stock_minimo,
+                SELECT a.id, a.tipo_producto,a.modelo,a.marca,a.talle,a.sistema_talle,a.color,a.material,a.publico,a.temporada,a.descripcion, a.codigo, a.nombre, a.rubro_id, a.proveedor_principal_id, r.nombre AS rubro, a.stock, a.stock_minimo,
                        a.unidad, a.costo, a.flete_unitario, a.flete_porcentaje, a.margen_porcentaje, a.redondeo_precio, a.cargar_web,
                        a.precio_venta, a.imagen_clave, a.imagen_ilustrativa, p.codigo AS proveedor, p.nombre AS proveedor_nombre, p.estado AS proveedor_estado
                 FROM articulos a
                 JOIN rubros r ON r.id = a.rubro_id
-                JOIN proveedores p ON p.id = a.proveedor_principal_id
-                WHERE a.comercio_id = ? AND a.estado=? AND (?='' OR r.nombre=?) ORDER BY a.nombre, a.id
-                """,
+                LEFT JOIN proveedores p ON p.id = a.proveedor_principal_id AND p.comercio_id=a.comercio_id
+                WHERE a.comercio_id = ? AND a.estado=? AND (?='' OR r.nombre=?) %s ORDER BY a.nombre, a.id
+                """
+                                .formatted(kindSql),
                         identity.storeId(),
                         inactive ? "INACTIVO" : "ACTIVO",
                         category,

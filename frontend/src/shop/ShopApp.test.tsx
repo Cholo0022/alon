@@ -377,3 +377,11 @@ it('offers simple password recovery next to first-time registration', async () =
   const call = request.mock.calls.find(([path]) => path === '/password/reset')!
   expect(JSON.parse(String(call[1]?.body))).toEqual({ phone: '3446236311', password: '1234' })
 })
+
+it('shows the product title as the first text after its image without repeating the category', async () => {
+  render(<ShopApp />)
+  const title = await screen.findByRole('heading', { name: 'Artículo de prueba', level: 2 })
+  const body = title.closest('.shop-product-body')!
+  expect(body.firstElementChild).toBe(title)
+  expect(body.querySelector('.shop-product-category')).toBeNull()
+})

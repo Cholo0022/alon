@@ -173,6 +173,8 @@ button {
   min-width: 0;
 }
 .article-photo-tile > img {
+  box-sizing: border-box;
+  padding: 7px;
   width: 100%;
   height: 110px;
   object-fit: contain;
@@ -204,4 +206,40 @@ button {
 }
 .article-photo-tile .row-actions {
   justify-content: flex-start;
+}
+
+/* Errores de formulario visibles al intentar guardar, con texto además del color. */
+.field-invalid {
+  border: 2px solid #b42318 !important;
+  outline: 2px solid #fecdca;
+  outline-offset: 2px;
+  scroll-margin: 120px;
+}
+.field-error-message {
+  display: block;
+  color: #b42318;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 6px;
+}
+.delete-confirmation {
+  max-width: min(520px, calc(100vw - 32px));
+  border: 1px solid #d0d5dd;
+  border-radius: 16px;
+  padding: 28px;
+  color: #182230;
+  background: white;
+  box-shadow: 0 24px 80px #0004;
+}
+.delete-confirmation::backdrop {
+  background: #10182899;
+}
+.delete-confirmation h2 {
+  margin-top: 0;
+}
+.delete-confirmation .row-actions {
+  margin-top: 24px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }

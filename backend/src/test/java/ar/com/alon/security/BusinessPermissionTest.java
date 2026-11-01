@@ -10,6 +10,40 @@ import org.springframework.mock.web.*;
 
 class BusinessPermissionTest {
     @Test
+    void backupRequiresExplicitPermissionForManagersAndEmployees() throws Exception {
+        for (String role : new String[] {"DUENO", "PERSONALIZADO"}) {
+            for (boolean allowed : new boolean[] {false, true}) {
+                var user =
+                        Map.<String, Object>of(
+                                "id",
+                                2L,
+                                "comercio_id",
+                                1L,
+                                "rol",
+                                role,
+                                "permisos",
+                                allowed ? "backup" : "ventas");
+                var auth = mock(UserService.class);
+                when(auth.sessionUser(anyMap())).thenReturn(user);
+                var security = mock(AccessSecurityService.class);
+                when(security.validSession(anyMap(), any())).thenReturn(true);
+                when(security.license(anyMap())).thenReturn(Map.of("active", true));
+                for (String method : new String[] {"GET", "POST"}) {
+                    for (String path :
+                            new String[] {"/api/v1/backups", "/api/v1/backups/example.zip"}) {
+                        var req = new MockHttpServletRequest(method, path);
+                        req.getSession().setAttribute("alonUser", user);
+                        var res = new MockHttpServletResponse();
+                        new PermissionFilter(auth, security)
+                                .doFilter(req, res, new MockFilterChain());
+                        assertThat(res.getStatus()).isEqualTo(allowed ? 200 : 403);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void staffCanReadBrandButCannotChangeTheBusiness() throws Exception {
         var user =
                 Map.<String, Object>of(

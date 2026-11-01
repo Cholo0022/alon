@@ -1,3 +1,4 @@
+import { sentenceCase } from '../lib/sentenceCase'
 import { shopOrderKey } from './orderKey'
 import { ArticleEntryDialog } from '../components/ArticleEntryDialog'
 // Muestra la tienda web, el carrito, el registro de compradores y sus pedidos.
@@ -14,6 +15,16 @@ import { ProductGallery } from './ProductGallery'
 type Product = {
   id: number
   nombre: string
+  tipo_producto?: string
+  marca?: string
+  modelo?: string
+  talle?: string
+  sistema_talle?: string
+  color?: string
+  material?: string
+  publico?: string
+  temporada?: string
+  descripcion?: string
   codigo?: string
   rubro?: string
   unidad: string
@@ -757,7 +768,10 @@ export default function ShopApp() {
                 />
               )}
             </section>
-            <nav className="shop-categories" aria-label="Filtrar por rubro">
+            <nav
+              className="shop-categories"
+              aria-label="Filtrar por rubro de artículos o nombre de indumentaria y calzado"
+            >
               <button
                 aria-pressed={category === ''}
                 onClick={() => {
@@ -769,7 +783,7 @@ export default function ShopApp() {
               </button>
               {catalog.categories.map((c) => (
                 <button
-                  key={c.nombre}
+                  key={sentenceCase(c.nombre)}
                   aria-pressed={category === c.nombre}
                   onClick={() => {
                     setCategory(c.nombre)
@@ -804,8 +818,31 @@ export default function ShopApp() {
                         illustrative={Boolean(p.imagen_ilustrativa)}
                       />
                       <div className="shop-product-body">
-                        <span className="shop-product-category">{p.rubro}</span>
-                        <h2>{p.nombre}</h2>
+                        <h2>{sentenceCase(p.nombre)}</h2>
+                        {p.tipo_producto && p.tipo_producto !== 'ARTICULO' && (
+                          <div className="shop-apparel-details">
+                            <p>
+                              <strong>
+                                Talle {sentenceCase(p.talle ?? '')} ({p.sistema_talle}) ·{' '}
+                                {sentenceCase(p.color ?? '')}
+                              </strong>
+                            </p>
+                            <p>
+                              {sentenceCase(p.marca ?? '')} · {sentenceCase(p.modelo ?? '')}
+                            </p>
+                            <p>
+                              {sentenceCase(p.material ?? '')} · {p.publico} · {p.temporada}
+                            </p>
+                            <p style={{ whiteSpace: 'pre-wrap' }}>
+                              {sentenceCase(p.descripcion ?? '')}
+                            </p>
+                            <small>
+                              {p.tipo_producto === 'CALZADO'
+                                ? 'Precio y stock por par.'
+                                : 'Precio y stock por unidad.'}
+                            </small>
+                          </div>
+                        )}
                         <strong className="shop-price">
                           {currency.format(Number(p.precio_venta))}
                         </strong>

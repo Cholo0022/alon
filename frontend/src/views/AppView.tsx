@@ -1,3 +1,7 @@
+import { AccountingPage } from '../pages/AccountingPage'
+import { FiscalCapture } from '../components/FiscalEditor'
+import { RestoreSuccessNotice } from '../components/RestoreBackupPanel'
+import { BackupPage } from '../pages/BackupPage'
 import { SecurityPanel } from '../components/SecurityPanel'
 import { PlatformPage, LicenseActivation } from '../pages/PlatformPage'
 import { LoginSecurityFlow } from '../components/LoginSecurityFlow'
@@ -162,6 +166,7 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
           </div>
         </header>
         <div className="page-wrap">
+          <FiscalCapture canReview={permissions.includes('contabilidad')} />
           {['SUPER', 'DUENO'].includes(user.rol) && permissions.includes('seguridad') && (
             <SecurityRequestsNotice onOpen={() => setActiveSection('seguridad')} />
           )}
@@ -343,6 +348,8 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
             <CashPage />
           ) : activeSection === 'informes' ? (
             <ReportsPage />
+          ) : activeSection === 'contabilidad' ? (
+            <AccountingPage canManage={['SUPER', 'DUENO'].includes(user.rol)} />
           ) : activeSection === 'tienda' ? (
             <StorePage />
           ) : activeSection === 'negocio' ? (
@@ -354,8 +361,10 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
             </>
           ) : activeSection === 'administracion' ? (
             <PlatformPage />
+          ) : activeSection === 'backup' ? (
+            <BackupPage />
           ) : activeSection === 'usuarios' ? (
-            <UsersPage />
+            <UsersPage canDelegateBackup={permissions.includes('backup')} />
           ) : (
             <section className="module-placeholder">
               <div className="placeholder-icon">{activeItem.icon}</div>
@@ -528,11 +537,19 @@ export function AuthScreen({
 export function App() {
   const [status, setStatus] = useState<AuthStatus | null>(null)
   const [connectionError, setConnectionError] = useState(false)
+  const [maintenance, setMaintenance] = useState('')
   /** Consulta y valida el estado de autenticación y configuración inicial; actualiza la sesión o el error de conexión. */
   const loadStatus = useCallback(
     () =>
       apiFetch('/api/v1/auth/status')
         .then(async (response) => {
+          if (response.status === 503 && response.headers.get('X-Alon-Maintenance')) {
+            const notice = (await response.json().catch(() => ({}))) as { error?: string }
+            setMaintenance(notice.error ?? 'Alon está recuperando un backup. Esperá a que termine.')
+            setConnectionError(false)
+            return
+          }
+          setMaintenance('')
           if (!response.ok) throw new Error('No se pudo consultar la sesión.')
           const body = (await response.json()) as AuthStatus
           if (
@@ -585,7 +602,22 @@ export function App() {
   return (
     <>
       <ApiFeedback />
-      {connectionError ? (
+      <RestoreSuccessNotice />
+      {maintenance && status && (
+        <div role="status" className="notice" style={{ margin: 24 }}>
+          {maintenance}
+        </div>
+      )}
+      {maintenance && !status ? (
+        <main className="auth-shell">
+          <section className="auth-card">
+            <p>{maintenance}</p>
+            <button className="secondary-button" type="button" onClick={() => void loadStatus()}>
+              Volver a comprobar
+            </button>
+          </section>
+        </main>
+      ) : connectionError ? (
         <main className="auth-shell">
           <p>No se pudo conectar con Alon.</p>
           <button onClick={() => void loadStatus()}>Reintentar</button>

@@ -72,6 +72,7 @@ public class SalesService extends StoreJdbcSupport {
             SaleInput input, Long orderId, Map<Long, BigDecimal> prices) {
         assertBelongs("clientes", input.customerId());
         LocalDate date = input.date() == null ? LocalDate.now(clock) : input.date();
+        assertAccountingPeriod(date);
         String saleType = enumValue(input.saleType(), "CONTADO", "CONTADO", "CUENTA_CORRIENTE");
         String payment =
                 enumValue(
@@ -242,11 +243,14 @@ public class SalesService extends StoreJdbcSupport {
      */
     @Transactional
     public Map<String, Object> cancelSale(long id) {
+        ar.com.alon.accounting.AccountingPeriods.checkLinked(jdbc, identity.storeId(), "VENTA", id);
+        assertAccountingPeriod(LocalDate.now(clock));
         Map<String, Object> sale =
                 jdbc.queryForMap(
                         "SELECT id,numero,fecha,cliente_id,tipo_venta,medio_pago,total,estado FROM ventas WHERE id=? AND comercio_id=? FOR UPDATE",
                         id,
                         identity.storeId());
+        assertAccountingPeriod(java.sql.Date.valueOf(sale.get("fecha").toString()).toLocalDate());
         String status = String.valueOf(sale.get("estado"));
         if (!"CONFIRMADA".equals(status))
             throw new BusinessConflict("Esta venta ya está cancelada o no se puede cancelar.");

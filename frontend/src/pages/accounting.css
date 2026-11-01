@@ -1,0 +1,148 @@
+.accounting-page {
+  display: grid;
+  gap: 24px;
+}
+.accounting-controls {
+  padding: 24px;
+}
+.accounting-controls .row-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.accounting-controls input[type='month'] {
+  max-width: 220px;
+}
+.accounting-report .metric-card {
+  display: grid;
+  gap: 12px;
+}
+.accounting-report .metric-card strong {
+  font-size: 22px;
+}
+.accounting-section {
+  padding: 20px 0;
+  border-top: 1px solid #ddd;
+}
+.accounting-section td {
+  vertical-align: top;
+}
+.accounting-pending {
+  margin-top: 20px;
+  display: block;
+}
+.fiscal-dialog {
+  width: min(960px, calc(100vw - 32px));
+  max-height: 90vh;
+  overflow: auto;
+  border: 1px solid #d0d5dd;
+  border-radius: 14px;
+  padding: 28px;
+  color: #182230;
+  background: #fff;
+}
+.fiscal-dialog::backdrop {
+  background: #10182899;
+}
+.fiscal-wide,
+.fiscal-rates {
+  grid-column: 1/-1;
+}
+.fiscal-rates table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.fiscal-rates td,
+.fiscal-rates th {
+  padding: 6px;
+}
+.fiscal-rates input {
+  width: 100%;
+}
+.fiscal-form small {
+  display: block;
+}
+.fiscal-form input[type='checkbox'],
+.accounting-controls input[type='checkbox'] {
+  width: auto;
+  min-height: auto;
+}
+.fiscal-form textarea {
+  min-height: 90px;
+  width: 100%;
+}
+.fiscal-dialog .row-actions {
+  display: flex;
+  gap: 12px;
+}
+.fiscal-dialog .notice {
+  display: block;
+}
+@media print {
+  .accounting-page {
+    page: accounting;
+  }
+  body:has(.accounting-page) .page-wrap > :not(.accounting-page),
+  body:has(.accounting-page) #root > :not(.app-shell) {
+    display: none !important;
+  }
+  @page accounting {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+  body:has(.accounting-page) .sidebar,
+  body:has(.accounting-page) .topbar,
+  body:has(.accounting-page) .welcome-row,
+  body:has(.accounting-page) .page-footer,
+  body:has(.accounting-page) .no-print {
+    display: none !important;
+  }
+  body:has(.accounting-page) .app-shell {
+    display: block;
+  }
+  body:has(.accounting-page) .main-content,
+  body:has(.accounting-page) .page-wrap {
+    margin: 0;
+    padding: 0;
+  }
+  .accounting-report .metrics-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .accounting-report .table-scroll {
+    overflow: visible;
+  }
+  .accounting-report table {
+    font-size: 9px;
+    min-width: 0 !important;
+    width: 100%;
+  }
+  .accounting-report th,
+  .accounting-report td {
+    white-space: normal !important;
+    padding: 5px;
+  }
+  .accounting-section h3 {
+    break-after: avoid;
+  }
+  .accounting-report tr {
+    break-inside: avoid;
+  }
+  .accounting-report {
+    color: #000;
+    background: #fff;
+  }
+}
+
+.fiscal-dialog-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+.fiscal-dialog-heading h2 {
+  margin-top: 0;
+}
+.fiscal-dialog-heading button {
+  flex-shrink: 0;
+}

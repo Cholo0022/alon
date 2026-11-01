@@ -1,3 +1,5 @@
+import { sentenceCase } from '../lib/sentenceCase'
+import { announceFiscalTarget } from '../hooks/useAccountingOptions'
 // Construye formularios reutilizables y convierte sus campos en los datos que espera el servidor.
 import { QuantityInput } from './QuantityInput'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
@@ -34,7 +36,7 @@ export type EntryField = {
 
 /** Sugiere nombres de artículos existentes mientras permite escribir un nombre nuevo para el alta. */
 export function ArticleNameSearch({ field }: { field: EntryField }) {
-  const [value, setValue] = useState(field.defaultValue ?? '')
+  const [value, setValue] = useState(sentenceCase(field.defaultValue ?? ''))
   const options = (field.suggestions ?? [])
     .filter((name) => name.toLocaleLowerCase('es-AR').includes(value.toLocaleLowerCase('es-AR')))
     .map((name) => ({ value: name, label: name }))
@@ -44,8 +46,8 @@ export function ArticleNameSearch({ field }: { field: EntryField }) {
       label={field.label}
       value={value}
       options={options}
-      onChange={setValue}
-      onChoose={(option) => setValue(option.label)}
+      onChange={(value) => setValue(sentenceCase(value))}
+      onChoose={(option) => setValue(sentenceCase(option.label))}
       required
       placeholder="Escribí uno nuevo o buscá uno existente…"
     />
@@ -191,14 +193,14 @@ export function LocalEntryPanel({
     if (!pricePreview) return
     const values = new FormData(event.currentTarget)
     const baseCost = Number(values.get('cost') ?? 0)
-    const amount = Number(values.get('freightAmount') ?? 0)
-    const freight = values.get('freightByPercent') === 'on' ? (baseCost * amount) / 100 : amount
+    const amount = Number(values.get('freightPercent') ?? values.get('freightAmount') ?? 0)
+    const freight = (baseCost * amount) / 100
     const margin = Number(values.get('marginPercent') ?? 0)
     let price = Math.round((baseCost + freight) * (1 + margin / 100) * 100) / 100
     if (values.get('roundPrice') === 'on' && price > 0) price = Math.ceil(price / 10) * 10
     const changed = event.target as HTMLInputElement
     if (
-      ['cost', 'freightAmount', 'freightByPercent', 'marginPercent', 'roundPrice'].includes(
+      ['cost', 'freightPercent', 'freightAmount', 'marginPercent', 'roundPrice'].includes(
         changed.name,
       )
     ) {
@@ -251,7 +253,15 @@ export function LocalEntryPanel({
         : []
       if (field.type === 'checkbox')
         return [[field.name, form.get(field.name) === 'on'] as [string, string | number | boolean]]
-      const value = String(form.get(field.name) ?? '')
+      const rawValue = String(form.get(field.name) ?? '')
+      const value =
+        articlePhotos &&
+        field.name !== 'code' &&
+        !field.lookupEndpoint &&
+        !field.options &&
+        (!field.type || field.type === 'text' || field.type === 'textarea')
+          ? sentenceCase(rawValue)
+          : rawValue
       if (field.type === 'date')
         return [
           ...checkboxValue,
@@ -266,16 +276,54 @@ export function LocalEntryPanel({
       ]
     })
     const payload = Object.fromEntries(payloadEntries)
-    if ('freightAmount' in payload) {
-      payload.freightByValue = !payload.freightByPercent
-      payload.freightPerUnit = payload.freightByPercent ? 0 : payload.freightAmount
-      payload.freightPercent = payload.freightByPercent ? payload.freightAmount : 0
+    if (articlePhotos || 'freightPercent' in payload || 'freightAmount' in payload) {
+      payload.freightPercent = payload.freightPercent ?? payload.freightAmount ?? 0
+      payload.freightByValue = false
+      payload.freightByPercent = true
+      payload.freightPerUnit = 0
       delete payload.freightAmount
     }
     if (fields.some((field) => field.searchable && !payload[field.name])) {
       setMessage('Elegí un artículo del listado.')
       return
     }
+    const apparel =
+      'apparelKind' in payload
+        ? {
+            kind: payload.apparelKind,
+            model: payload.apparelModel,
+            brand: payload.apparelBrand,
+            size: payload.apparelSize,
+            sizeSystem: payload.apparelSizeSystem,
+            color: payload.apparelColor,
+            material: payload.apparelMaterial,
+            audience: payload.apparelAudience,
+            season: payload.apparelSeason,
+            description: payload.apparelDescription,
+          }
+        : undefined
+    if (
+      apparel &&
+      [payload.initialStock, payload.minimumStock].some(
+        (value) => value !== undefined && !Number.isInteger(Number(value)),
+      )
+    ) {
+      const fieldName = ['initialStock', 'minimumStock'].find(
+        (name) => payload[name] !== undefined && !Number.isInteger(Number(payload[name])),
+      )
+      const field = fieldName ? formElement.elements.namedItem(fieldName) : null
+      if (field instanceof HTMLInputElement) {
+        field.setCustomValidity('Cargá cantidades enteras para cada talle y color.')
+        field.reportValidity()
+        field.focus()
+      }
+      setMessage('Cargá cantidades enteras para cada talle y color.')
+      return
+    }
+    for (const key of Object.keys(payload)) if (key.startsWith('apparel')) delete payload[key]
+    const articleName = apparel ? String(payload.name).trim() : ''
+    const suffix = apparel ? ' · ' + apparel.size + ' · ' + apparel.color : ''
+    if (apparel && !articleName.endsWith(suffix)) payload.name = articleName + suffix
     setBusy(true)
     setMessage('')
     try {
@@ -285,11 +333,64 @@ export function LocalEntryPanel({
         body: JSON.stringify(
           transform
             ? transform(payload)
-            : { ...payload, ...(articlePhotos ? { photos: photoPayload(photos) } : {}) },
+            : {
+                ...payload,
+                ...(articlePhotos ? { supplierId: 0 } : {}),
+                ...(apparel
+                  ? { apparel, categoryId: 0, initialStock: payload.initialStock ?? 0 }
+                  : {}),
+                ...(articlePhotos ? { photos: photoPayload(photos) } : {}),
+              },
         ),
       })
-      const result = (await response.json().catch(() => ({}))) as { error?: string }
-      if (!response.ok) throw new Error(result.error ?? 'No se pudo guardar el registro.')
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string
+        fields?: Record<string, string>
+      }
+      if (!response.ok) {
+        for (const [key, message] of Object.entries(result.fields ?? {})) {
+          const names: Record<string, string> = {
+            'apparel.size': 'apparelSize',
+            'apparel.color': 'apparelColor',
+            'apparel.brand': 'apparelBrand',
+            'apparel.model': 'apparelModel',
+            'apparel.description': 'apparelDescription',
+            'apparel.material': 'apparelMaterial',
+            'apparel.sizeSystem': 'apparelSizeSystem',
+            'apparel.audience': 'apparelAudience',
+            'apparel.season': 'apparelSeason',
+            'apparel.kind': 'apparelKind',
+          }
+          let field = formElement.elements.namedItem(names[key] ?? key)
+          if (field instanceof HTMLInputElement && field.type === 'hidden')
+            field =
+              field
+                .closest('.searchable-field')
+                ?.querySelector<HTMLInputElement>('input[role="combobox"]') ?? field
+          if (
+            field instanceof HTMLInputElement ||
+            field instanceof HTMLTextAreaElement ||
+            field instanceof HTMLSelectElement
+          ) {
+            field.setCustomValidity(message)
+            field.reportValidity()
+            field.focus()
+            break
+          }
+        }
+        throw new Error(result.error ?? 'No se pudo guardar el registro.')
+      }
+      if (endpoint === '/api/v1/operations/cash/expenses') {
+        const saved = result as { id?: number; importe?: number }
+        if (saved.id)
+          announceFiscalTarget({
+            clase: 'GASTO',
+            id: saved.id,
+            fecha: String(payload.date),
+            total: Number(saved.importe ?? payload.amount),
+            tercero: '',
+          })
+      }
       if (endpoint.endsWith('/cash/close')) setCashReport(result)
       window.dispatchEvent(new Event('alon:refresh'))
       onSaved?.()
@@ -331,7 +432,49 @@ export function LocalEntryPanel({
         </button>
       </div>
       {open && (
-        <form className="entry-form" onSubmit={submit} onChange={handleFormChange}>
+        <form
+          className="entry-form"
+          onSubmit={submit}
+          onBlurCapture={(event) => {
+            const field = event.target
+            if (
+              !articlePhotos ||
+              !(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) ||
+              (field.getAttribute('role') === 'combobox' && !field.name) ||
+              field.name === 'code' ||
+              !field.name ||
+              (field instanceof HTMLInputElement && field.type !== 'text')
+            )
+              return
+            const value = sentenceCase(field.value)
+            if (value !== field.value) {
+              const prototype =
+                field instanceof HTMLTextAreaElement
+                  ? HTMLTextAreaElement.prototype
+                  : HTMLInputElement.prototype
+              Object.getOwnPropertyDescriptor(prototype, 'value')?.set?.call(field, value)
+              field.dispatchEvent(new Event('input', { bubbles: true }))
+            }
+          }}
+          onInput={(e) => {
+            const target = e.target
+            if (
+              target instanceof HTMLInputElement ||
+              target instanceof HTMLTextAreaElement ||
+              target instanceof HTMLSelectElement
+            )
+              target.setCustomValidity('')
+          }}
+          onChange={handleFormChange}
+        >
+          {fields.some((field) => field.name === 'apparelKind') && (
+            <p style={{ gridColumn: '1 / -1' }}>
+              Cargá un talle y color por código. En calzado, una unidad equivale a un par. En la
+              tienda, estas variantes se agrupan por el nombre del producto, sin talle ni color.{' '}
+              {!fields.some((field) => field.name === 'initialStock') &&
+                'Esta alta no suma stock: incorporá después la variante al comprobante de compra.'}
+            </p>
+          )}
           {fields.map((field) =>
             field.checkboxName ? (
               <div className="entry-freight-field" key={field.name}>
@@ -342,7 +485,11 @@ export function LocalEntryPanel({
                   type="number"
                   min="0"
                   step="0.01"
-                  defaultValue={field.defaultValue}
+                  defaultValue={
+                    articlePhotos && field.name !== 'code' && field.defaultValue
+                      ? sentenceCase(field.defaultValue)
+                      : field.defaultValue
+                  }
                 />
                 <label className="entry-inline-checkbox">
                   <input
@@ -416,14 +563,41 @@ export function LocalEntryPanel({
                         label={field.label}
                         min="0"
                         required
-                        defaultValue={field.defaultValue}
+                        defaultValue={
+                          articlePhotos && field.name !== 'code' && field.defaultValue
+                            ? sentenceCase(field.defaultValue)
+                            : field.defaultValue
+                        }
+                      />
+                    ) : field.type === 'textarea' ? (
+                      <textarea
+                        name={field.name}
+                        required
+                        maxLength={4000}
+                        defaultValue={
+                          articlePhotos && field.name !== 'code' && field.defaultValue
+                            ? sentenceCase(field.defaultValue)
+                            : field.defaultValue
+                        }
+                        autoCapitalize="sentences"
+                        rows={4}
                       />
                     ) : field.type === 'date' ? (
-                      <DateTextInput name={field.name} defaultValue={field.defaultValue} />
+                      <DateTextInput
+                        name={field.name}
+                        defaultValue={
+                          articlePhotos && field.name !== 'code' && field.defaultValue
+                            ? sentenceCase(field.defaultValue)
+                            : field.defaultValue
+                        }
+                      />
                     ) : (
                       <input
                         name={field.name}
                         type={field.type ?? 'text'}
+                        autoCapitalize={
+                          articlePhotos && field.name !== 'code' ? 'sentences' : 'off'
+                        }
                         required={
                           !(
                             pricePreview &&
@@ -432,7 +606,11 @@ export function LocalEntryPanel({
                         }
                         min={field.type === 'number' ? '0' : undefined}
                         step={field.type === 'number' ? '0.01' : undefined}
-                        defaultValue={field.defaultValue}
+                        defaultValue={
+                          articlePhotos && field.name !== 'code' && field.defaultValue
+                            ? sentenceCase(field.defaultValue)
+                            : field.defaultValue
+                        }
                       />
                     )}
                   </>

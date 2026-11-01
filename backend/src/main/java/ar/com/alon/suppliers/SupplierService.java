@@ -100,6 +100,7 @@ public class SupplierService extends StoreJdbcSupport {
     public Map<String, Object> createSupplierReceipt(SupplierReceiptInput input) {
         assertBelongs("proveedores", input.supplierId());
         LocalDate date = input.date() == null ? LocalDate.now(clock) : input.date();
+        assertAccountingPeriod(date);
         String method =
                 enumValue(
                         input.paymentMethod(),

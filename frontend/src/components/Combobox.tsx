@@ -36,6 +36,8 @@ export function Combobox({
   const id = useId()
   const input = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
+  const [typed, setTyped] = useState(false)
+  const showOptions = open && typed && !!value.trim() && options.length > 0
   const [activeKey, setActiveKey] = useState('')
   useEffect(() => {
     input.current?.setCustomValidity(
@@ -47,6 +49,7 @@ export function Combobox({
   const choose = (option: ComboOption) => {
     onChoose(option)
     setOpen(false)
+    setTyped(false)
     setActiveKey('')
     input.current?.setCustomValidity('')
   }
@@ -59,9 +62,9 @@ export function Combobox({
         role="combobox"
         aria-label={label}
         aria-autocomplete="list"
-        aria-expanded={open && options.length > 0}
+        aria-expanded={showOptions}
         aria-controls={id}
-        aria-activedescendant={open && active >= 0 ? `${id}-${active}` : undefined}
+        aria-activedescendant={showOptions && active >= 0 ? `${id}-${active}` : undefined}
         autoComplete="off"
         value={value}
         placeholder={placeholder}
@@ -73,12 +76,14 @@ export function Combobox({
         }}
         onClick={() => setOpen(true)}
         onBlur={() => {
+          setTyped(false)
           setOpen(false)
           input.current?.setCustomValidity(
             required && !valid ? 'Elegí un registro de las sugerencias.' : '',
           )
         }}
         onChange={(event) => {
+          setTyped(true)
           onChange(event.target.value)
           setActiveKey('')
           setOpen(true)
@@ -96,7 +101,12 @@ export function Combobox({
             setOpen(false)
             return
           }
-          if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && options.length) {
+          if (
+            (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
+            typed &&
+            value.trim() &&
+            options.length
+          ) {
             event.preventDefault()
             setOpen(true)
             const next =
@@ -107,7 +117,7 @@ export function Combobox({
                   : (active - 1 + options.length) % options.length
             setActiveKey(options[next].value)
             document.getElementById(`${id}-${next}`)?.scrollIntoView?.({ block: 'nearest' })
-          } else if (event.key === 'Enter' && open && active >= 0) {
+          } else if (event.key === 'Enter' && showOptions && active >= 0) {
             event.preventDefault()
             choose(options[active])
           } else if (event.key === 'Enter' && onEmptyEnter) {
@@ -116,7 +126,7 @@ export function Combobox({
           }
         }}
       />
-      {open && options.length > 0 && (
+      {showOptions && (
         <ul id={id} className="combo-options" role="listbox" aria-label={`Sugerencias de ${label}`}>
           {options.map((option, index) => (
             <li

@@ -26,6 +26,7 @@ export function ArticleEntryDialog({
   onConfirm: (values: ArticleEntryValues) => void
   onCancel: () => void
 }) {
+  const wholeUnits = article.tipo_producto === 'INDUMENTARIA' || article.tipo_producto === 'CALZADO'
   const [quantity, setQuantity] = useState(initialQuantity)
   const [cost, setCost] = useState(String(initialPrice))
   const id = useId()
@@ -136,6 +137,15 @@ export function ArticleEntryDialog({
               <strong>{textValue(article.nombre)}</strong>
               <br />
               {textValue(article.codigo)}
+              {wholeUnits && (
+                <>
+                  <br />
+                  Talle {textValue(article.talle)} · {textValue(article.color)}
+                  {article.tipo_producto === 'CALZADO'
+                    ? ' · Cantidad de pares'
+                    : ' · Cantidad de unidades'}
+                </>
+              )}
             </p>
           </div>
         </header>
@@ -144,6 +154,12 @@ export function ArticleEntryDialog({
           onKeyDown={keyboard}
           onSubmit={(event) => {
             event.preventDefault()
+            if (wholeUnits && !Number.isInteger(Number(quantity))) {
+              const field = form.current?.querySelector<HTMLInputElement>('[aria-label="Cantidad"]')
+              field?.setCustomValidity('Ingresá una cantidad entera de prendas o pares.')
+              field?.reportValidity()
+              return
+            }
             if (!noStock)
               onConfirm({
                 quantity: Number(quantity),
@@ -158,7 +174,10 @@ export function ArticleEntryDialog({
               min="0.001"
               max={mode !== 'purchase' ? maxQuantity : undefined}
               required
-              onChange={(event) => setQuantity(event.target.value)}
+              onChange={(event) => {
+                event.target.setCustomValidity('')
+                setQuantity(event.target.value)
+              }}
             />
           </label>
           {mode === 'purchase' ? (

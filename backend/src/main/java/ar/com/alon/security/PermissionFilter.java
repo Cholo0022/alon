@@ -105,6 +105,10 @@ public class PermissionFilter extends OncePerRequestFilter {
             chain.doFilter(req, res);
             return;
         }
+        if ("/api/v1/accounting/options".equals(path) && "GET".equals(req.getMethod())) {
+            chain.doFilter(req, res);
+            return;
+        }
         String required = permissionFor(path);
         if (("usuarios".equals(required) || "negocio".equals(required)) && !"DUENO".equals(role)) {
             reject(res, 403, "Solo el gerente puede administrar esta sección.");
@@ -153,6 +157,9 @@ public class PermissionFilter extends OncePerRequestFilter {
 
     /** Asocia la ruta de la API al permiso funcional requerido para autorizar la solicitud. */
     private String permissionFor(String path) {
+        if (path.startsWith("/api/v1/accounting/")
+                || path.startsWith("/api/v1/operations/accounting/")) return "contabilidad";
+        if (path.equals("/api/v1/backups") || path.startsWith("/api/v1/backups/")) return "backup";
         if (path.equals("/api/v1/operations/business")) return "negocio";
         if (path.startsWith("/api/v1/auth/users")) return "usuarios";
         if (path.startsWith("/api/v1/auth/")) return "usuarios";

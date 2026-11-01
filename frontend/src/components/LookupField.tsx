@@ -1,3 +1,4 @@
+import { LookupPicker } from './LookupPicker'
 // Busca registros y conserva el identificador elegido aunque cambien las sugerencias.
 import { useEffect, useState } from 'react'
 import { useApiRows, type ApiRow } from '../hooks/useApiRows'
@@ -31,6 +32,8 @@ export function LookupField({
   initialRecord?: ApiRow
   onSelect?: (row: ApiRow | null) => void
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const floating = /\/(articles|lookups\/(suppliers|customers))(?:\?|$)/.test(endpoint)
   const [query, setQuery] = useState(initialRecord ? textValue(initialRecord.nombre) : '')
   const [edited, setEdited] = useState(false)
   const [chosen, setSelected] = useState<ApiRow | null>(initialRecord ?? null)
@@ -42,9 +45,15 @@ export function LookupField({
     if (!defaultName) return
     const controller = new AbortController()
     const key = endpoint + ':' + defaultName
-    void apiFetch(endpoint + '?q=' + encodeURIComponent(defaultName) + '&size=20', {
-      signal: controller.signal,
-    })
+    void apiFetch(
+      endpoint +
+        (endpoint.includes('?') ? '&q=' : '?q=') +
+        encodeURIComponent(defaultName) +
+        '&size=20',
+      {
+        signal: controller.signal,
+      },
+    )
       .then(async (response) => {
         if (!response.ok) throw new Error('No se pudo consultar el cliente predeterminado.')
         const rows = (await response.json()) as ApiRow[]
@@ -64,7 +73,11 @@ export function LookupField({
       })
     return () => controller.abort()
   }, [endpoint, defaultName])
-  const rows = useApiRows(endpoint + '?q=' + encodeURIComponent(chosen || !edited ? '' : query))
+  const rows = useApiRows(
+    endpoint +
+      (endpoint.includes('?') ? '&q=' : '?q=') +
+      encodeURIComponent(chosen || !edited ? '' : query),
+  )
   const selected =
     chosen ?? (!edited && defaultResult?.key === defaultKey ? defaultResult.row : null)
   /** Une código y nombre del registro para mostrar una etiqueta reconocible en el buscador. */
@@ -76,7 +89,15 @@ export function LookupField({
       <Combobox
         label={label}
         onEmptyEnter={onEmptyEnter}
-        onEnter={onEnter}
+        onEnter={
+          onEnter ??
+          (floating
+            ? () => {
+                if (onEmptyEnter) onEmptyEnter()
+                else setPickerOpen(true)
+              }
+            : undefined)
+        }
         value={!edited && selected ? labelFor(selected) : query}
         required={required}
         autoFocus={autoFocus}
@@ -101,6 +122,21 @@ export function LookupField({
           onSelect?.(match)
         }}
       />
+      {pickerOpen && (
+        <LookupPicker
+          endpoint={endpoint}
+          label={label}
+          initialQuery={selected ? '' : query}
+          onClose={() => setPickerOpen(false)}
+          onChoose={(row) => {
+            setSelected(row)
+            setEdited(false)
+            setQuery(labelFor(row))
+            onSelect?.(row)
+            setPickerOpen(false)
+          }}
+        />
+      )}
       {rows.loading && query && !selected && <small role="status">Buscando…</small>}
       {!rows.loading && query && !selected && (
         <small role="status">

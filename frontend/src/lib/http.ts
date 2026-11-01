@@ -28,7 +28,11 @@ async function ensureCsrf() {
 }
 
 /** Centraliza solicitudes con sesión, CSRF, seguimiento de actividad y claves de operación para reintentos sin duplicar escrituras. */
-export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
+export async function apiFetch(
+  url: string,
+  options: RequestInit & { retry?: boolean } = {},
+): Promise<Response> {
+  const { retry = true, ...requestOptions } = options
   const method = (options.method ?? 'GET').toUpperCase()
   const mutation = !['GET', 'HEAD', 'OPTIONS'].includes(method)
   activity(1)
@@ -46,9 +50,9 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
       headers.set('Idempotency-Key', command.key)
     }
     /** Envía la solicitud con los encabezados preparados y las credenciales de la sesión actual. */
-    const send = () => fetch(url, { ...options, headers, credentials: 'same-origin' })
+    const send = () => fetch(url, { ...requestOptions, headers, credentials: 'same-origin' })
     const response = await send().catch((error: unknown) => {
-      if (!mutation || options.signal?.aborted) throw error
+      if (!retry || !mutation || options.signal?.aborted) throw error
       return send()
     })
     if (response.ok || response.status < 500) pending.delete(signature)

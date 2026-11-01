@@ -47,6 +47,17 @@ public class StockRepository {
             BigDecimal quantity,
             String reference,
             String description) {
+        if (quantity.stripTrailingZeros().scale() > 0) {
+            String kind =
+                    jdbc.queryForObject(
+                            "SELECT tipo_producto FROM articulos WHERE id=? AND comercio_id=?",
+                            String.class,
+                            articleId,
+                            identity.storeId());
+            if (kind != null && !"ARTICULO".equals(kind))
+                throw new IllegalArgumentException(
+                        "Indumentaria y calzado requieren cantidades enteras por talle y color.");
+        }
         jdbc.update(
                 "INSERT INTO movimientos_stock (comercio_id,articulo_id,tipo,cantidad,referencia,descripcion,usuario_id,fecha_hora) VALUES (?,?,?,?,?,?,?,?)",
                 identity.storeId(),

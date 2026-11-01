@@ -1,7 +1,10 @@
+import { ApparelEntry } from '../components/ApparelFields'
+import { apparelFields } from '../lib/apparelFields'
+import { DeleteRecordButton } from '../components/DeleteRecordButton'
 // Permite buscar artículos, editar sus datos y organizar el catálogo por rubro.
 import { useState } from 'react'
 import { CategoryPricePanel } from '../components/CategoryPricePanel'
-import { apiFetch } from '../lib/http'
+
 import { currency, textValue, numberValue } from '../lib/format'
 import { useApiRows, type ApiRow } from '../hooks/useApiRows'
 import { Pagination } from '../components/Pagination'
@@ -36,12 +39,10 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
       stock: numberValue(row.stock),
       unit: textValue(row.unidad),
       cost: numberValue(row.costo),
-      freight: numberValue(row.flete_unitario),
       freightPercent: numberValue(row.flete_porcentaje),
       margin: numberValue(row.margen_porcentaje),
       round: Boolean(row.redondeo_precio),
       price: numberValue(row.precio_venta),
-      supplier: textValue(row.proveedor),
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'es-AR'))
   const categories = [
@@ -62,16 +63,22 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
     /** Lee un dato del artículo que se edita o devuelve el valor inicial para un alta. */
     const value = (key: string, fallback = '') => (row ? textValue(row[key] ?? fallback) : fallback)
     const selectedCategory = value('rubro_id')
-    const selectedSupplier = value('proveedor_principal_id')
     const categoryOptions = categoryRows.map((item) => ({
       value: String(item.id),
       label: textValue(item.nombre),
     }))
     return [
+      ...(row && row.tipo_producto !== 'ARTICULO' && row.tipo_producto ? apparelFields(row) : []),
       {
         name: 'name',
         label: 'Nombre del artículo',
-        defaultValue: value('nombre'),
+        defaultValue:
+          row &&
+          row.tipo_producto &&
+          row.tipo_producto !== 'ARTICULO' &&
+          value('nombre').endsWith(' · ' + value('talle') + ' · ' + value('color'))
+            ? value('nombre').slice(0, -(' · ' + value('talle') + ' · ' + value('color')).length)
+            : value('nombre'),
         ...(!row
           ? {
               suggestions: allRows
@@ -81,27 +88,20 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
           : {}),
       },
       { name: 'code', label: 'Código o código de barras', defaultValue: value('codigo') },
-      {
-        name: 'categoryId',
-        label: 'Rubro',
-        valueType: 'number',
-        options: categoryOptions,
-        lookupEndpoint: '/api/v1/alon/categories',
-        defaultLabel: value('rubro'),
-        searchable: true,
-        defaultValue: selectedCategory,
-      },
-      {
-        name: 'supplierId',
-        label: 'Proveedor principal',
-        valueType: 'number',
-        lookupEndpoint: '/api/v1/alon/lookups/suppliers',
-        defaultLabel:
-          value('proveedor_nombre', value('proveedor')) +
-          (value('proveedor_estado') === 'INACTIVO' ? ' · inactivo' : ''),
-        searchable: true,
-        defaultValue: selectedSupplier,
-      },
+      ...(!(row && row.tipo_producto && row.tipo_producto !== 'ARTICULO')
+        ? [
+            {
+              name: 'categoryId',
+              label: 'Rubro',
+              valueType: 'number' as const,
+              options: categoryOptions,
+              lookupEndpoint: '/api/v1/alon/categories',
+              defaultLabel: value('rubro'),
+              searchable: true,
+              defaultValue: selectedCategory,
+            },
+          ]
+        : []),
       {
         name: 'unit',
         label: 'Unidad',
@@ -130,16 +130,10 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
         defaultValue: value('costo', '0'),
       },
       {
-        name: 'freightAmount',
-        label: 'Flete',
+        name: 'freightPercent',
+        label: 'Flete (% del costo)',
         type: 'number',
-        defaultValue:
-          row && numberValue(row.flete_unitario) > 0
-            ? value('flete_unitario', '0')
-            : value('flete_porcentaje', '0'),
-        checkboxName: 'freightByPercent',
-        checkboxLabel: 'Aplicar flete porcentual',
-        checkedByDefault: !row || numberValue(row.flete_unitario) === 0,
+        defaultValue: value('flete_porcentaje', '0'),
       },
       {
         name: 'marginPercent',
@@ -172,24 +166,11 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
     ]
   }
   /** Emite el evento de actualización para recargar los listados después de una modificación. */
-  const refresh = () => window.dispatchEvent(new Event('alon:refresh'))
-  /** Activa o desactiva un artículo en el servidor y recarga los listados si la operación se completa. */
-  const setActive = async (id: number, active: boolean) => {
-    const response = await apiFetch(
-      `/api/v1/operations/articles/${id}/${active ? 'activate' : 'deactivate'}`,
-      { method: 'POST' },
-    )
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}))
-      window.alert(body.error ?? 'No se pudo cambiar el estado del artículo.')
-      return
-    }
-    refresh()
-  }
 
   return (
     <>
       {canEditCosts && <CategoryPricePanel />}
+      {canEditCosts && !editing && <ApparelEntry />}
       {imageArticle && (
         <ArticleImageEditor
           key={imageArticle.id}
@@ -285,7 +266,6 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
                 <th>FLETE</th>
                 <th>GANANCIA</th>
                 <th>PRECIO</th>
-                <th>PROVEEDOR</th>
                 <th>ACCIONES</th>
               </tr>
             </thead>
@@ -310,22 +290,13 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
                       <span className="muted-cell">{article.unit}</span>
                     </td>
                     <td data-label="Costo">{canEditCosts ? currency.format(article.cost) : '—'}</td>
-                    <td data-label="Flete">
-                      {article.freightPercent
-                        ? `${article.freightPercent}% del costo`
-                        : article.freight
-                          ? currency.format(article.freight)
-                          : '—'}
-                    </td>
+                    <td data-label="Flete">{article.freightPercent}% del costo</td>
                     <td data-label="Ganancia">
                       {canEditCosts ? article.margin + '%' : '—'}
                       {article.round ? ' · redondeo $10' : ''}
                     </td>
                     <td data-label="Precio" className="strong-cell">
                       {currency.format(article.price)}
-                    </td>
-                    <td data-label="Proveedor" className="mono-cell">
-                      {article.supplier}
                     </td>
                     <td data-label="Acciones" className="article-actions">
                       <div className="row-actions">
@@ -348,15 +319,10 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
                                 Modificar
                               </button>
                             )}
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={() =>
-                                void setActive(article.id, showInactive).catch(() => undefined)
-                              }
-                            >
-                              {showInactive ? 'Activar' : 'Desactivar'}
-                            </button>
+                            <DeleteRecordButton
+                              endpoint={`/api/v1/operations/articles/${article.id}`}
+                              name={article.name}
+                            />
                           </>
                         )}
                       </div>

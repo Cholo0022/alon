@@ -61,6 +61,7 @@ public class ArticleImageStorage {
             throw new IllegalArgumentException(
                     "No se pudo leer la imagen. Usá un archivo PNG o JPG válido.");
         }
+        image = fitForCatalog(image);
         String key = UUID.randomUUID() + ".png";
         Path file = directory.resolve(key);
         TransactionSynchronizationManager.registerSynchronization(
@@ -91,6 +92,30 @@ public class ArticleImageStorage {
             throw new UncheckedIOException("No se pudo guardar la imagen.", e);
         }
         return key;
+    }
+
+    /** Unifica el marco sin recortar, deformar ni ampliar los píxeles de fotos pequeñas. */
+    static BufferedImage fitForCatalog(BufferedImage source) {
+        int edge = Math.min(1200, Math.max(source.getWidth(), source.getHeight()));
+        double scale = (double) edge / Math.max(source.getWidth(), source.getHeight());
+        int width = Math.max(1, (int) Math.round(source.getWidth() * scale));
+        int height = Math.max(1, (int) Math.round(source.getHeight() * scale));
+        var result = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        var graphics = result.createGraphics();
+        try {
+            graphics.setColor(java.awt.Color.WHITE);
+            graphics.fillRect(0, 0, width, height);
+            graphics.setRenderingHint(
+                    java.awt.RenderingHints.KEY_INTERPOLATION,
+                    java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            graphics.setRenderingHint(
+                    java.awt.RenderingHints.KEY_RENDERING,
+                    java.awt.RenderingHints.VALUE_RENDER_QUALITY);
+            graphics.drawImage(source, 0, 0, width, height, null);
+        } finally {
+            graphics.dispose();
+        }
+        return result;
     }
 
     /**

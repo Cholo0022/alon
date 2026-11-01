@@ -38,21 +38,29 @@ public class ShopService {
      * rubros disponibles.
      */
     public Map<String, Object> catalog(String query, String category, int page) {
-        if (query.length() > 100 || category.length() > 90 || page < 0 || page > 10000)
+        if (query.length() > 100 || category.length() > 180 || page < 0 || page > 10000)
             throw new IllegalArgumentException("La búsqueda no es válida.");
+        String grouping =
+                "CASE WHEN a.tipo_producto IN ('INDUMENTARIA','CALZADO') THEN CASE WHEN RIGHT(a.nombre,CHAR_LENGTH(CONCAT(' · ',a.talle,' · ',a.color)))=CONCAT(' · ',a.talle,' · ',a.color) THEN LEFT(a.nombre,CHAR_LENGTH(a.nombre)-CHAR_LENGTH(CONCAT(' · ',a.talle,' · ',a.color))) ELSE a.nombre END ELSE r.nombre END";
         String where =
-                " FROM articulos a JOIN rubros r ON r.id=a.rubro_id WHERE a.comercio_id=? AND a.estado='ACTIVO' AND a.cargar_web=TRUE AND a.stock>0 AND (?='' OR LOCATE(?,CONCAT(a.codigo,' ',a.nombre))>0) AND (?='' OR r.nombre=?)";
+                " FROM articulos a JOIN rubros r ON r.id=a.rubro_id WHERE a.comercio_id=? AND a.estado='ACTIVO' AND a.cargar_web=TRUE AND a.stock>0 AND (?='' OR LOCATE(?,CONCAT(a.codigo,' ',a.nombre))>0) AND (?='' OR "
+                        + grouping
+                        + "=?)";
         var args = new Object[] {accounts.storeId(), query, query, category, category};
         var rows =
                 jdbc.queryForList(
-                        "SELECT a.id,a.codigo,a.nombre,a.unidad,a.precio_venta,a.stock,a.imagen_clave,a.imagen_ilustrativa,r.nombre AS rubro"
+                        "SELECT a.id,a.tipo_producto,a.modelo,a.marca,a.talle,a.sistema_talle,a.color,a.material,a.publico,a.temporada,a.descripcion,a.codigo,a.nombre,a.unidad,a.precio_venta,a.stock,a.imagen_clave,a.imagen_ilustrativa,"
+                                + grouping
+                                + " AS rubro"
                                 + where
                                 + " ORDER BY a.nombre,a.id LIMIT 24 OFFSET "
                                 + (page * 24),
                         args);
         var categories =
                 jdbc.queryForList(
-                        "SELECT DISTINCT r.nombre FROM rubros r JOIN articulos a ON a.rubro_id=r.id WHERE a.comercio_id=? AND a.estado='ACTIVO' AND a.cargar_web=TRUE AND a.stock>0 ORDER BY r.nombre",
+                        "SELECT DISTINCT "
+                                + grouping
+                                + " AS nombre FROM rubros r JOIN articulos a ON a.rubro_id=r.id WHERE a.comercio_id=? AND a.estado='ACTIVO' AND a.cargar_web=TRUE AND a.stock>0 ORDER BY nombre",
                         accounts.storeId());
         ar.com.alon.articles.ArticlePhotoQueries.attach(jdbc, accounts.storeId(), rows);
         return Map.of(
@@ -175,9 +183,13 @@ public class ShopService {
         for (var line : lines) {
             var a =
                     jdbc.queryForMap(
-                            "SELECT id,nombre,unidad,stock,precio_venta,cargar_web FROM articulos WHERE comercio_id=? AND id=? AND estado='ACTIVO' FOR UPDATE",
+                            "SELECT id,tipo_producto,nombre,unidad,stock,precio_venta,cargar_web FROM articulos WHERE comercio_id=? AND id=? AND estado='ACTIVO' FOR UPDATE",
                             store,
                             line.articleId());
+            if (!"ARTICULO".equals(a.get("tipo_producto"))
+                    && line.quantity().stripTrailingZeros().scale() > 0)
+                throw new IllegalArgumentException(
+                        "Elegí una cantidad entera de prendas o pares del talle y color seleccionados.");
             if (!Boolean.TRUE.equals(a.get("cargar_web"))
                     && !"1".equals(String.valueOf(a.get("cargar_web"))))
                 throw new ResponseStatusException(

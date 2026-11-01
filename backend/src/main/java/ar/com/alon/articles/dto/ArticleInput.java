@@ -7,8 +7,8 @@ import java.math.BigDecimal;
 public record ArticleInput(
         @NotBlank @Size(max = 30) String code,
         @NotBlank @Size(max = 180) String name,
-        @Positive long categoryId,
-        @Positive long supplierId,
+        @PositiveOrZero long categoryId,
+        @PositiveOrZero long supplierId,
         @Size(max = 30) String unit,
         BigDecimal cost,
         BigDecimal freightPerUnit,
@@ -25,7 +25,8 @@ public record ArticleInput(
                                 @jakarta.validation.constraints.NotNull @jakarta.validation.Valid
                                 ArticlePhotoInput>
                         photos,
-        boolean publishOnWeb) {
+        boolean publishOnWeb,
+        @jakarta.validation.Valid ApparelInput apparel) {
     /** Aplica redondeo de precio por defecto cuando el formulario no especifica esa preferencia. */
     public ArticleInput {
         if (roundPrice == null) roundPrice = true;

@@ -1,3 +1,4 @@
+import { DeleteRecordButton } from '../components/DeleteRecordButton'
 // Permite consultar proveedores y registrar los pagos de sus cuentas.
 import { useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
@@ -51,19 +52,7 @@ export function SupplierList() {
   const owedSuppliers = filtered.filter(
     (supplier) => supplier.balance > 0 && supplier.status === 'Activo',
   )
-  /** Activa o desactiva un proveedor y notifica la actualización del directorio. */
-  const setSupplierActive = async (id: number, active: boolean) => {
-    const response = await apiFetch(
-      `/api/v1/operations/suppliers/${id}/${active ? 'activate' : 'deactivate'}`,
-      { method: 'POST' },
-    )
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}))
-      window.alert(body.error ?? 'No se pudo cambiar el estado del proveedor.')
-      return
-    }
-    window.dispatchEvent(new Event('alon:refresh'))
-  }
+
   /** Selecciona al proveedor a pagar, propone su saldo y desplaza la pantalla al formulario del recibo. */
   const startReceipt = (supplier: { id: number; name: string; balance: number }) => {
     setShowDebtList(true)
@@ -440,17 +429,10 @@ export function SupplierList() {
                               </button>
                             </>
                           )}
-                          <button
-                            className="secondary-button"
-                            type="button"
-                            onClick={() =>
-                              void setSupplierActive(supplier.id, showInactive).catch(
-                                () => undefined,
-                              )
-                            }
-                          >
-                            {showInactive ? 'Activar' : 'Desactivar'}
-                          </button>
+                          <DeleteRecordButton
+                            endpoint={`/api/v1/operations/suppliers/${supplier.id}`}
+                            name={supplier.name}
+                          />
                         </>
                       )}
                     </div>

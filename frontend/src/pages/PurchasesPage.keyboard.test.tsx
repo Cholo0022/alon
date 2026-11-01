@@ -231,3 +231,22 @@ it('starts at the unnamed supplier, opens the supplier directory with Enter and 
     paid: 0,
   })
 })
+
+it('opens a separate apparel and footwear picker while preserving the purchase document', async () => {
+  render(<PurchasesPage />)
+  fireEvent.click(screen.getByRole('button', { name: /Cargar factura/ }))
+  await screen.findByLabelText('Número de comprobante')
+  fireEvent.change(screen.getByLabelText('Número de comprobante'), { target: { value: 'F-ROPA' } })
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Cargar indumentaria o calzado al comprobante' }),
+  )
+  expect(
+    screen.getByRole('dialog', { name: 'Elegir indumentaria o calzado · talle y color' }),
+  ).toBeTruthy()
+  await waitFor(() =>
+    expect(
+      request.mock.calls.some(([url]) => url.includes('/alon/articles?kind=VESTIMENTA&q=')),
+    ).toBe(true),
+  )
+  expect((screen.getByLabelText('Número de comprobante') as HTMLInputElement).value).toBe('F-ROPA')
+})

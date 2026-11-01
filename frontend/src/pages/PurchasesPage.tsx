@@ -1,3 +1,5 @@
+import { ApparelEntry } from '../components/ApparelFields'
+import { announceFiscalTarget } from '../hooks/useAccountingOptions'
 import { CostConfirmation } from '../components/CostConfirmation'
 import { PaymentConfirmation, type PaymentSelection } from '../components/PaymentConfirmation'
 import { useTransactionEntry } from '../hooks/useTransactionEntry'
@@ -21,6 +23,7 @@ import { ArticleEntryDialog, type ArticleEntryValues } from '../components/Artic
 
 /** Gestiona el ingreso de compras, el proveedor predeterminado, los artículos y las confirmaciones de pago y costo, además del historial. */
 export function PurchasesPage() {
+  const [productKind, setProductKind] = useState<'ARTICULO' | 'VESTIMENTA'>('ARTICULO')
   const [supplierPickerOpen, setSupplierPickerOpen] = useState(false)
   const [supplier, setSupplier] = useState<ApiRow | undefined>()
   const [supplierVersion, setSupplierVersion] = useState(0)
@@ -165,6 +168,17 @@ export function PurchasesPage() {
       })
       const result = (await response.json().catch(() => ({}))) as { error?: string }
       if (!response.ok) throw new Error(result.error ?? 'No se pudo guardar la factura.')
+      if (values.get('documentType') === 'FACTURA') {
+        const saved = result as { id?: number; total?: number }
+        if (saved.id)
+          announceFiscalTarget({
+            clase: 'COMPRA',
+            id: saved.id,
+            fecha: parsedDate,
+            total: Number(saved.total ?? invoiceTotal),
+            tercero: textValue(supplier?.nombre) || paymentPartyName,
+          })
+      }
       setPaymentOpen(false)
       setCostSelection(null)
       window.dispatchEvent(new Event('alon:refresh'))
@@ -248,6 +262,7 @@ export function PurchasesPage() {
       {articlePickerOpen && (
         <ArticlePicker
           mode="purchase"
+          kind={productKind}
           suspended={!!pendingArticle}
           message={message}
           unitCostOverride={costEdited ? Number(unitCost) : undefined}
@@ -287,6 +302,7 @@ export function PurchasesPage() {
           }}
         />
       )}
+      <ApparelEntry initialStock={false} />
       <section className="entry-panel purchase-entry">
         <div className="entry-heading">
           <div>
@@ -368,6 +384,36 @@ export function PurchasesPage() {
                 />
               </label>
             </div>
+            <div className="entry-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setProductKind('ARTICULO')
+                  setSelectedArticle(null)
+                  setSearchVersion((v) => v + 1)
+                  setArticlePickerOpen(true)
+                }}
+              >
+                Cargar artículo al comprobante
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setProductKind('VESTIMENTA')
+                  setSelectedArticle(null)
+                  setSearchVersion((v) => v + 1)
+                  setArticlePickerOpen(true)
+                }}
+              >
+                Cargar indumentaria o calzado al comprobante
+              </button>
+            </div>
+            <p>
+              Elegí el talle y color exactos. La cantidad de la compra ingresará al stock al guardar
+              el comprobante.
+            </p>
             <div className="transaction-article-entry">
               <label>
                 Artículo
@@ -382,7 +428,7 @@ export function PurchasesPage() {
                   }}
                   name="articleId"
                   label="Artículo"
-                  endpoint="/api/v1/alon/articles"
+                  endpoint={'/api/v1/alon/articles?kind=' + productKind}
                   required={false}
                   autoFocus={searchVersion > 0}
                   onSelect={setSelectedArticle}

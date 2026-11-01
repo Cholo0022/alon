@@ -11,6 +11,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class OperationsExceptionHandler {
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, String>> uploadTooLarge(Exception exception) {
+        return ResponseEntity.status(413)
+                .body(Map.of("error", "El archivo de backup supera el límite de 512 MB."));
+    }
+
     /**
      * Convierte una validación de negocio fallida en una respuesta 400 con el mensaje de error para
      * el usuario.
@@ -53,12 +59,41 @@ public class OperationsExceptionHandler {
                                         : exception.getReason()));
     }
 
+    @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> invalidFields(
+            org.springframework.web.bind.MethodArgumentNotValidException exception) {
+        var fields = new java.util.LinkedHashMap<String, String>();
+        for (var field : exception.getBindingResult().getFieldErrors())
+            fields.putIfAbsent(
+                    field.getField(), "Completá este campo y revisá su formato y longitud.");
+        var labels =
+                Map.ofEntries(
+                        Map.entry("name", "nombre"),
+                        Map.entry("code", "código (máximo 30 caracteres)"),
+                        Map.entry("apparel.size", "talle"),
+                        Map.entry("apparel.color", "color"),
+                        Map.entry("apparel.brand", "marca"),
+                        Map.entry("apparel.model", "modelo"),
+                        Map.entry("supplierId", "proveedor"),
+                        Map.entry("apparel.description", "descripción"));
+        return ResponseEntity.badRequest()
+                .body(
+                        Map.of(
+                                "error",
+                                "Revisá los campos señalados: "
+                                        + fields.keySet().stream()
+                                                .map(key -> labels.getOrDefault(key, key))
+                                                .collect(java.util.stream.Collectors.joining(", "))
+                                        + ".",
+                                "fields",
+                                fields));
+    }
+
     /**
      * Responde 400 cuando la estructura, los campos o los formatos de la solicitud no superan la
      * validación.
      */
     @ExceptionHandler({
-        org.springframework.web.bind.MethodArgumentNotValidException.class,
         org.springframework.http.converter.HttpMessageNotReadableException.class,
         org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
         jakarta.validation.ConstraintViolationException.class,

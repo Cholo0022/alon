@@ -1,12 +1,13 @@
+import { DeleteRecordButton } from '../components/DeleteRecordButton'
 // Permite consultar clientes, editar sus datos y ver sus movimientos.
 import { useState } from 'react'
-import { apiFetch } from '../lib/http'
+
 import { currency, textValue, numberValue } from '../lib/format'
 import { useApiRows, type ApiRow } from '../hooks/useApiRows'
 import { Pagination } from '../components/Pagination'
 import { LocalEntryPanel, StatusPill } from '../components/Forms'
 
-/** Muestra clientes activos o inactivos y permite alta, edición y cambio de estado con su cuenta corriente. */
+/** Permite crear, editar y eliminar clientes sin operaciones vinculadas. */
 export function CustomerList() {
   const [query, setQuery] = useState('')
   const [showInactive, setShowInactive] = useState(false)
@@ -30,21 +31,7 @@ export function CustomerList() {
       .toLocaleLowerCase('es-AR')
       .includes(query.toLocaleLowerCase('es-AR')),
   )
-  /** Notifica al sistema que debe volver a consultar los datos de clientes. */
-  const refresh = () => window.dispatchEvent(new Event('alon:refresh'))
-  /** Solicita activar o desactivar un cliente, muestra errores y actualiza el listado al confirmar el cambio. */
-  const setActive = async (id: number, active: boolean) => {
-    const response = await apiFetch(
-      `/api/v1/operations/customers/${id}/${active ? 'activate' : 'deactivate'}`,
-      { method: 'POST' },
-    )
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}))
-      window.alert(body.error ?? 'No se pudo cambiar el estado del cliente.')
-      return
-    }
-    refresh()
-  }
+
   return (
     <>
       {editing ? (
@@ -176,15 +163,10 @@ export function CustomerList() {
                               Modificar
                             </button>
                           )}
-                          <button
-                            className="secondary-button"
-                            type="button"
-                            onClick={() =>
-                              void setActive(customer.id, showInactive).catch(() => undefined)
-                            }
-                          >
-                            {showInactive ? 'Activar' : 'Desactivar'}
-                          </button>
+                          <DeleteRecordButton
+                            endpoint={`/api/v1/operations/customers/${customer.id}`}
+                            name={customer.name}
+                          />
                         </>
                       )}
                     </div>

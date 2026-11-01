@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LookupField } from './LookupField'
 import { SalesPage } from '../pages/SalesPage'
 import { ArticleList } from '../pages/CatalogPage'
@@ -25,6 +25,9 @@ it('searches remote records in one field and keeps the selected ID when results 
   fireEvent.keyDown(input, { key: 'ArrowDown' })
   expect(screen.getByRole('option').getAttribute('aria-selected')).toBe('true')
   fireEvent.keyDown(input, { key: 'Enter' })
+  const dialog = screen.getByRole('dialog', { name: 'Elegir artículo' })
+  await within(dialog).findByRole('option')
+  fireEvent.keyDown(within(dialog).getByRole('combobox'), { key: 'Enter' })
   expect(selected).toHaveBeenLastCalledWith(row)
   await waitFor(() => expect(screen.queryByRole('option')).toBeNull())
   expect(container.querySelector<HTMLInputElement>('input[name="articleId"]')?.value).toBe('250')
@@ -94,9 +97,9 @@ it('selects Consumidor final by default and preserves another explicit choice', 
   expect(screen.queryByRole('listbox')).toBeNull()
 })
 
-it('offers other database customers when opening the default selection without typing', async () => {
-  const consumer = { id: 21, codigo: 'FINAL', nombre: 'Consumidor final' }
-  const customer = { id: 99, codigo: 'C99', nombre: 'Cliente registrado' }
+it('hides default customer suggestions until typing and keeps Enter available for the complete list', async () => {
+  const consumer = { id: 21, codigo: 'FINAL', nombre: 'Consumidor final' },
+    customer = { id: 99, codigo: 'C99', nombre: 'Cliente registrado' }
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) =>
@@ -114,17 +117,19 @@ it('offers other database customers when opening the default selection without t
   const input = screen.getByRole('combobox', { name: 'Cliente' }) as HTMLInputElement
   await waitFor(() => expect(input.value).toBe('FINAL · Consumidor final'))
   fireEvent.focus(input)
-  await waitFor(() =>
-    expect(screen.getByRole('option', { name: 'C99 · Cliente registrado' })).toBeTruthy(),
-  )
-  fireEvent.click(screen.getByRole('option', { name: 'C99 · Cliente registrado' }))
-  expect(input.value).toBe('C99 · Cliente registrado')
-  expect(container.querySelector<HTMLInputElement>('input[name="customerId"]')?.value).toBe('99')
   fireEvent.click(input)
-  await waitFor(() =>
-    expect(screen.getByRole('option', { name: 'FINAL · Consumidor final' })).toBeTruthy(),
-  )
+  expect(screen.queryByRole('option')).toBeNull()
+  fireEvent.keyDown(input, { key: 'Enter' })
+  const dialog = screen.getByRole('dialog', { name: 'Elegir cliente' })
+  fireEvent.click(await within(dialog).findByRole('option', { name: /Cliente registrado/ }))
   expect(input.value).toBe('C99 · Cliente registrado')
+  expect(container.querySelector<HTMLInputElement>('[name="customerId"]')?.value).toBe('99')
+  fireEvent.click(input)
+  expect(screen.queryByRole('option')).toBeNull()
+  fireEvent.change(input, { target: { value: 'Cliente' } })
+  await screen.findByRole('option', { name: 'C99 · Cliente registrado' })
+  fireEvent.change(input, { target: { value: '' } })
+  expect(screen.queryByRole('option')).toBeNull()
 })
 
 it('shows sale article suggestions only for a nonempty matching search', async () => {
@@ -235,3 +240,32 @@ it('preserves an inactive linked supplier when enabling web publication in the a
     publishOnWeb: true,
   })
 })
+
+it.each(['suppliers', 'customers'])(
+  'opens the floating %s list with Enter without submitting the parent form',
+  async (entity) => {
+    const row = { id: 42, codigo: 'X42', nombre: 'Registro elegido' }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json([row])),
+    )
+    const submit = vi.fn((e) => e.preventDefault())
+    const { container } = render(
+      <form onSubmit={submit}>
+        <LookupField name="recordId" label="Registro" endpoint={'/api/v1/alon/lookups/' + entity} />
+      </form>,
+    )
+    const input = screen.getByRole('combobox', { name: 'Registro' })
+    fireEvent.focus(input)
+    fireEvent.keyDown(input, { key: 'Enter' })
+    const dialog = screen.getByRole('dialog', { name: 'Elegir registro' })
+    await within(dialog).findByRole('option')
+    fireEvent.keyDown(within(dialog).getByRole('combobox'), { key: 'Enter' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(container.querySelector<HTMLInputElement>('[name="recordId"]')?.value).toBe('42')
+    expect(submit).not.toHaveBeenCalled()
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(within(screen.getByRole('dialog')).getByRole('combobox'), { key: 'Escape' })
+    expect(container.querySelector<HTMLInputElement>('[name="recordId"]')?.value).toBe('42')
+  },
+)

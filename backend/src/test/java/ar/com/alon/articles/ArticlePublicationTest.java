@@ -110,6 +110,7 @@ class ArticlePublicationTest {
                 BigDecimal.ZERO,
                 new BigDecimal("120"),
                 null,
-                true);
+                true,
+                null);
     }
 }

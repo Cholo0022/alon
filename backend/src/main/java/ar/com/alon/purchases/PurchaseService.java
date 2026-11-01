@@ -88,6 +88,7 @@ public class PurchaseService extends StoreJdbcSupport {
         if (input.lines() == null || input.lines().isEmpty())
             throw new IllegalArgumentException("Ingresá al menos un artículo en la factura.");
         LocalDate date = input.date() == null ? LocalDate.now(clock) : input.date();
+        assertAccountingPeriod(date);
         String docType = enumValue(input.documentType(), "FACTURA", "FACTURA", "REMITO");
         String docNumber =
                 required(input.documentNumber(), "El número de comprobante es obligatorio.");
@@ -208,7 +209,6 @@ public class PurchaseService extends StoreJdbcSupport {
                     stock.multiply(oldCost)
                             .add(landedValue)
                             .divide(stock.add(prepared.quantity()), 2, RoundingMode.HALF_UP);
-            BigDecimal freight = new BigDecimal(article.get("flete_unitario").toString());
             BigDecimal freightPercent = new BigDecimal(article.get("flete_porcentaje").toString());
             BigDecimal margin = new BigDecimal(article.get("margen_porcentaje").toString());
             Object roundFlag = article.get("redondeo_precio");
@@ -217,7 +217,7 @@ public class PurchaseService extends StoreJdbcSupport {
                             ? flag
                             : roundFlag instanceof Number number && number.intValue() != 0;
             BigDecimal salePrice =
-                    calculateSalePrice(weightedCost, freight, freightPercent, margin, roundPrice);
+                    calculateSalePrice(weightedCost, freightPercent, margin, roundPrice);
             if (input.updateCost() == null) {
                 // Compatibilidad con solicitudes anteriores a la confirmación de costo.
                 jdbc.update(
@@ -298,11 +298,16 @@ public class PurchaseService extends StoreJdbcSupport {
      */
     @Transactional
     public Map<String, Object> updatePurchase(long id, PurchaseInput input) {
+        ar.com.alon.accounting.AccountingPeriods.checkLinked(
+                jdbc, identity.storeId(), "COMPRA", id);
+        assertAccountingPeriod(input.date() == null ? LocalDate.now(clock) : input.date());
         Map<String, Object> current =
                 jdbc.queryForMap(
                         "SELECT proveedor_id,fecha,total,pagado,numero_documento,gastos_adicionales FROM compras WHERE id=? AND comercio_id=? FOR UPDATE",
                         id,
                         identity.storeId());
+        assertAccountingPeriod(
+                java.sql.Date.valueOf(current.get("fecha").toString()).toLocalDate());
         long supplierId = ((Number) current.get("proveedor_id")).longValue();
         if (input.supplierId() != supplierId)
             throw new IllegalArgumentException(
@@ -413,7 +418,6 @@ public class PurchaseService extends StoreJdbcSupport {
                             oldValues.getOrDefault(articleId, BigDecimal.ZERO),
                             after,
                             newValues.getOrDefault(articleId, BigDecimal.ZERO));
-            BigDecimal freight = new BigDecimal(article.get("flete_unitario").toString());
             BigDecimal freightPercent = new BigDecimal(article.get("flete_porcentaje").toString());
             BigDecimal margin = new BigDecimal(article.get("margen_porcentaje").toString());
             Object roundFlag = article.get("redondeo_precio");
@@ -424,7 +428,7 @@ public class PurchaseService extends StoreJdbcSupport {
                     "UPDATE articulos SET stock=?,costo=?,precio_venta=? WHERE id=? AND comercio_id=?",
                     stock.add(delta),
                     weighted,
-                    calculateSalePrice(weighted, freight, freightPercent, margin, roundPrice),
+                    calculateSalePrice(weighted, freightPercent, margin, roundPrice),
                     articleId,
                     identity.storeId());
             if (delta.signum() != 0)
@@ -435,6 +439,10 @@ public class PurchaseService extends StoreJdbcSupport {
                         current.get("numero_documento").toString(),
                         "Corrección de compra " + id);
         }
+        jdbc.update(
+                "UPDATE comprobantes_contables SET controlado=FALSE WHERE comercio_id=? AND clase='COMPRA' AND operacion_id=?",
+                identity.storeId(),
+                id);
         audit.record(
                 "compra", id, "CORRECCION", Map.of("cabecera", current, "lineas", oldLines), input);
         jdbc.update("DELETE FROM compra_detalle WHERE compra_id=?", id);

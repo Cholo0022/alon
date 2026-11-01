@@ -12,7 +12,7 @@ La primera imagen es la portada. En el editor se puede hacer principal cualquier
 
 ## Flete
 
-El formulario del artículo tiene un solo importe de flete. Aplicar flete porcentual está marcado por defecto en artículos nuevos: el valor se calcula como porcentaje sobre el costo. Desmarcado, se agrega como importe fijo por unidad. El precio de venta se calcula sumando el flete al costo y aplicando después el margen y el redondeo indicados. Los artículos existentes conservan su modalidad al editarlos.
+El formulario de artículos, indumentaria y calzado tiene un único campo de flete: porcentaje del costo. El precio de venta se calcula sumando ese porcentaje al costo y aplicando después el margen y el redondeo indicados.
 
 Se generaron tres imágenes ilustrativas con la herramienta integrada de generación de imágenes, sin marcas comerciales. Son ejemplos, no fotografías verificadas de cada artículo:
 

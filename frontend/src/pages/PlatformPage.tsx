@@ -25,7 +25,12 @@ type Platform = {
 }
 type Issued = { key: string; months: number; activateBefore: string }
 const options = [
-  ...navigation.filter((item) => item.id !== 'administracion'),
+  ...navigation
+    .filter((item) => item.id !== 'administracion')
+    .map((item) => ({
+      ...item,
+      label: item.id === 'contabilidad' ? 'Contabilidad (incluye costos e impuestos)' : item.label,
+    })),
   { id: 'costos', label: 'Ver y modificar costos' },
   { id: 'descuentos', label: 'Autorizar descuentos' },
 ]

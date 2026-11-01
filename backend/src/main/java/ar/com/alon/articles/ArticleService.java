@@ -41,6 +41,7 @@ public class ArticleService extends StoreJdbcSupport {
     @Transactional
     public Map<String, Object> createArticle(ArticleInput input) {
         if (!identity.permits("compras")) identity.require("costos");
+        validateApparel(input);
         String code = required(input.code(), "El código del artículo es obligatorio.");
         String name = required(input.name(), "El nombre del artículo es obligatorio.");
         Integer duplicateName =
@@ -52,40 +53,34 @@ public class ArticleService extends StoreJdbcSupport {
         if (duplicateName != null && duplicateName > 0)
             throw new IllegalArgumentException(
                     "Ya existe un artículo con ese nombre. Buscalo en el listado de artículos.");
-        assertBelongs("rubros", input.categoryId());
-        assertBelongs("proveedores", input.supplierId());
+        long categoryId = categoryFor(input, null);
         BigDecimal stock =
                 DecimalRules.quantity(
                         input.initialStock(), false, "El stock inicial no puede ser negativo.");
         BigDecimal cost = nonNegative(input.cost(), "El costo no puede ser negativo.");
-        BigDecimal freight =
-                nonNegative(
-                        input.freightPerUnit() == null ? BigDecimal.ZERO : input.freightPerUnit(),
-                        "El flete por unidad no puede ser negativo.");
+        BigDecimal freight = BigDecimal.ZERO;
         BigDecimal freightPercent =
                 nonNegative(
                         input.freightPercent() == null ? BigDecimal.ZERO : input.freightPercent(),
                         "El porcentaje de flete no puede ser negativo.");
-        if (input.freightByValue() && input.freightByPercent())
+        if (input.freightByValue()
+                || (input.freightPerUnit() != null && input.freightPerUnit().signum() != 0))
             throw new IllegalArgumentException(
-                    "Elegí flete por valor fijo o por porcentaje, no ambos.");
-        if (!input.freightByValue()) freight = BigDecimal.ZERO;
-        if (!input.freightByPercent()) freightPercent = BigDecimal.ZERO;
+                    "El flete se carga únicamente como porcentaje del costo.");
         BigDecimal margin =
                 nonNegative(
                         input.marginPercent() == null ? BigDecimal.ZERO : input.marginPercent(),
                         "El margen no puede ser negativo.");
         boolean roundPrice = input.roundPrice();
-        BigDecimal salePrice =
-                calculateSalePrice(cost, freight, freightPercent, margin, roundPrice);
+        BigDecimal salePrice = calculateSalePrice(cost, freightPercent, margin, roundPrice);
         long id =
                 insert(
                         "INSERT INTO articulos (comercio_id,codigo,nombre,rubro_id,proveedor_principal_id,unidad,costo,flete_unitario,flete_porcentaje,margen_porcentaje,redondeo_precio,cargar_web,precio_venta,stock,stock_minimo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         identity.storeId(),
                         code,
                         name,
-                        input.categoryId(),
-                        input.supplierId(),
+                        categoryId,
+                        null,
                         value(input.unit()).isBlank() ? "UNIDAD" : input.unit().trim(),
                         cost,
                         freight,
@@ -99,6 +94,7 @@ public class ArticleService extends StoreJdbcSupport {
                                 input.minimumStock(),
                                 false,
                                 "El stock mínimo no puede ser negativo."));
+        saveApparel(id, input);
         if (stock.signum() > 0)
             this.stock.addStockMovement(
                     id, "ALTA", stock, "ALTA-" + code, "Stock inicial del artículo");
@@ -117,6 +113,12 @@ public class ArticleService extends StoreJdbcSupport {
                         "SELECT * FROM articulos WHERE id=? AND comercio_id=? FOR UPDATE",
                         id,
                         identity.storeId());
+        if (input.apparel() == null
+                && current.get("tipo_producto") != null
+                && !"ARTICULO".equals(current.get("tipo_producto")))
+            throw new IllegalArgumentException(
+                    "Completá los datos de indumentaria o calzado para modificar esta variante.");
+        validateApparel(input);
         String code = required(input.code(), "El código del artículo es obligatorio.");
         String name = required(input.name(), "El nombre del artículo es obligatorio.");
         Integer duplicateName =
@@ -128,33 +130,34 @@ public class ArticleService extends StoreJdbcSupport {
                         id);
         if (duplicateName != null && duplicateName > 0)
             throw new IllegalArgumentException("Ya existe otro artículo con ese nombre.");
-        assertBelongs("rubros", input.categoryId());
-        // El artículo puede conservar su proveedor anterior aunque esté desactivado.
-        // Para elegir un proveedor diferente, debe estar activo y pertenecer a este comercio.
-        boolean sameSupplier =
-                ((Number) current.get("proveedor_principal_id")).longValue() == input.supplierId();
-        assertBelongs("proveedores", input.supplierId(), sameSupplier);
+        long categoryId = categoryFor(input, current);
+        Long previousSupplier =
+                current.get("proveedor_principal_id") instanceof Number supplier
+                        ? supplier.longValue()
+                        : null;
+        Long supplierId = input.supplierId() > 0 ? input.supplierId() : previousSupplier;
+        if (input.supplierId() > 0)
+            assertBelongs(
+                    "proveedores",
+                    input.supplierId(),
+                    java.util.Objects.equals(previousSupplier, supplierId));
         BigDecimal cost = nonNegative(input.cost(), "El costo no puede ser negativo.");
-        BigDecimal freight =
-                nonNegative(
-                        input.freightPerUnit() == null ? BigDecimal.ZERO : input.freightPerUnit(),
-                        "El flete no puede ser negativo.");
+        BigDecimal freight = BigDecimal.ZERO;
         BigDecimal freightPercent =
                 nonNegative(
                         input.freightPercent() == null ? BigDecimal.ZERO : input.freightPercent(),
                         "El porcentaje de flete no puede ser negativo.");
-        if (input.freightByValue() && input.freightByPercent())
-            throw new IllegalArgumentException("Elegí un solo tipo de flete.");
-        if (!input.freightByValue()) freight = BigDecimal.ZERO;
-        if (!input.freightByPercent()) freightPercent = BigDecimal.ZERO;
+        if (input.freightByValue()
+                || (input.freightPerUnit() != null && input.freightPerUnit().signum() != 0))
+            throw new IllegalArgumentException(
+                    "El flete se carga únicamente como porcentaje del costo.");
         BigDecimal margin =
                 nonNegative(
                         input.marginPercent() == null ? BigDecimal.ZERO : input.marginPercent(),
                         "El margen no puede ser negativo.");
         BigDecimal price =
                 input.salePrice() == null
-                        ? calculateSalePrice(
-                                cost, freight, freightPercent, margin, input.roundPrice())
+                        ? calculateSalePrice(cost, freightPercent, margin, input.roundPrice())
                         : nonNegative(input.salePrice(), "El precio no puede ser negativo.");
         // Un cambio manual de cantidad debe quedar registrado como ajuste de stock.
         BigDecimal oldStock = new BigDecimal(current.get("stock").toString());
@@ -167,8 +170,8 @@ public class ArticleService extends StoreJdbcSupport {
                 "UPDATE articulos SET codigo=?,nombre=?,rubro_id=?,proveedor_principal_id=?,unidad=?,costo=?,flete_unitario=?,flete_porcentaje=?,margen_porcentaje=?,redondeo_precio=?,cargar_web=?,precio_venta=?,stock_minimo=? WHERE id=? AND comercio_id=?",
                 code,
                 name,
-                input.categoryId(),
-                input.supplierId(),
+                categoryId,
+                supplierId,
                 value(input.unit()).isBlank() ? "UNIDAD" : input.unit().trim(),
                 cost,
                 freight,
@@ -196,6 +199,7 @@ public class ArticleService extends StoreJdbcSupport {
                             + oldStock.toPlainString()
                             + " a "
                             + newStock.toPlainString());
+        saveApparel(id, input);
         audit.record(
                 "articulo",
                 id,
@@ -206,6 +210,58 @@ public class ArticleService extends StoreJdbcSupport {
                         id,
                         identity.storeId()));
         return Map.of("id", id, "codigo", code, "nombre", name);
+    }
+
+    /** La clasificación interna no requiere un rubro en el formulario de indumentaria. */
+    private long categoryFor(ArticleInput input, Map<String, Object> current) {
+        if (input.apparel() == null) {
+            assertBelongs("rubros", input.categoryId());
+            return input.categoryId();
+        }
+        if (current != null) return ((Number) current.get("rubro_id")).longValue();
+        jdbc.queryForObject(
+                "SELECT id FROM comercios WHERE id=? FOR UPDATE", Long.class, identity.storeId());
+        var existing =
+                jdbc.queryForList(
+                        "SELECT id FROM rubros WHERE comercio_id=? AND nombre=? ORDER BY id LIMIT 1",
+                        identity.storeId(),
+                        "Indumentaria y calzado");
+        if (!existing.isEmpty()) return ((Number) existing.getFirst().get("id")).longValue();
+        return insert(
+                "INSERT INTO rubros (comercio_id,codigo,nombre) VALUES (?,?,?)",
+                identity.storeId(),
+                "RUB-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
+                "Indumentaria y calzado");
+    }
+
+    private void validateApparel(ArticleInput input) {
+        if (input.apparel() == null) return;
+        if (!"UNIDAD".equalsIgnoreCase(value(input.unit())))
+            throw new IllegalArgumentException(
+                    "Indumentaria y calzado se cargan por unidad o par vendido como unidad.");
+        for (BigDecimal quantity : new BigDecimal[] {input.initialStock(), input.minimumStock()})
+            if (quantity != null && quantity.stripTrailingZeros().scale() > 0)
+                throw new IllegalArgumentException(
+                        "Los talles y colores requieren cantidades enteras.");
+    }
+
+    private void saveApparel(long id, ArticleInput input) {
+        var a = input.apparel();
+        if (a == null) return;
+        jdbc.update(
+                "UPDATE articulos SET tipo_producto=?,modelo=?,marca=?,talle=?,sistema_talle=?,color=?,material=?,publico=?,temporada=?,descripcion=? WHERE id=? AND comercio_id=?",
+                a.kind(),
+                a.model().trim(),
+                a.brand().trim(),
+                a.size().trim(),
+                a.sizeSystem().trim(),
+                a.color().trim(),
+                a.material().trim(),
+                a.audience().trim(),
+                a.season().trim(),
+                a.description().trim(),
+                id,
+                identity.storeId());
     }
 
     /** Activa o desactiva el artículo del comercio sin borrar su historial de operaciones. */

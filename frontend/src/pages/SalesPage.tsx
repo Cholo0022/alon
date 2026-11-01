@@ -1,3 +1,4 @@
+import { announceFiscalTarget } from '../hooks/useAccountingOptions'
 import { PaymentConfirmation, type PaymentSelection } from '../components/PaymentConfirmation'
 import { useTransactionEntry } from '../hooks/useTransactionEntry'
 // Reúne los artículos de la venta y la guarda completa cuando el usuario confirma.
@@ -180,6 +181,15 @@ export function SalesPage({
       })
       const result = (await response.json().catch(() => ({}))) as { error?: string }
       if (!response.ok) throw new Error(result.error ?? 'No se pudo guardar la venta.')
+      const saved = result as { id?: number; total?: number }
+      if (saved.id)
+        announceFiscalTarget({
+          clase: 'VENTA',
+          id: saved.id,
+          fecha: date,
+          total: Number(saved.total ?? saleTotal),
+          tercero: paymentPartyName || 'Consumidor final',
+        })
       setPaymentOpen(false)
       window.dispatchEvent(new Event('alon:refresh'))
       setMessage('Venta guardada correctamente con ' + lines.length + ' artículos.')

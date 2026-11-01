@@ -88,6 +88,10 @@ class MySqlIntegrationTest {
                                 try {
                                     for (String table :
                                             List.of(
+                                                    "comprobantes_contables_iva",
+                                                    "comprobantes_contables",
+                                                    "cierres_contables",
+                                                    "periodos_contables",
                                                     "licencias",
                                                     "security_recovery_codes",
                                                     "security_browsers",
@@ -198,6 +202,412 @@ class MySqlIntegrationTest {
                 new AuditLog(jdbc, identity, JsonMapper.builder().build()),
                 sales,
                 customers);
+    }
+
+    private ar.com.alon.accounting.AccountingReport accountingReport() {
+        return new ar.com.alon.accounting.AccountingReport(
+                jdbc, identity, clock, JsonMapper.builder().build());
+    }
+
+    private ar.com.alon.accounting.AccountingService accounting() {
+        return new ar.com.alon.accounting.AccountingService(
+                jdbc,
+                identity,
+                clock,
+                new AuditLog(jdbc, identity, JsonMapper.builder().build()),
+                accountingReport(),
+                JsonMapper.builder().build());
+    }
+
+    private ar.com.alon.accounting.FiscalService fiscal() {
+        return new ar.com.alon.accounting.FiscalService(
+                jdbc, identity, clock, new AuditLog(jdbc, identity, JsonMapper.builder().build()));
+    }
+
+    private ar.com.alon.accounting.FiscalInput fiscalInput(
+            String type,
+            String documentType,
+            long number,
+            String net,
+            String iva,
+            String credit,
+            boolean checked) {
+        return new ar.com.alon.accounting.FiscalInput(
+                type,
+                documentType,
+                "A",
+                1,
+                number,
+                "Tercero de prueba",
+                type.equals("VENTA") ? "CONSUMIDOR_FINAL" : "CUIT",
+                type.equals("VENTA") ? "" : "20123456786",
+                LocalDate.now(clock),
+                "2026-10",
+                null,
+                documentType.equals("FACTURA") ? "" : "Factura A 1-1",
+                d("0"),
+                d("0"),
+                d("0"),
+                d("0"),
+                d("0"),
+                d(credit),
+                d(net).add(d(iva)),
+                checked,
+                "",
+                "",
+                "",
+                List.of(new ar.com.alon.accounting.FiscalInput.Iva(d("21"), d(net), d(iva))));
+    }
+
+    @Test
+    void optionalMonthlyControlBlocksClosedDatesAndKeepsEveryClosureRevision() {
+        jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT control_periodos FROM comercios WHERE id=1", Boolean.class))
+                .isFalse();
+        transaction.execute(
+                s ->
+                        accounting()
+                                .settings(
+                                        new ar.com.alon.accounting.AccountingService.Settings(
+                                                true,
+                                                false,
+                                                "",
+                                                "RESPONSABLE_INSCRIPTO",
+                                                "Activar cierres mensuales")));
+        var sale =
+                new SaleInput(
+                        1,
+                        LocalDate.now(clock),
+                        "CUENTA_CORRIENTE",
+                        "CUENTA_CORRIENTE",
+                        List.of(new SaleLine(1, d("1"), d("0"))));
+        assertThatThrownBy(() -> transaction.execute(s -> sales.createSale(sale)))
+                .hasMessageContaining("no está abierto");
+        transaction.execute(
+                s ->
+                        accounting()
+                                .open(
+                                        new ar.com.alon.accounting.AccountingService.Change(
+                                                "2026-10", "Apertura del mes de prueba")));
+        transaction.execute(s -> sales.createSale(sale));
+        transaction.execute(s -> cash.openCash(new CashOpenInput(LocalDate.now(clock), d("0"))));
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s ->
+                                                accounting()
+                                                        .close(
+                                                                new ar.com.alon.accounting
+                                                                        .AccountingService.Change(
+                                                                        "2026-10",
+                                                                        "Cierre mensual de prueba"))))
+                .hasMessageContaining("cajas abiertas");
+        transaction.execute(s -> cash.closeCash(new CashCloseInput(LocalDate.now(clock), d("0"))));
+        transaction.execute(
+                s ->
+                        accounting()
+                                .close(
+                                        new ar.com.alon.accounting.AccountingService.Change(
+                                                "2026-10", "Cierre mensual de prueba")));
+        var first = accountingReport().report("2026-10");
+        assertThat(first.get("fuente")).isEqualTo("CIERRE");
+        assertThatThrownBy(() -> transaction.execute(s -> sales.createSale(sale)))
+                .hasMessageContaining("cerrado");
+        transaction.execute(
+                s ->
+                        accounting()
+                                .settings(
+                                        new ar.com.alon.accounting.AccountingService.Settings(
+                                                false,
+                                                false,
+                                                "",
+                                                "RESPONSABLE_INSCRIPTO",
+                                                "Desactivar aperturas nuevas")));
+        assertThatThrownBy(() -> transaction.execute(s -> sales.createSale(sale)))
+                .hasMessageContaining("cerrado");
+        transaction.execute(
+                s ->
+                        accounting()
+                                .open(
+                                        new ar.com.alon.accounting.AccountingService.Change(
+                                                "2026-10", "Reabrir para corregir el mes")));
+        transaction.execute(s -> sales.createSale(sale));
+        var stored = accountingReport().closed(((Number) first.get("cierre_id")).longValue());
+        assertThat(
+                        new BigDecimal(
+                                ((Map<?, ?>) stored.get("resumen"))
+                                        .get("ventas_registradas")
+                                        .toString()))
+                .isEqualByComparingTo("200");
+        transaction.execute(
+                s ->
+                        accounting()
+                                .settings(
+                                        new ar.com.alon.accounting.AccountingService.Settings(
+                                                true,
+                                                false,
+                                                "",
+                                                "RESPONSABLE_INSCRIPTO",
+                                                "Reactivar cierres mensuales")));
+        transaction.execute(
+                s ->
+                        accounting()
+                                .close(
+                                        new ar.com.alon.accounting.AccountingService.Change(
+                                                "2026-10", "Segundo cierre revisado del mes")));
+        assertThat(accounting().history("2026-10")).hasSize(2);
+        assertThat(
+                        new BigDecimal(
+                                ((Map<?, ?>) accountingReport().report("2026-10").get("resumen"))
+                                        .get("ventas_registradas")
+                                        .toString()))
+                .isEqualByComparingTo("400");
+    }
+
+    @Test
+    void optionalTaxModeRegistersActualVatAndCreditNotesWithExplicitComputableCredit() {
+        var purchase = fiscalInput("COMPRA", "FACTURA", 1, "100", "21", "15", true);
+        assertThatThrownBy(() -> transaction.execute(s -> fiscal().save(null, purchase)))
+                .hasMessageContaining("desactivado");
+        transaction.execute(
+                s ->
+                        accounting()
+                                .settings(
+                                        new ar.com.alon.accounting.AccountingService.Settings(
+                                                false,
+                                                true,
+                                                "30712345671",
+                                                "RESPONSABLE_INSCRIPTO",
+                                                "Activar desglose de impuestos")));
+        transaction.execute(s -> fiscal().save(null, purchase));
+        transaction.execute(
+                s ->
+                        fiscal().save(
+                                        null,
+                                        fiscalInput(
+                                                "COMPRA",
+                                                "NOTA_CREDITO",
+                                                2,
+                                                "20",
+                                                "4.20",
+                                                "4.20",
+                                                true)));
+        transaction.execute(
+                s ->
+                        fiscal().save(
+                                        null,
+                                        fiscalInput(
+                                                "VENTA", "FACTURA", 1, "100", "21", "0", true)));
+        var report = accountingReport().report("2026-10");
+        var summary = (Map<?, ?>) report.get("resumen");
+        assertThat(new BigDecimal(summary.get("iva_debito_controlado").toString()))
+                .isEqualByComparingTo("21");
+        assertThat(new BigDecimal(summary.get("iva_credito_computable_controlado").toString()))
+                .isEqualByComparingTo("10.80");
+        assertThat(new BigDecimal(summary.get("diferencia_iva_parcial").toString()))
+                .isEqualByComparingTo("10.20");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM compras", Long.class)).isZero();
+        assertThatThrownBy(() -> transaction.execute(s -> fiscal().save(null, purchase)))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void taxCloseRequiresCompletedReviewAndPeriodReopeningIsRestrictedToAdministrators() {
+        transaction.execute(
+                s ->
+                        accounting()
+                                .settings(
+                                        new ar.com.alon.accounting.AccountingService.Settings(
+                                                true,
+                                                true,
+                                                "30712345671",
+                                                "RESPONSABLE_INSCRIPTO",
+                                                "Activar controles e impuestos")));
+        transaction.execute(
+                s ->
+                        accounting()
+                                .open(
+                                        new ar.com.alon.accounting.AccountingService.Change(
+                                                "2026-10", "Abrir el mes para contabilizar")));
+        var document =
+                transaction.execute(
+                        s ->
+                                fiscal().save(
+                                                null,
+                                                fiscalInput(
+                                                        "COMPRA", "FACTURA", 1, "100", "21", "15",
+                                                        false)));
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s ->
+                                                accounting()
+                                                        .close(
+                                                                new ar.com.alon.accounting
+                                                                        .AccountingService.Change(
+                                                                        "2026-10",
+                                                                        "Cerrar sin revisar los datos"))))
+                .hasMessageContaining("sin controlar");
+        transaction.execute(
+                s ->
+                        fiscal().save(
+                                        ((Number) document.get("id")).longValue(),
+                                        fiscalInput(
+                                                "COMPRA", "FACTURA", 1, "100", "21", "15", true)));
+        transaction.execute(
+                s ->
+                        accounting()
+                                .close(
+                                        new ar.com.alon.accounting.AccountingService.Change(
+                                                "2026-10", "Cerrar luego de controlar datos")));
+        when(identity.user())
+                .thenReturn(Map.of("rol", "PERSONALIZADO", "id", 1L, "comercio_id", 1L));
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s ->
+                                                accounting()
+                                                        .open(
+                                                                new ar.com.alon.accounting
+                                                                        .AccountingService.Change(
+                                                                        "2026-10",
+                                                                        "Intento de reapertura sin rol"))))
+                .hasMessageContaining("gerente");
+    }
+
+    private ar.com.alon.backup.BackupService backupService(java.nio.file.Path root) {
+        return new ar.com.alon.backup.BackupService(
+                identity,
+                source.getUrl(),
+                source.getUsername(),
+                source.getPassword(),
+                root.resolve("backups").toString(),
+                root.resolve("images").toString(),
+                root.resolve("security/mfa.key").toString(),
+                "");
+    }
+
+    private ar.com.alon.backup.BackupRestoreService restoreService(
+            java.nio.file.Path root, ar.com.alon.backup.BackupService backups) {
+        return new ar.com.alon.backup.BackupRestoreService(
+                backups,
+                identity,
+                new ar.com.alon.backup.RestoreGate(root.resolve("backups").toString()),
+                source.getUrl(),
+                source.getUsername(),
+                source.getPassword(),
+                root.resolve("backups").toString(),
+                root.resolve("images").toString(),
+                root.resolve("security/mfa.key").toString());
+    }
+
+    @Test
+    void backupRestoresDataImagesAndAuthenticatorAndKeepsThePreviousState(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path root) throws Exception {
+        var files = root.resolve("images");
+        java.nio.file.Files.createDirectories(files);
+        String image = "12345678-1234-1234-1234-123456789abc.png";
+        java.nio.file.Files.writeString(files.resolve(image), "original image");
+        jdbc.update(
+                "UPDATE articulos SET nombre='Articulo respaldado',imagen_clave=? WHERE id=1",
+                image);
+        var crypto = new TotpSecurity(root.resolve("security/mfa.key").toString());
+        String secret = crypto.newSecret();
+        jdbc.update(
+                "UPDATE usuarios SET mfa_enabled=TRUE,mfa_secret=? WHERE id=1",
+                crypto.encrypt(secret));
+        byte[] originalKey = java.nio.file.Files.readAllBytes(root.resolve("security/mfa.key"));
+        var backups = backupService(root);
+        long originalTimestamp =
+                jdbc.queryForObject(
+                        "SELECT UNIX_TIMESTAMP(creado_en) FROM comercios WHERE id=1", Long.class);
+        var snapshot = backups.create();
+        jdbc.update("UPDATE articulos SET nombre='Estado posterior al backup' WHERE id=1");
+        java.nio.file.Files.writeString(files.resolve(image), "current image");
+        byte[] currentKey = new byte[32];
+        new java.security.SecureRandom().nextBytes(currentKey);
+        java.nio.file.Files.write(root.resolve("security/mfa.key"), currentKey);
+        jdbc.update(
+                "UPDATE usuarios SET mfa_secret=? WHERE id=1", crypto.encrypt(crypto.newSecret()));
+        ar.com.alon.backup.BackupRestoreService.Result result;
+        try (var input = java.nio.file.Files.newInputStream(backups.download(snapshot.name()))) {
+            result = restoreService(root, backups).restore(input, "RESTAURAR");
+        }
+        assertThat(jdbc.queryForObject("SELECT nombre FROM articulos WHERE id=1", String.class))
+                .isEqualTo("Articulo respaldado");
+        assertThat(java.nio.file.Files.readString(files.resolve(image)))
+                .isEqualTo("original image");
+        assertThat(java.nio.file.Files.readAllBytes(root.resolve("security/mfa.key")))
+                .isEqualTo(originalKey);
+        assertThat(
+                        crypto.decrypt(
+                                jdbc.queryForObject(
+                                        "SELECT mfa_secret FROM usuarios WHERE id=1",
+                                        String.class)))
+                .isEqualTo(secret);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT UNIX_TIMESTAMP(creado_en) FROM comercios WHERE id=1",
+                                Long.class))
+                .isEqualTo(originalTimestamp);
+        assertThat(backups.list()).hasSize(2);
+        try (var zip =
+                new java.util.zip.ZipFile(backups.download(result.safetyBackup()).toFile())) {
+            assertThat(
+                            new String(
+                                    zip.getInputStream(zip.getEntry("database.sql")).readAllBytes(),
+                                    java.nio.charset.StandardCharsets.UTF_8))
+                    .contains("Estado posterior al backup");
+            assertThat(zip.getInputStream(zip.getEntry("security/mfa.key")).readAllBytes())
+                    .isEqualTo(currentKey);
+        }
+        assertThat(
+                        java.nio.file.Files.exists(
+                                root.resolve("backups/restore-recovery-required.txt")))
+                .isFalse();
+    }
+
+    @Test
+    void invalidBackupReferencesRollBackAllDataWithoutChangingFiles(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path root) throws Exception {
+        var backups = backupService(root);
+        var snapshot = backups.create();
+        jdbc.update("UPDATE articulos SET nombre='Conservar dato actual' WHERE id=1");
+        var zipBytes = new java.io.ByteArrayOutputStream();
+        try (var sourceZip = new java.util.zip.ZipFile(backups.download(snapshot.name()).toFile());
+                var output = new java.util.zip.ZipOutputStream(zipBytes)) {
+            var entries = sourceZip.entries();
+            while (entries.hasMoreElements()) {
+                var entry = entries.nextElement();
+                byte[] bytes = sourceZip.getInputStream(entry).readAllBytes();
+                if (entry.getName().equals("database.sql")) {
+                    String sql = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                    sql = sql.replaceAll("(?m)^INSERT INTO `proveedores` VALUES[^\\r\\n]*;", "");
+                    bytes = sql.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                }
+                output.putNextEntry(new java.util.zip.ZipEntry(entry.getName()));
+                output.write(bytes);
+                output.closeEntry();
+            }
+        }
+        assertThatThrownBy(
+                        () ->
+                                restoreService(root, backups)
+                                        .restore(
+                                                new java.io.ByteArrayInputStream(
+                                                        zipBytes.toByteArray()),
+                                                "RESTAURAR"))
+                .hasMessageContaining("referencias incompletas");
+        assertThat(jdbc.queryForObject("SELECT nombre FROM articulos WHERE id=1", String.class))
+                .isEqualTo("Conservar dato actual");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM proveedores", Long.class))
+                .isEqualTo(1L);
+        assertThat(
+                        java.nio.file.Files.exists(
+                                root.resolve("backups/restore-recovery-required.txt")))
+                .isFalse();
     }
 
     @Test
@@ -1370,6 +1780,166 @@ class MySqlIntegrationTest {
     }
 
     @Test
+    void newCatalogProductsHaveNoSupplierAndCanBePurchasedFromMultipleSuppliers() {
+        var input = new ArticleInput("LIBRE", "Producto sin proveedor", 1, 0, "UNIDAD", d("100"), d("0"), d("0"), false, true, d("0"), false, d("0"), d("0"), null, null, true, null);
+        long id = ((Number) transaction.execute(status -> catalog.createArticle(input)).get("id")).longValue();
+        assertThat(jdbc.queryForMap("SELECT proveedor_principal_id FROM articulos WHERE id=?",id).get("proveedor_principal_id")).isNull();
+        jdbc.update("INSERT INTO proveedores(id,comercio_id,codigo,nombre,especialidad,telefono,email) VALUES(2,1,'P2','Segundo proveedor','','','')");
+        for(long supplier : List.of(1L,2L)) transaction.execute(status -> purchases.createPurchase(new PurchaseInput(supplier,"REMITO","LIBRE-1",LocalDate.now(clock),List.of(new PurchaseLineInput(id,d("2"),d("100"))),d("0"),d("0"),"CUENTA_CORRIENTE",null,false)));
+        assertThat(jdbc.queryForObject("SELECT stock FROM articulos WHERE id=?",BigDecimal.class,id)).isEqualByComparingTo("4");
+        assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT proveedor_id) FROM compras",Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForMap("SELECT proveedor_principal_id FROM articulos WHERE id=?",id).get("proveedor_principal_id")).isNull();
+        assertThat(new ArticleQueries(jdbc,identity,clock).articles("SUPER",false)).extracting(row -> ((Number)row.get("id")).longValue()).contains(id);
+    }
+
+    @Test
+    void apparelVariantsHaveIndependentStockAndArePublishedWithTheirAttributes() {
+        var apparel =
+                new ar.com.alon.articles.dto.ApparelInput(
+                        "CALZADO",
+                        "Urbano",
+                        "Marca",
+                        "38",
+                        "AR",
+                        "Negro",
+                        "Cuero",
+                        "UNISEX",
+                        "TODO EL AÑO",
+                        "Calzado de cuero. Un par por unidad.");
+        var input =
+                new ArticleInput(
+                        "Z38N",
+                        "Urbano · 38 · Negro",
+                        0,
+                        1,
+                        "UNIDAD",
+                        d("100"),
+                        d("0"),
+                        d("0"),
+                        false,
+                        false,
+                        d("100"),
+                        false,
+                        d("4"),
+                        d("1"),
+                        null,
+                        null,
+                        true,
+                        apparel);
+        long variant =
+                ((Number) transaction.execute(status -> catalog.createArticle(input)).get("id"))
+                        .longValue();
+        var attributes =
+                jdbc.queryForMap(
+                        "SELECT tipo_producto,talle,color,stock FROM articulos WHERE id=?",
+                        variant);
+        assertThat(jdbc.queryForMap("SELECT proveedor_principal_id FROM articulos WHERE id=?",variant).get("proveedor_principal_id")).isNull();
+        assertThat(attributes)
+                .containsEntry("tipo_producto", "CALZADO")
+                .containsEntry("talle", "38")
+                .containsEntry("color", "Negro");
+        assertThat(
+                        new ArticleQueries(jdbc, identity, clock)
+                                .articles("SUPER", false, "", "ARTICULO"))
+                .extracting(row -> ((Number) row.get("id")).longValue())
+                .containsExactly(1L);
+        assertThat(
+                        new ArticleQueries(jdbc, identity, clock)
+                                .articles("SUPER", false, "", "VESTIMENTA"))
+                .extracting(row -> ((Number) row.get("id")).longValue())
+                .containsExactly(variant);
+        var published = (List<Map<String, Object>>) shop().catalog("Z38N", "", 0).get("items");
+        assertThat(published).hasSize(1);
+        assertThat(published.getFirst()).containsEntry("rubro", "Urbano");
+        jdbc.update("UPDATE articulos SET stock=1 WHERE id=1");
+        assertThat(shop().catalog("", "Urbano", 0).get("total")).isEqualTo(1L);
+        var ordinary = (List<Map<String, Object>>) shop().catalog("", "Rubro", 0).get("items");
+        assertThat(ordinary).hasSize(1);
+        assertThat(ordinary.getFirst())
+                .containsEntry("nombre", "Artículo")
+                .containsEntry("rubro", "Rubro");
+        var filters = (List<Map<String, Object>>) shop().catalog("", "", 0).get("categories");
+        assertThat(filters)
+                .extracting(row -> row.get("nombre"))
+                .contains("Urbano", "Rubro")
+                .doesNotContain("Indumentaria y calzado", "Urbano · 38 · Negro");
+        jdbc.update("UPDATE articulos SET stock=0 WHERE id=1");
+        assertThat(published.getFirst())
+                .containsEntry("material", "Cuero")
+                .containsEntry("sistema_talle", "AR");
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        status ->
+                                                purchases.createPurchase(
+                                                        new PurchaseInput(
+                                                                1,
+                                                                "FACTURA",
+                                                                "F-TALLE",
+                                                                LocalDate.now(clock),
+                                                                List.of(
+                                                                        new PurchaseLineInput(
+                                                                                variant, d("0.5"),
+                                                                                d("100"))),
+                                                                d("0"),
+                                                                d("0"),
+                                                                "CUENTA_CORRIENTE",
+                                                                "EFECTIVO",
+                                                                false))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("enteras");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT stock FROM articulos WHERE id=?",
+                                BigDecimal.class,
+                                variant))
+                .isEqualByComparingTo("4");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM compras", Integer.class)).isZero();
+        transaction.execute(
+                status ->
+                        purchases.createPurchase(
+                                new PurchaseInput(
+                                        1,
+                                        "FACTURA",
+                                        "F-TALLE-OK",
+                                        LocalDate.now(clock),
+                                        List.of(new PurchaseLineInput(variant, d("2"), d("100"))),
+                                        d("0"),
+                                        d("0"),
+                                        "CUENTA_CORRIENTE",
+                                        "EFECTIVO",
+                                        false)));
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT stock FROM articulos WHERE id=?",
+                                BigDecimal.class,
+                                variant))
+                .isEqualByComparingTo("6");
+        assertThat(stock()).isEqualByComparingTo("0");
+        var buyer = buyer();
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        status ->
+                                                shop().checkout(
+                                                                new ar.com.alon.storefront
+                                                                        .ShopService.Checkout(
+                                                                        List.of(
+                                                                                new ar.com.alon
+                                                                                        .storefront
+                                                                                        .ShopService
+                                                                                        .Line(
+                                                                                        variant,
+                                                                                        d("0.5"),
+                                                                                        d("200"))),
+                                                                        "EFECTIVO"),
+                                                                buyer,
+                                                                "fractional-shoe-order")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("entera");
+    }
+
+    @Test
     void stockAdjustmentsHaveAnAuthorAndSignedDelta() {
         buy(purchase("F1", "10", "100", "0"));
         var input =
@@ -1390,7 +1960,8 @@ class MySqlIntegrationTest {
                         d("0.001"),
                         d("200"),
                         null,
-                        false);
+                        false,
+                        null);
         transaction.execute(status -> catalog.updateArticle(1, input));
         assertThat(stock()).isEqualByComparingTo("9.125");
         assertThat(

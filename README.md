@@ -87,3 +87,36 @@ El primer ingreso del dueño exige vincular una aplicación autenticadora y guar
 Desde V11, **alon** es el superusuario: ingresa con Google Authenticator y administra **Gerentes y licencias**. El Gerente recibe los accesos que alon seleccione. El menú **Seguridad** contiene el autenticador y los controles de ingreso. Solo el superusuario activa las licencias del negocio; el Gerente y los empleados no pueden renovarlas desde sus cuentas. Ver el apartado V11 de la guía de actualización.
 
 Para abrir la tienda desde un celular conectado al mismo Wi-Fi, ejecutar `Iniciar-Tienda-Wifi.ps1` después de iniciar Alon. El script muestra la dirección de la tienda (puerto 5174); mantener la PC y la ventana de ese iniciador encendidas. La gestión sigue siendo local. Consultar la sección Tienda desde el celular por Wi-Fi en la guía de actualización.
+
+## Backup del sistema de gestión
+
+Ingresar como superusuario **alon** y abrir **Backup → Crear backup completo**. Al finalizar aparece en el historial y puede descargarse como ZIP. Las copias se guardan, por defecto, en `backend/data/backups/`; no se borran automáticamente. Conservar otra copia fuera de la PC. Este respaldo incluye toda la instalación y todos sus comercios. El superusuario puede habilitar Backup al gerente desde Gerentes y licencias; el gerente con ese permiso puede delegarlo a usuarios de rol Personalizado desde Usuarios y accesos. Sin el permiso no se puede crear, listar ni descargar copias.
+
+El ZIP contiene `database.sql` (base completa, usuarios e historial de migraciones), `article-images/`, la clave `security/mfa.key` si existe y las instrucciones de restauración. Contiene datos privados y secretos sin cifrado: guardar en un medio protegido. Crear las copias sin altas ni cambios de fotos en curso; MySQL se vuelca con una transacción consistente y las imágenes se copian después. No realizar cambios de estructura mientras se crea un backup.
+
+Se necesita `mysqldump` compatible con el servidor y un usuario MySQL con permisos de lectura del esquema. En Windows se detecta MySQL 8.4/8.0 en Program Files; también puede configurarse `ALON_MYSQLDUMP` con la ruta al ejecutable. `ALON_BACKUP_DIRECTORY` cambia la carpeta de destino. No se incluye la contraseña de conexión, la configuración del entorno ni el código del programa; conservarlos por separado.
+
+Para restaurar: detener Alon, comprobar el respaldo en una base de prueba, importar `database.sql` con MySQL y reponer imágenes y `mfa.key` en sus rutas configuradas. El volcado usa el nombre original de la base: revisar el destino antes de importar. También puede recuperarse un ZIP completo desde Backup → Restaurar backup, como se detalla abajo.
+
+## Eliminación y campos obligatorios
+
+Los listados de Artículos, Clientes y Proveedores permiten eliminar definitivamente un registro. La confirmación abre con Cancelar seleccionado: Enter cancela por defecto; la eliminación requiere elegir Sí, eliminar definitivamente. Si existen operaciones o registros vinculados, se informa el motivo y se conserva el historial. En artículos nuevos se eliminan también el movimiento de stock inicial y las referencias de su galería; cualquier otra operación de stock impide la eliminación.
+
+Al intentar guardar un formulario incompleto, los campos inválidos muestran borde y mensaje, y la pantalla se desplaza al primero para completarlo. La marca se retira cuando el dato queda válido.
+## Restaurar backup desde Alon
+
+Con el permiso **Backup**, abrir **Backup → Restaurar backup**, seleccionar el ZIP (máximo 512 MB), escribir `RESTAURAR` y elegir **Confirmar restauración**. Cancelar recibe el foco inicial: Enter cancela por defecto. No se inicia la recuperación al seleccionar el archivo ni se reenvía automáticamente si se pierde la conexión.
+
+El archivo debe ser un ZIP generado por Alon, con todas las tablas y la misma estructura de la versión instalada, hasta 2 GB descomprimidos. La recuperación conserva la estructura y el historial de migraciones actuales; reemplaza los registros de toda la instalación, imágenes y clave del autenticador. Las columnas generadas se recalculan por MySQL y las fechas TIMESTAMP conservan su instante UTC. No se importan instrucciones SQL arbitrarias ni se ejecutan cambios de estructura incluidos en el archivo. Se rechazan tablas incompatibles, referencias incompletas, fotos faltantes y secretos de autenticador sin su clave correspondiente.
+
+Antes de reemplazar los datos se crea un backup completo del estado actual, visible en el historial después de volver a ingresar. Si no puede crearse esa copia, no se continúa. Durante la restauración, la única instancia de API debe atender toda la gestión y tienda: se drenan las solicitudes activas y se bloquean nuevas operaciones. No usar otras instancias de Alon ni modificar la base con herramientas externas durante el proceso. Al finalizar se invalidan las sesiones de gestión y de tienda; se ingresa con los usuarios, contraseñas y autenticador del backup restaurado.
+
+La base se recupera mediante una transacción InnoDB y se comprueban las referencias antes de confirmarla. Los errores ordinarios revierten datos y archivos. Si se pierde la conexión durante la confirmación, falla una reversión o se interrumpe el servidor durante el cambio de archivos, el sistema bloquea operaciones para revisión, incluso después de reiniciar cuando existe el marcador `backend/data/backups/restore-recovery-required.txt` (o en `ALON_BACKUP_DIRECTORY`). Ese marcador identifica la copia previa y, cuando corresponde, las imágenes anteriores; no borrarlo para eludir el bloqueo. Un administrador debe recuperar y comprobar base, imágenes y clave con la copia previa antes de retirar el marcador y reiniciar. Los ZIP previos nunca se borran automáticamente.
+
+## Contabilidad y períodos mensuales (V12)
+
+El menú Contabilidad reúne el informe mensual para el contador, exportación ZIP/CSV, impresión y registro auxiliar de impuestos. El control mensual y la carga con impuestos son opciones independientes, desactivadas por defecto. Los cierres conservan versiones del informe, bloquean cargas y correcciones del mes, y la reapertura requiere motivo. El acceso incluye costos y se asigna con el permiso Contabilidad. Consultar [la guía de contabilidad](docs/contabilidad.md).
+
+Para Responsable Inscripto, el desglose se toma de comprobantes reales; no se calcula crédito fiscal desde totales históricos. El resumen de IVA es parcial y no sustituye IVA Simple, emisión de facturas, libros legales ni revisión profesional. Antes de actualizar la base, conservar un backup completo. Los respaldos de versiones anteriores requieren una versión compatible para su restauración, como se indica en la sección Backup.
+
+La carga de indumentaria y calzado (V13) se describe en [docs/indumentaria.md](docs/indumentaria.md). Cada talle y color conserva stock propio.

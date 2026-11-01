@@ -19,6 +19,10 @@ public abstract class StoreJdbcSupport {
     protected final Clock clock;
     protected final AuditLog audit;
 
+    protected void assertAccountingPeriod(java.time.LocalDate date) {
+        ar.com.alon.accounting.AccountingPeriods.check(jdbc, identity.storeId(), date);
+    }
+
     /**
      * Recibe y conserva las dependencias necesarias para los accesos comunes a datos, identidad,
      * reloj y auditoría.

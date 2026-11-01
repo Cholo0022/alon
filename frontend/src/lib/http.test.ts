@@ -36,3 +36,22 @@ it('notifies the app when an authenticated session has been revoked', async () =
   expect(expired).toHaveBeenCalledOnce()
   window.removeEventListener('alon:session-expired', expired)
 })
+
+it('does not repeat a restore when its response is lost', async () => {
+  const requests: RequestInit[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, options?: RequestInit) => {
+      if (url.endsWith('/auth/status')) return Response.json({ csrfToken: 'session-token' })
+      requests.push(options ?? {})
+      throw new TypeError('connection lost')
+    }),
+  )
+  const { apiFetch } = await import('./http')
+  await expect(
+    apiFetch('/api/v1/backups/restore', { method: 'POST', body: new FormData(), retry: false }),
+  ).rejects.toThrow('connection lost')
+  expect(requests).toHaveLength(1)
+  expect(new Headers(requests[0].headers).get('X-CSRF-Token')).toBe('session-token')
+  expect('retry' in requests[0]).toBe(false)
+})

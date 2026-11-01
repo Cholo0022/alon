@@ -8,7 +8,7 @@ import { Pagination } from '../components/Pagination'
 import { ApiTable } from '../components/ApiTable'
 
 /** Permite administrar usuarios, roles, permisos y estados de acceso del comercio. */
-export function UsersPage() {
+export function UsersPage({ canDelegateBackup = false }: { canDelegateBackup?: boolean }) {
   const users = useApiRows('/api/v1/auth/users')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
@@ -19,11 +19,16 @@ export function UsersPage() {
   const [editPermissions, setEditPermissions] = useState<string[]>(['ventas', 'clientes', 'caja'])
   const accessOptions = [
     ...navigation.filter(
-      (item) => !['usuarios', 'negocio', 'seguridad', 'administracion'].includes(item.id),
+      (item) =>
+        !['usuarios', 'negocio', 'seguridad', 'administracion'].includes(item.id) &&
+        (item.id !== 'backup' || canDelegateBackup),
     ),
     { id: 'descuentos', label: 'Autorizar descuentos' },
     { id: 'costos', label: 'Ver y modificar costos' },
-  ].map(({ id, label }) => ({ id, label }))
+  ].map(({ id, label }) => ({
+    id,
+    label: id === 'contabilidad' ? 'Contabilidad (incluye costos e impuestos)' : label,
+  }))
   /** Envía el alta del usuario con su rol y permisos y limpia el formulario cuando el servidor lo crea. */
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()

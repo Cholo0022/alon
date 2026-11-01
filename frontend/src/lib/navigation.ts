@@ -9,11 +9,13 @@ export type Section =
   | 'proveedores'
   | 'caja'
   | 'informes'
+  | 'contabilidad'
   | 'tienda'
   | 'usuarios'
   | 'negocio'
   | 'seguridad'
   | 'administracion'
+  | 'backup'
 
 export const navigation: { id: Section; label: string; icon: string }[] = [
   { id: 'inicio', label: 'Resumen', icon: '⌂' },
@@ -25,10 +27,12 @@ export const navigation: { id: Section; label: string; icon: string }[] = [
   { id: 'proveedores', label: 'Proveedores', icon: '♧' },
   { id: 'caja', label: 'Caja', icon: '▣' },
   { id: 'informes', label: 'Informes', icon: '▤' },
+  { id: 'contabilidad', label: 'Contabilidad', icon: '▤' },
   { id: 'tienda', label: 'Tienda online', icon: '⌑' },
   { id: 'usuarios', label: 'Usuarios y accesos', icon: '♙' },
   { id: 'seguridad', label: 'Seguridad', icon: '⚿' },
   { id: 'administracion', label: 'Gerentes y licencias', icon: '♙' },
+  { id: 'backup', label: 'Backup', icon: '⇩' },
   { id: 'negocio', label: 'Modificar negocio', icon: '⚙' },
 ]
 
@@ -42,9 +46,11 @@ export const descriptions: Record<Section, string> = {
   proveedores: 'Consultá proveedores y saldos pendientes.',
   caja: 'Controlá aperturas, cobros, gastos y cierres de caja.',
   informes: 'Revisá ventas, costos y gastos por período.',
+  contabilidad: 'Informe mensual para el contador, comprobantes con impuestos y períodos de carga.',
   tienda: 'Prepará el catálogo online de tu comercio.',
   usuarios: 'Creá usuarios y elegí a qué secciones pueden acceder.',
   seguridad: 'Seguridad de ingreso y cuenta del Gerente.',
   administracion: 'Administrá gerentes, accesos y meses de licencia del negocio.',
+  backup: 'Creá y descargá copias de seguridad de toda la información del sistema.',
   negocio: 'Personalizá el nombre, slogan y colores de Alon y de tu tienda web.',
 }

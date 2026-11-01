@@ -12,20 +12,23 @@ export function ArticlePicker({
   mode = 'sale',
   suspended = false,
   unitCostOverride,
+  kind = '',
 }: {
   onChoose: (row: ApiRow) => void
   onClose: () => void
   message: string
   mode?: 'sale' | 'purchase' | 'supplier'
   suspended?: boolean
+  kind?: '' | 'ARTICULO' | 'VESTIMENTA'
   unitCostOverride?: number
 }) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const supplier = mode === 'supplier'
   const rows = useApiRows(
-    (supplier ? '/api/v1/alon/lookups/suppliers?q=' : '/api/v1/alon/articles?q=') +
-      encodeURIComponent(query.trim()),
+    (supplier
+      ? '/api/v1/alon/lookups/suppliers?q='
+      : '/api/v1/alon/articles?kind=' + kind + '&q=') + encodeURIComponent(query.trim()),
   )
   const current = Math.min(active, Math.max(0, rows.length - 1))
   const id = useId()
@@ -119,7 +122,13 @@ export function ArticlePicker({
       >
         <header>
           <div>
-            <h2 id={id + '-title'}>{supplier ? 'Elegir proveedor' : 'Elegir artículo'}</h2>
+            <h2 id={id + '-title'}>
+              {supplier
+                ? 'Elegir proveedor'
+                : kind === 'VESTIMENTA'
+                  ? 'Elegir indumentaria o calzado · talle y color'
+                  : 'Elegir artículo'}
+            </h2>
             <p id={id + '-help'}>↑ ↓ para recorrer · Enter para ingresar · Esc para volver</p>
           </div>
           <button type="button" className="secondary-button" onClick={onClose}>

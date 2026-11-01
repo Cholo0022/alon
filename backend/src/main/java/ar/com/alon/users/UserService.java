@@ -36,11 +36,13 @@ public class UserService {
                     "proveedores",
                     "caja",
                     "informes",
+                    "contabilidad",
                     "tienda",
                     "usuarios",
                     "descuentos",
                     "costos",
                     "seguridad",
+                    "backup",
                     "negocio");
     private static final Set<String> VENDOR_PERMISSIONS =
             Set.of("ventas", "clientes", "caja", "tienda");

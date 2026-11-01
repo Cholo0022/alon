@@ -9,20 +9,15 @@ public final class ArticlePricing {
     private ArticlePricing() {}
 
     /**
-     * Calcula el precio desde costo, flete fijo y porcentual y margen; aplica redondeo hacia arriba
-     * a decenas cuando está habilitado.
+     * Calcula el precio desde costo, flete porcentual y margen; aplica redondeo hacia arriba a
+     * decenas cuando está habilitado.
      */
     public static BigDecimal calculateSalePrice(
-            BigDecimal cost,
-            BigDecimal freight,
-            BigDecimal freightPercent,
-            BigDecimal marginPercent,
-            boolean roundUp) {
+            BigDecimal cost, BigDecimal freightPercent, BigDecimal marginPercent, boolean roundUp) {
         BigDecimal landedCost =
-                cost.add(freight)
-                        .add(
-                                cost.multiply(freightPercent)
-                                        .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP));
+                cost.add(
+                        cost.multiply(freightPercent)
+                                .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP));
         BigDecimal price =
                 landedCost
                         .multiply(
