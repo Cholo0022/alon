@@ -128,6 +128,7 @@ class MySqlIntegrationTest {
         jdbc.update("INSERT INTO comercios(id,codigo,nombre) VALUES(1,'ALON','Comercio')");
         transaction = new TransactionTemplate(new JdbcTransactionManager(source));
         identity = mock(RequestIdentity.class);
+        when(identity.accountingEnabled()).thenReturn(true);
         when(identity.user()).thenReturn(Map.of("rol", "SUPER", "id", 1L, "comercio_id", 1L));
         when(identity.storeId()).thenReturn(1L);
         when(identity.userId()).thenReturn(1L);
@@ -1619,6 +1620,60 @@ class MySqlIntegrationTest {
     }
 
     @Test
+    void purchaseWithoutStockPersistsItsChoiceAndEditsWithoutChangingInventory() {
+        jdbc.update("UPDATE articulos SET stock=10,costo=50,precio_venta=222 WHERE id=1");
+        var input =
+                new PurchaseInput(
+                        1,
+                        "FACTURA",
+                        "SIN-STOCK",
+                        LocalDate.now(clock),
+                        List.of(new PurchaseLineInput(1, d("2"), d("80"))),
+                        d("0"),
+                        d("0"),
+                        "CUENTA_CORRIENTE",
+                        null,
+                        true,
+                        false);
+        long id =
+                ((Number) transaction.execute(status -> purchases.createPurchase(input)).get("id"))
+                        .longValue();
+        assertThat(stock()).isEqualByComparingTo("10");
+        assertThat(cost()).isEqualByComparingTo("80");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT precio_venta FROM articulos WHERE id=1", BigDecimal.class))
+                .isEqualByComparingTo("222");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimientos_stock", Integer.class))
+                .isZero();
+        var queries = new ar.com.alon.purchases.PurchaseQueries(jdbc, identity, clock);
+        assertThat(queries.purchaseDetails(id).get("modifica_stock").toString()).isIn("false", "0");
+        assertThat(queries.purchases()).hasSize(1);
+        transaction.execute(
+                status ->
+                        purchases.updatePurchase(
+                                id,
+                                new PurchaseInput(
+                                        1,
+                                        "FACTURA",
+                                        "SIN-STOCK",
+                                        LocalDate.now(clock),
+                                        List.of(new PurchaseLineInput(1, d("3"), d("90"))),
+                                        d("0"),
+                                        d("0"),
+                                        "CUENTA_CORRIENTE",
+                                        null)));
+        assertThat(stock()).isEqualByComparingTo("10");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimientos_stock", Integer.class))
+                .isZero();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT saldo_actual FROM proveedores WHERE id=1",
+                                BigDecimal.class))
+                .isEqualByComparingTo("270");
+    }
+
+    @Test
     void defaultPurchaseSupplierIsReusableAndBelongsToCurrentStore() {
         var first = transaction.execute(s -> purchases.defaultSupplier());
         var again = transaction.execute(s -> purchases.defaultSupplier());
@@ -1781,15 +1836,69 @@ class MySqlIntegrationTest {
 
     @Test
     void newCatalogProductsHaveNoSupplierAndCanBePurchasedFromMultipleSuppliers() {
-        var input = new ArticleInput("LIBRE", "Producto sin proveedor", 1, 0, "UNIDAD", d("100"), d("0"), d("0"), false, true, d("0"), false, d("0"), d("0"), null, null, true, null);
-        long id = ((Number) transaction.execute(status -> catalog.createArticle(input)).get("id")).longValue();
-        assertThat(jdbc.queryForMap("SELECT proveedor_principal_id FROM articulos WHERE id=?",id).get("proveedor_principal_id")).isNull();
-        jdbc.update("INSERT INTO proveedores(id,comercio_id,codigo,nombre,especialidad,telefono,email) VALUES(2,1,'P2','Segundo proveedor','','','')");
-        for(long supplier : List.of(1L,2L)) transaction.execute(status -> purchases.createPurchase(new PurchaseInput(supplier,"REMITO","LIBRE-1",LocalDate.now(clock),List.of(new PurchaseLineInput(id,d("2"),d("100"))),d("0"),d("0"),"CUENTA_CORRIENTE",null,false)));
-        assertThat(jdbc.queryForObject("SELECT stock FROM articulos WHERE id=?",BigDecimal.class,id)).isEqualByComparingTo("4");
-        assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT proveedor_id) FROM compras",Integer.class)).isEqualTo(2);
-        assertThat(jdbc.queryForMap("SELECT proveedor_principal_id FROM articulos WHERE id=?",id).get("proveedor_principal_id")).isNull();
-        assertThat(new ArticleQueries(jdbc,identity,clock).articles("SUPER",false)).extracting(row -> ((Number)row.get("id")).longValue()).contains(id);
+        var input =
+                new ArticleInput(
+                        "LIBRE",
+                        "Producto sin proveedor",
+                        1,
+                        0,
+                        "UNIDAD",
+                        d("100"),
+                        d("0"),
+                        d("0"),
+                        false,
+                        true,
+                        d("0"),
+                        false,
+                        d("0"),
+                        d("0"),
+                        null,
+                        null,
+                        true,
+                        null);
+        long id =
+                ((Number) transaction.execute(status -> catalog.createArticle(input)).get("id"))
+                        .longValue();
+        assertThat(
+                        jdbc.queryForMap(
+                                        "SELECT proveedor_principal_id FROM articulos WHERE id=?",
+                                        id)
+                                .get("proveedor_principal_id"))
+                .isNull();
+        jdbc.update(
+                "INSERT INTO proveedores(id,comercio_id,codigo,nombre,especialidad,telefono,email) VALUES(2,1,'P2','Segundo proveedor','','','')");
+        for (long supplier : List.of(1L, 2L))
+            transaction.execute(
+                    status ->
+                            purchases.createPurchase(
+                                    new PurchaseInput(
+                                            supplier,
+                                            "REMITO",
+                                            "LIBRE-1",
+                                            LocalDate.now(clock),
+                                            List.of(new PurchaseLineInput(id, d("2"), d("100"))),
+                                            d("0"),
+                                            d("0"),
+                                            "CUENTA_CORRIENTE",
+                                            null,
+                                            false)));
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT stock FROM articulos WHERE id=?", BigDecimal.class, id))
+                .isEqualByComparingTo("4");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(DISTINCT proveedor_id) FROM compras", Integer.class))
+                .isEqualTo(2);
+        assertThat(
+                        jdbc.queryForMap(
+                                        "SELECT proveedor_principal_id FROM articulos WHERE id=?",
+                                        id)
+                                .get("proveedor_principal_id"))
+                .isNull();
+        assertThat(new ArticleQueries(jdbc, identity, clock).articles("SUPER", false))
+                .extracting(row -> ((Number) row.get("id")).longValue())
+                .contains(id);
     }
 
     @Test
@@ -1833,7 +1942,12 @@ class MySqlIntegrationTest {
                 jdbc.queryForMap(
                         "SELECT tipo_producto,talle,color,stock FROM articulos WHERE id=?",
                         variant);
-        assertThat(jdbc.queryForMap("SELECT proveedor_principal_id FROM articulos WHERE id=?",variant).get("proveedor_principal_id")).isNull();
+        assertThat(
+                        jdbc.queryForMap(
+                                        "SELECT proveedor_principal_id FROM articulos WHERE id=?",
+                                        variant)
+                                .get("proveedor_principal_id"))
+                .isNull();
         assertThat(attributes)
                 .containsEntry("tipo_producto", "CALZADO")
                 .containsEntry("talle", "38")

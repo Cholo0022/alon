@@ -1,5 +1,4 @@
-import { AccountingPage } from '../pages/AccountingPage'
-import { FiscalCapture } from '../components/FiscalEditor'
+import { LicenseExpiryNotice } from '../components/LicenseExpiryNotice'
 import { RestoreSuccessNotice } from '../components/RestoreBackupPanel'
 import { BackupPage } from '../pages/BackupPage'
 import { SecurityPanel } from '../components/SecurityPanel'
@@ -41,7 +40,15 @@ function userPermissions(user: SessionUser) {
 }
 
 /** Construye la navegación de gestión según permisos, muestra el resumen y presenta la sección activa desde su inicio. */
-export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
+export function MainApp({
+  user,
+  onLogout,
+  license,
+}: {
+  user: SessionUser
+  onLogout: () => void
+  license?: AuthStatus['license']
+}) {
   const brand = useBusinessBrand()
   const permissions = userPermissions(user)
   const canViewSummary = permissions.includes('inicio')
@@ -166,7 +173,7 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
           </div>
         </header>
         <div className="page-wrap">
-          <FiscalCapture canReview={permissions.includes('contabilidad')} />
+          <LicenseExpiryNotice license={license} />
           {['SUPER', 'DUENO'].includes(user.rol) && permissions.includes('seguridad') && (
             <SecurityRequestsNotice onOpen={() => setActiveSection('seguridad')} />
           )}
@@ -348,8 +355,6 @@ export function MainApp({ user, onLogout }: { user: SessionUser; onLogout: () =>
             <CashPage />
           ) : activeSection === 'informes' ? (
             <ReportsPage />
-          ) : activeSection === 'contabilidad' ? (
-            <AccountingPage canManage={['SUPER', 'DUENO'].includes(user.rol)} />
           ) : activeSection === 'tienda' ? (
             <StorePage />
           ) : activeSection === 'negocio' ? (
@@ -660,6 +665,7 @@ export function App() {
             textValue(status.user.id) + textValue(status.user.rol) + textValue(status.user.permisos)
           }
           user={status.user}
+          license={status.license}
           onLogout={() => void logout()}
         />
       )}

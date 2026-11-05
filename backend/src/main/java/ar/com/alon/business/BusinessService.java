@@ -38,7 +38,29 @@ public class BusinessService {
                                     "clasica|minimal|boutique|urbana|editorial|mercado|natural|tecnologica|artesanal|vitrina")
                     String shopTemplate,
             @Size(max = 120) String shopTitle,
-            @Size(max = 240) String shopDescription) {
+            @Size(max = 240) String shopDescription,
+            @Size(max = 30) String shopPhone) {
+        public Input(
+                String name,
+                String slogan,
+                String primaryColor,
+                String secondaryColor,
+                String backgroundColor,
+                String shopTemplate,
+                String shopTitle,
+                String shopDescription) {
+            this(
+                    name,
+                    slogan,
+                    primaryColor,
+                    secondaryColor,
+                    backgroundColor,
+                    shopTemplate,
+                    shopTitle,
+                    shopDescription,
+                    null);
+        }
+
         /**
          * Conserva compatibilidad con los formularios anteriores que solo editaban identidad y
          * colores.
@@ -61,7 +83,7 @@ public class BusinessService {
     /** Lee la identidad visual del comercio indicado para gestión o para la tienda pública. */
     public Map<String, Object> read(long storeId) {
         return jdbc.queryForMap(
-                "SELECT nombre,slogan,color_principal,color_secundario,color_fondo,plantilla_tienda,titulo_tienda,descripcion_tienda FROM comercios WHERE id=?",
+                "SELECT nombre,slogan,color_principal,color_secundario,color_fondo,plantilla_tienda,titulo_tienda,descripcion_tienda,telefono_tienda FROM comercios WHERE id=?",
                 storeId);
     }
 
@@ -82,6 +104,13 @@ public class BusinessService {
         if (input.shopDescription() != null && input.shopDescription().isBlank())
             throw new IllegalArgumentException("La descripción de bienvenida es obligatoria.");
         var before = current();
+        String phone =
+                input.shopPhone() == null
+                        ? java.util.Objects.toString(before.get("telefono_tienda"), "")
+                        : input.shopPhone().trim();
+        if (!phone.isEmpty() && !phone.matches("[0-9][0-9 ()-]{4,28}[0-9]"))
+            throw new IllegalArgumentException(
+                    "Ingresá el celular sin característica del país. Ejemplo: 3446 - 236311.");
         String template =
                 input.shopTemplate() == null
                         ? before.get("plantilla_tienda").toString()
@@ -100,7 +129,7 @@ public class BusinessService {
                 .contains(template))
             throw new IllegalArgumentException("Elegí una de las diez plantillas disponibles.");
         jdbc.update(
-                "UPDATE comercios SET nombre=?,slogan=?,color_principal=?,color_secundario=?,color_fondo=?,plantilla_tienda=?,titulo_tienda=?,descripcion_tienda=? WHERE id=?",
+                "UPDATE comercios SET nombre=?,slogan=?,color_principal=?,color_secundario=?,color_fondo=?,plantilla_tienda=?,titulo_tienda=?,descripcion_tienda=?,telefono_tienda=? WHERE id=?",
                 input.name().trim(),
                 input.slogan().trim(),
                 input.primaryColor().toLowerCase(java.util.Locale.ROOT),
@@ -111,6 +140,7 @@ public class BusinessService {
                 input.shopDescription() == null
                         ? before.get("descripcion_tienda")
                         : input.shopDescription().trim(),
+                phone,
                 identity.storeId());
         var after = current();
         audit.record("comercio", identity.storeId(), "MODIFICACION", before, after);

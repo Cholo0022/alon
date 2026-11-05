@@ -1,5 +1,5 @@
+import { BarcodeEntry, NewPurchaseArticleDialog } from '../components/BarcodeEntry'
 import { ApparelEntry } from '../components/ApparelFields'
-import { announceFiscalTarget } from '../hooks/useAccountingOptions'
 import { CostConfirmation } from '../components/CostConfirmation'
 import { PaymentConfirmation, type PaymentSelection } from '../components/PaymentConfirmation'
 import { useTransactionEntry } from '../hooks/useTransactionEntry'
@@ -23,6 +23,8 @@ import { ArticleEntryDialog, type ArticleEntryValues } from '../components/Artic
 
 /** Gestiona el ingreso de compras, el proveedor predeterminado, los artículos y las confirmaciones de pago y costo, además del historial. */
 export function PurchasesPage() {
+  const [newArticleOpen, setNewArticleOpen] = useState(false)
+  const [updateCostChoice, setUpdateCostChoice] = useState<boolean | null>(null)
   const [productKind, setProductKind] = useState<'ARTICULO' | 'VESTIMENTA'>('ARTICULO')
   const [supplierPickerOpen, setSupplierPickerOpen] = useState(false)
   const [supplier, setSupplier] = useState<ApiRow | undefined>()
@@ -57,13 +59,28 @@ export function PurchasesPage() {
     const onShortcut = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key.toLowerCase() === 'g') {
         event.preventDefault()
-        if (!busy && !articlePickerOpen && !paymentOpen && !supplierPickerOpen && !costSelection)
+        if (
+          !busy &&
+          !articlePickerOpen &&
+          !paymentOpen &&
+          !supplierPickerOpen &&
+          !costSelection &&
+          !newArticleOpen
+        )
           purchaseFormRef.current?.requestSubmit()
       }
     }
     window.addEventListener('keydown', onShortcut)
     return () => window.removeEventListener('keydown', onShortcut)
-  }, [open, busy, articlePickerOpen, paymentOpen, supplierPickerOpen, costSelection])
+  }, [
+    open,
+    busy,
+    articlePickerOpen,
+    paymentOpen,
+    supplierPickerOpen,
+    costSelection,
+    newArticleOpen,
+  ])
   /** Valida artículo, cantidad y costo; agrega un renglón al borrador y prepara el buscador para cargar el siguiente. */
   const addLine = (
     form: HTMLFormElement,
@@ -113,7 +130,15 @@ export function PurchasesPage() {
   /** Valida el borrador y su fecha y abre la selección de pago sin guardar todavía la compra. */
   const submitPurchase = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (busy || articlePickerOpen || paymentOpen || supplierPickerOpen || costSelection) return
+    if (
+      busy ||
+      articlePickerOpen ||
+      paymentOpen ||
+      supplierPickerOpen ||
+      costSelection ||
+      newArticleOpen
+    )
+      return
     if (!lines.length) {
       setMessage('Ingresá al menos un artículo antes de guardar.')
       return
@@ -132,7 +157,11 @@ export function PurchasesPage() {
     setPaymentOpen(true)
   }
   /** Envía la compra con su condición, medio de pago y decisión de costo; limpia el formulario solo si el servidor la confirma. */
-  const confirmPurchase = async (selection: PaymentSelection, updateCost: boolean) => {
+  const confirmPurchase = async (
+    selection: PaymentSelection,
+    updateCost: boolean,
+    updateStock: boolean,
+  ) => {
     const formElement = purchaseFormRef.current
     if (busy || !formElement) return
     const values = new FormData(formElement)
@@ -162,23 +191,13 @@ export function PurchasesPage() {
           extraCosts,
           paid,
           updateCost,
+          updateStock,
           paymentType: selection.condition,
           paymentMethod: selection.paymentMethod,
         }),
       })
       const result = (await response.json().catch(() => ({}))) as { error?: string }
       if (!response.ok) throw new Error(result.error ?? 'No se pudo guardar la factura.')
-      if (values.get('documentType') === 'FACTURA') {
-        const saved = result as { id?: number; total?: number }
-        if (saved.id)
-          announceFiscalTarget({
-            clase: 'COMPRA',
-            id: saved.id,
-            fecha: parsedDate,
-            total: Number(saved.total ?? invoiceTotal),
-            tercero: textValue(supplier?.nombre) || paymentPartyName,
-          })
-      }
       setPaymentOpen(false)
       setCostSelection(null)
       window.dispatchEvent(new Event('alon:refresh'))
@@ -203,6 +222,32 @@ export function PurchasesPage() {
     )
   return (
     <>
+      {newArticleOpen && (
+        <NewPurchaseArticleDialog
+          onClose={() => setNewArticleOpen(false)}
+          onSaved={(saved) => {
+            setNewArticleOpen(false)
+            void apiFetch(
+              '/api/v1/alon/articles?code=' + encodeURIComponent(textValue(saved.codigo)),
+            )
+              .then(async (response) => {
+                if (!response.ok) throw new Error()
+                const articles = (await response.json()) as ApiRow[]
+                const article = articles.find(
+                  (row) => numberValue(row.id) === numberValue(saved.id),
+                )
+                if (article) {
+                  setCostEdited(false)
+                  setPendingArticle(article)
+                } else
+                  setMessage('Artículo creado. Buscalo en el listado para ingresarlo a la factura.')
+              })
+              .catch(() =>
+                setMessage('Artículo creado. Buscalo en el listado para ingresarlo a la factura.'),
+              )
+          }}
+        />
+      )}
       {supplierPickerOpen && (
         <ArticlePicker
           mode="supplier"
@@ -225,14 +270,22 @@ export function PurchasesPage() {
       )}
       {costSelection && (
         <CostConfirmation
+          key={updateCostChoice === null ? 'cost' : 'stock'}
+          kind={updateCostChoice === null ? 'cost' : 'stock'}
           busy={busy}
           message={message}
           onCancel={() => {
-            setCostSelection(null)
+            if (updateCostChoice !== null) setUpdateCostChoice(null)
+            else {
+              setCostSelection(null)
+              setPaymentOpen(true)
+            }
             setMessage('')
-            setPaymentOpen(true)
           }}
-          onConfirm={(updateCost) => void confirmPurchase(costSelection, updateCost)}
+          onConfirm={(choice) => {
+            if (updateCostChoice === null) setUpdateCostChoice(choice)
+            else void confirmPurchase(costSelection, updateCostChoice, choice)
+          }}
         />
       )}
       {paymentOpen && (
@@ -254,6 +307,7 @@ export function PurchasesPage() {
           }}
           onConfirm={(selection) => {
             setPaymentOpen(false)
+            setUpdateCostChoice(null)
             setCostSelection(selection)
             setMessage('')
           }}
@@ -262,6 +316,10 @@ export function PurchasesPage() {
       {articlePickerOpen && (
         <ArticlePicker
           mode="purchase"
+          onCreate={() => {
+            setArticlePickerOpen(false)
+            setNewArticleOpen(true)
+          }}
           kind={productKind}
           suspended={!!pendingArticle}
           message={message}
@@ -388,6 +446,13 @@ export function PurchasesPage() {
               <button
                 type="button"
                 className="secondary-button"
+                onClick={() => setNewArticleOpen(true)}
+              >
+                Crear artículo nuevo sin salir de la factura
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
                 onClick={() => {
                   setProductKind('ARTICULO')
                   setSelectedArticle(null)
@@ -411,9 +476,17 @@ export function PurchasesPage() {
               </button>
             </div>
             <p>
-              Elegí el talle y color exactos. La cantidad de la compra ingresará al stock al guardar
-              el comprobante.
+              Elegí el talle y color exactos. Al guardar elegirás si las cantidades de la compra
+              ingresan al stock.
             </p>
+            <BarcodeEntry
+              purchase
+              onSelect={(article) => {
+                setMessage('')
+                setCostEdited(false)
+                setPendingArticle(article)
+              }}
+            />
             <div className="transaction-article-entry">
               <label>
                 Artículo
@@ -721,6 +794,12 @@ export function PurchaseReceipt({
           ← Volver al listado
         </button>
       </div>
+      <p>
+        Stock:{' '}
+        {purchase.modifica_stock === false || purchase.modifica_stock === 0
+          ? 'Este comprobante no modifica las existencias.'
+          : 'Este comprobante incorpora las cantidades al stock.'}
+      </p>
       {editing ? (
         <form className="entry-form" onSubmit={save}>
           <label>

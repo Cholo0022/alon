@@ -62,7 +62,7 @@ it('removes the external supplier and category controls from the article directo
   ).toBeNull()
   expect(screen.queryByRole('navigation', { name: 'Páginas de rubros disponibles' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: /Cargar artículo/ }))
-  expect(screen.getByRole('combobox', { name: 'Proveedor principal' })).toBeTruthy()
+  expect(screen.queryByRole('combobox', { name: 'Proveedor principal' })).toBeNull()
   expect(screen.getByRole('combobox', { name: 'Rubro' })).toBeTruthy()
   expect(document.querySelector('form nav')).toBeNull()
   await waitFor(() => expect(screen.queryByText('Buscando…')).toBeNull())
@@ -182,7 +182,7 @@ it('defaults new articles to rounding enabled and web publication disabled', asy
   ).toBe(false)
 })
 
-it('preserves an inactive linked supplier when enabling web publication in the article editor', async () => {
+it('edits web publication without asking for a supplier in the article editor', async () => {
   const article = {
     id: 1,
     codigo: 'A1',
@@ -220,9 +220,7 @@ it('preserves an inactive linked supplier when enabling web publication in the a
   vi.stubGlobal('fetch', fetcher)
   render(<ArticleList canEditCosts />)
   fireEvent.click(await screen.findByRole('button', { name: 'Modificar' }, { timeout: 10000 }))
-  expect(
-    (screen.getByRole('combobox', { name: 'Proveedor principal' }) as HTMLInputElement).value,
-  ).toBe('Proveedor anterior · inactivo')
+  expect(screen.queryByRole('combobox', { name: 'Proveedor principal' })).toBeNull()
   fireEvent.click(screen.getByRole('checkbox', { name: 'Cargar en la web' }))
   fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
   await waitFor(
@@ -235,7 +233,7 @@ it('preserves an inactive linked supplier when enabling web publication in the a
   const call = fetcher.mock.calls.find(([url]) => url === '/api/v1/operations/articles/1')!
   const options = (call as unknown as [string, RequestInit])[1]
   expect(JSON.parse(String(options.body))).toMatchObject({
-    supplierId: 7,
+    supplierId: 0,
     categoryId: 1,
     publishOnWeb: true,
   })

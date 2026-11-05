@@ -117,6 +117,14 @@ it('keeps the supplier and document while repeatedly adding from the purchase pi
     name: '¿Este comprobante modifica el precio de costo?',
   })
   fireEvent.keyDown(costDialog, { key: 's' })
+  expect(
+    request.mock.calls.some(
+      ([url, options]) => url === '/api/v1/operations/purchases' && options?.method === 'POST',
+    ),
+  ).toBe(false)
+  fireEvent.keyDown(screen.getByRole('dialog', { name: '¿Este comprobante modifica el stock?' }), {
+    key: 's',
+  })
   await waitFor(() =>
     expect(
       request.mock.calls.some(
@@ -130,6 +138,7 @@ it('keeps the supplier and document while repeatedly adding from the purchase pi
   expect(JSON.parse(String(call[1]?.body))).toMatchObject({
     supplierId: 7,
     updateCost: true,
+    updateStock: true,
     paymentType: 'EFECTIVO',
     paymentMethod: 'EFECTIVO',
     documentNumber: 'F-100',
@@ -213,6 +222,9 @@ it('starts at the unnamed supplier, opens the supplier directory with Enter and 
   expect(screen.queryByLabelText('Medio de pago')).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Confirmar factura' }))
   fireEvent.keyDown(screen.getByRole('dialog'), { key: 'n' })
+  fireEvent.keyDown(screen.getByRole('dialog', { name: '¿Este comprobante modifica el stock?' }), {
+    key: 'n',
+  })
   await waitFor(() =>
     expect(
       request.mock.calls.some(
@@ -227,6 +239,7 @@ it('starts at the unnamed supplier, opens the supplier directory with Enter and 
     supplierId: 7,
     documentType: 'REMITO',
     updateCost: false,
+    updateStock: false,
     paymentType: 'CUENTA_CORRIENTE',
     paid: 0,
   })
@@ -249,4 +262,73 @@ it('opens a separate apparel and footwear picker while preserving the purchase d
     ).toBe(true),
   )
   expect((screen.getByLabelText('Número de comprobante') as HTMLInputElement).value).toBe('F-ROPA')
+})
+
+it('creates an article from the invoice without losing its header or existing lines', async () => {
+  const original = request.getMockImplementation()!
+  const created = {
+    id: 3,
+    codigo: 'N3',
+    nombre: 'Artículo nuevo',
+    costo: 25,
+    stock: 0,
+    unidad: 'UNIDAD',
+  }
+  request.mockImplementation(async (url, options) => {
+    if (url === '/api/v1/operations/articles' && options?.method === 'POST')
+      return Response.json({ id: 3, codigo: 'N3' })
+    if (url.includes('code=N3')) return Response.json([created])
+    if (url.includes('/alon/categories')) return Response.json([{ id: 1, nombre: 'General' }])
+    return original(url, options)
+  })
+  render(<PurchasesPage />)
+  fireEvent.click(screen.getByRole('button', { name: /Cargar factura/ }))
+  await screen.findByLabelText('Número de comprobante')
+  fireEvent.change(screen.getByLabelText('Número de comprobante'), {
+    target: { value: 'F-CONSERVAR' },
+  })
+  fireEvent.change(screen.getByRole('textbox', { name: 'Código de barras' }), {
+    target: { value: 'A1' },
+  })
+  fireEvent.keyDown(screen.getByRole('textbox', { name: 'Código de barras' }), { key: 'Enter' })
+  const first = await screen.findByRole('dialog', { name: 'Cantidad y precio de compra' })
+  fireEvent.keyDown(within(first).getByLabelText('Costo unitario'), { key: 'Enter' })
+  expect(screen.getByText('A1 · Martillo')).toBeTruthy()
+  expect(
+    screen.getByRole('button', { name: 'Crear artículo nuevo sin salir de la factura' }),
+  ).toBeTruthy()
+  fireEvent.keyDown(screen.getByRole('combobox', { name: 'Artículo' }), { key: 'Enter' })
+  fireEvent.click(
+    within(screen.getByRole('dialog', { name: 'Elegir artículo' })).getByRole('button', {
+      name: 'Crear artículo nuevo',
+    }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Nuevo artículo de la compra' })
+  fireEvent.change(within(dialog).getByLabelText('Código o código de barras'), {
+    target: { value: 'N3' },
+  })
+  fireEvent.change(within(dialog).getByLabelText('Nombre del artículo'), {
+    target: { value: 'Artículo nuevo' },
+  })
+  fireEvent.change(within(dialog).getByRole('combobox', { name: 'Rubro' }), {
+    target: { value: 'General' },
+  })
+  fireEvent.click(await within(dialog).findByRole('option', { name: 'General' }))
+  fireEvent.submit(within(dialog).getByRole('button', { name: 'Guardar' }).closest('form')!)
+  const entry = await screen.findByRole('dialog', { name: 'Cantidad y precio de compra' })
+  expect((screen.getByLabelText('Número de comprobante') as HTMLInputElement).value).toBe(
+    'F-CONSERVAR',
+  )
+  expect((screen.getByRole('combobox', { name: 'Proveedor' }) as HTMLInputElement).value).toContain(
+    'Proveedor sin nombre',
+  )
+  expect(screen.getByText('A1 · Martillo')).toBeTruthy()
+  expect(
+    request.mock.calls.some(
+      ([url, options]) => url === '/api/v1/operations/purchases' && options?.method === 'POST',
+    ),
+  ).toBe(false)
+  fireEvent.keyDown(within(entry).getByLabelText('Costo unitario'), { key: 'Enter' })
+  expect(screen.getByText('N3 · Artículo nuevo')).toBeTruthy()
+  expect(screen.getByText('A1 · Martillo')).toBeTruthy()
 })

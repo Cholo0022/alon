@@ -33,6 +33,7 @@ export function BusinessPage({ brand }: { brand: BusinessBrand }) {
         body: JSON.stringify({
           name: draft.nombre,
           slogan: draft.slogan,
+          shopPhone: draft.telefono_tienda,
           primaryColor: draft.color_principal,
           secondaryColor: draft.color_secundario,
           backgroundColor: draft.color_fondo,
@@ -81,6 +82,21 @@ export function BusinessPage({ brand }: { brand: BusinessBrand }) {
             placeholder="Una frase que identifique tu negocio"
             disabled={busy}
           />
+        </label>
+        <label>
+          Celular de la tienda (opcional)
+          <input
+            type="tel"
+            value={draft.telefono_tienda}
+            onChange={(e) => change('telefono_tienda', e.target.value)}
+            maxLength={30}
+            pattern="[0-9][0-9 ()-]{4,28}[0-9]"
+            placeholder="3446 - 236311"
+            disabled={busy}
+          />
+          <small>
+            Sin característica del país (sin +54). Si lo dejás vacío, no se muestra en la tienda.
+          </small>
         </label>
         {(
           [
@@ -167,6 +183,7 @@ export function BusinessPage({ brand }: { brand: BusinessBrand }) {
           <div className="business-preview-header">
             <strong>{draft.nombre || 'Tu comercio'}</strong>
             <span>{draft.slogan}</span>
+            {draft.telefono_tienda.trim() && <span>Celular: {draft.telefono_tienda.trim()}</span>}
           </div>
           <div className="business-preview-content">
             <p>Así se verá la identidad de tu negocio.</p>

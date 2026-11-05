@@ -12,6 +12,13 @@ import org.springframework.web.server.ResponseStatusException;
 /** La identidad proviene de la sesión verificada, no de los datos que envía el formulario. */
 @Component
 public class RequestIdentity {
+    @org.springframework.beans.factory.annotation.Value("${alon.accounting.enabled:false}")
+    private boolean accountingEnabled;
+
+    public boolean accountingEnabled() {
+        return accountingEnabled;
+    }
+
     /**
      * Recupera la identidad validada por el filtro de permisos para la solicitud actual o exige
      * iniciar sesión.

@@ -45,6 +45,13 @@ public class ArticleQueries {
 
     public List<Map<String, Object>> articles(
             String role, boolean inactive, String category, String kind) {
+        return articles(role, inactive, category, kind, "");
+    }
+
+    public List<Map<String, Object>> articles(
+            String role, boolean inactive, String category, String kind, String code) {
+        if (code.length() > 160)
+            throw new IllegalArgumentException("El código es demasiado largo.");
         if (!java.util.Set.of("", "ARTICULO", "VESTIMENTA").contains(kind))
             throw new IllegalArgumentException("El tipo de producto no es válido.");
         String kindSql =
@@ -53,6 +60,7 @@ public class ArticleQueries {
                         : kind.equals("VESTIMENTA")
                                 ? " AND a.tipo_producto IN ('INDUMENTARIA','CALZADO') "
                                 : " ";
+        if (!code.isEmpty()) kindSql += " AND a.codigo=? ";
         if (category.length() > 90)
             throw new IllegalArgumentException("El rubro solicitado no es válido.");
         if (!identity.permits("costos") && !identity.permits("compras"))
@@ -64,10 +72,7 @@ public class ArticleQueries {
                             "SELECT a.id,a.tipo_producto,a.modelo,a.marca,a.talle,a.sistema_talle,a.color,a.material,a.publico,a.temporada,a.descripcion,a.codigo,a.nombre,a.stock,a.unidad,a.precio_venta,a.imagen_clave,a.imagen_ilustrativa,r.nombre AS rubro FROM articulos a JOIN rubros r ON r.id=a.rubro_id WHERE a.comercio_id=? AND a.estado=? AND (?='' OR r.nombre=?) "
                                     + kindSql
                                     + " ORDER BY a.nombre,a.id",
-                            identity.storeId(),
-                            inactive ? "INACTIVO" : "ACTIVO",
-                            category,
-                            category));
+                            parameters(inactive, category, code)));
         return ArticlePhotoQueries.attach(
                 jdbc,
                 identity.storeId(),
@@ -83,9 +88,16 @@ public class ArticleQueries {
                 WHERE a.comercio_id = ? AND a.estado=? AND (?='' OR r.nombre=?) %s ORDER BY a.nombre, a.id
                 """
                                 .formatted(kindSql),
-                        identity.storeId(),
-                        inactive ? "INACTIVO" : "ACTIVO",
-                        category,
-                        category));
+                        parameters(inactive, category, code)));
+    }
+
+    private Object[] parameters(boolean inactive, String category, String code) {
+        return code.isEmpty()
+                ? new Object[] {
+                    identity.storeId(), inactive ? "INACTIVO" : "ACTIVO", category, category
+                }
+                : new Object[] {
+                    identity.storeId(), inactive ? "INACTIVO" : "ACTIVO", category, category, code
+                };
     }
 }

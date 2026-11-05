@@ -20,7 +20,8 @@ public abstract class StoreJdbcSupport {
     protected final AuditLog audit;
 
     protected void assertAccountingPeriod(java.time.LocalDate date) {
-        ar.com.alon.accounting.AccountingPeriods.check(jdbc, identity.storeId(), date);
+        if (identity.accountingEnabled())
+            ar.com.alon.accounting.AccountingPeriods.check(jdbc, identity.storeId(), date);
     }
 
     /**

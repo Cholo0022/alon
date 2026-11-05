@@ -27,7 +27,6 @@ export const navigation: { id: Section; label: string; icon: string }[] = [
   { id: 'proveedores', label: 'Proveedores', icon: '♧' },
   { id: 'caja', label: 'Caja', icon: '▣' },
   { id: 'informes', label: 'Informes', icon: '▤' },
-  { id: 'contabilidad', label: 'Contabilidad', icon: '▤' },
   { id: 'tienda', label: 'Tienda online', icon: '⌑' },
   { id: 'usuarios', label: 'Usuarios y accesos', icon: '♙' },
   { id: 'seguridad', label: 'Seguridad', icon: '⚿' },

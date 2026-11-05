@@ -968,9 +968,14 @@ export default function ShopApp() {
         </button>
       )}
       <footer className="shop-footer">
-        <strong>
-          {brand.nombre} · {brand.slogan || 'Tu comercio conectado'}
-        </strong>
+        <div className="shop-slogan-contact">
+          <strong>
+            {brand.nombre} · {brand.slogan || 'Tu comercio conectado'}
+          </strong>
+          {brand.telefono_tienda && (
+            <span className="shop-contact-phone">Celular: {brand.telefono_tienda}</span>
+          )}
+        </div>
         <span>Pedido enviado → revisión del vendedor → confirmación</span>
       </footer>
     </div>

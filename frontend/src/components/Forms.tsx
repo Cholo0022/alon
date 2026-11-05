@@ -1,5 +1,4 @@
 import { sentenceCase } from '../lib/sentenceCase'
-import { announceFiscalTarget } from '../hooks/useAccountingOptions'
 // Construye formularios reutilizables y convierte sus campos en los datos que espera el servidor.
 import { QuantityInput } from './QuantityInput'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
@@ -127,7 +126,7 @@ export function LocalEntryPanel({
   pricePreview?: boolean
   duplicateNames?: string[]
   method?: 'POST' | 'PUT'
-  onSaved?: () => void
+  onSaved?: (result: Record<string, unknown>) => void
   initialOpen?: boolean
   panelId?: string
   articlePhotos?: boolean
@@ -335,7 +334,9 @@ export function LocalEntryPanel({
             ? transform(payload)
             : {
                 ...payload,
-                ...(articlePhotos ? { supplierId: 0 } : {}),
+                ...(articlePhotos
+                  ? { supplierId: 0, initialStock: payload.initialStock ?? 0 }
+                  : {}),
                 ...(apparel
                   ? { apparel, categoryId: 0, initialStock: payload.initialStock ?? 0 }
                   : {}),
@@ -380,20 +381,9 @@ export function LocalEntryPanel({
         }
         throw new Error(result.error ?? 'No se pudo guardar el registro.')
       }
-      if (endpoint === '/api/v1/operations/cash/expenses') {
-        const saved = result as { id?: number; importe?: number }
-        if (saved.id)
-          announceFiscalTarget({
-            clase: 'GASTO',
-            id: saved.id,
-            fecha: String(payload.date),
-            total: Number(saved.importe ?? payload.amount),
-            tercero: '',
-          })
-      }
       if (endpoint.endsWith('/cash/close')) setCashReport(result)
       window.dispatchEvent(new Event('alon:refresh'))
-      onSaved?.()
+      onSaved?.(result)
       setMessage('Registro guardado correctamente.')
       formElement.reset()
       setPhotos([])

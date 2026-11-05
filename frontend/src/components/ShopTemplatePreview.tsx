@@ -22,6 +22,11 @@ export function ShopTemplatePreview({
         <span className="shop-brand">{brand.nombre || 'Tu comercio'}</span>
         <span className="preview-search">Buscar productos</span>
       </div>
+      {brand.slogan && (
+        <div className="shop-subnav">
+          <span>{brand.slogan}</span>
+        </div>
+      )}
       <div className="shop-main">
         <div className="shop-hero">
           <div>
@@ -50,6 +55,16 @@ export function ShopTemplatePreview({
             <p>Resumen del pedido</p>
             <span className="preview-cart-action">Enviar pedido</span>
           </div>
+        </div>
+      </div>
+      <div className="shop-footer">
+        <div className="shop-slogan-contact">
+          <strong>
+            {brand.nombre} · {brand.slogan || 'Tu comercio conectado'}
+          </strong>
+          {brand.telefono_tienda.trim() && (
+            <span className="shop-contact-phone">Celular: {brand.telefono_tienda.trim()}</span>
+          )}
         </div>
       </div>
     </div>

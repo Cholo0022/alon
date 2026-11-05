@@ -29,7 +29,8 @@ public class CashLedger {
      * operación si no existe.
      */
     public long requireOpenCash(LocalDate date) {
-        ar.com.alon.accounting.AccountingPeriods.check(jdbc, identity.storeId(), date);
+        if (identity.accountingEnabled())
+            ar.com.alon.accounting.AccountingPeriods.check(jdbc, identity.storeId(), date);
         List<Long> ids =
                 jdbc.query(
                         "SELECT id FROM cajas WHERE comercio_id=? AND fecha=? AND estado='ABIERTA' FOR UPDATE",
@@ -55,7 +56,8 @@ public class CashLedger {
             BigDecimal amount,
             String reference,
             String description) {
-        ar.com.alon.accounting.AccountingPeriods.check(jdbc, identity.storeId(), date);
+        if (identity.accountingEnabled())
+            ar.com.alon.accounting.AccountingPeriods.check(jdbc, identity.storeId(), date);
         jdbc.update(
                 "INSERT INTO movimientos_caja (comercio_id,caja_id,tipo,categoria,medio_pago,fecha_hora,importe,referencia,descripcion) VALUES (?,?,?,?,?,?,?,?,?)",
                 identity.storeId(),

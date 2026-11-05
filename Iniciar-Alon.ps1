@@ -103,3 +103,10 @@ if (!(Get-NetTCPConnection -State Listen -LocalPort 5173 -ErrorAction SilentlyCo
 Wait-AlonUrl 'http://127.0.0.1:5173/' 45
 Write-Host 'Alon está listo: http://127.0.0.1:5173'
 Write-Host 'Tienda web: http://127.0.0.1:5173/tienda'
+
+# La tienda se inicia sin una ventana adicional y se limita a la red Wi-Fi local.
+try {
+    & (Join-Path $alonProject 'Iniciar-Tienda-Wifi.ps1') -SegundoPlano
+} catch {
+    Write-Host 'Alon está listo. No se pudo iniciar la tienda Wi-Fi en este momento.'
+}

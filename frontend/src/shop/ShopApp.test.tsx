@@ -385,3 +385,24 @@ it('shows the product title as the first text after its image without repeating 
   expect(body.firstElementChild).toBe(title)
   expect(body.querySelector('.shop-product-category')).toBeNull()
 })
+
+it('shows the optional shop phone below the slogan and removes it when cleared', async () => {
+  const original = request.getMockImplementation()!
+  request.mockImplementation(async (path, options) =>
+    path === '/business'
+      ? { ...defaultBrand, slogan: 'Siempre cerca', telefono_tienda: '3446 - 236311' }
+      : original(path, options),
+  )
+  render(<ShopApp />)
+  const phone = await screen.findByText('Celular: 3446 - 236311')
+  expect(phone.previousElementSibling?.textContent).toBe(defaultBrand.nombre + ' · Siempre cerca')
+  expect(phone.closest('footer')?.className).toBe('shop-footer')
+  act(() =>
+    window.dispatchEvent(
+      new CustomEvent('alon:business-updated', {
+        detail: { ...defaultBrand, slogan: 'Siempre cerca', telefono_tienda: '' },
+      }),
+    ),
+  )
+  expect(screen.queryByText('Celular: 3446 - 236311')).toBeNull()
+})

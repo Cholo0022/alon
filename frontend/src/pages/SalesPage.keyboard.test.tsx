@@ -1,3 +1,5 @@
+import { downloadSaleReceipt } from '../lib/salesReceipt'
+vi.mock('../lib/salesReceipt', () => ({ downloadSaleReceipt: vi.fn(async () => {}) }))
 import { beforeEach, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { SalesPage } from './SalesPage'
@@ -26,6 +28,7 @@ beforeEach(() => {
   })
 })
 it('opens all articles on empty Enter, adds by keyboard repeatedly and saves only at the final step', async () => {
+  vi.mocked(downloadSaleReceipt).mockRejectedValueOnce(new Error('No se pudo generar el PDF.'))
   render(<SalesPage onOpenCash={() => undefined} />)
   fireEvent.click(screen.getByRole('button', { name: /Nueva venta/ }))
   expect(screen.queryByLabelText('Tipo de venta')).toBeNull()
@@ -99,6 +102,15 @@ it('opens all articles on empty Enter, adds by keyboard repeatedly and saves onl
   const call = request.mock.calls.find(
     ([url, options]) => url === '/api/v1/operations/sales' && options?.method === 'POST',
   )!
+  await waitFor(() => expect(downloadSaleReceipt).toHaveBeenCalledWith(1, '1'))
+  await screen.findByText('No se pudo generar el PDF.')
+  fireEvent.click(screen.getByRole('button', { name: 'Descargar PDF de la última venta' }))
+  await screen.findByText('PDF de la venta descargado.')
+  expect(
+    request.mock.calls.filter(
+      ([url, options]) => url === '/api/v1/operations/sales' && options?.method === 'POST',
+    ),
+  ).toHaveLength(1)
   expect(JSON.parse(String(call[1]?.body)).lines).toEqual([
     { articleId: 2, quantity: 2.5, discountPercent: 0 },
     { articleId: 1, quantity: 1, discountPercent: 0 },

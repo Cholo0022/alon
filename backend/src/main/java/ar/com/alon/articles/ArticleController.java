@@ -100,8 +100,9 @@ public class ArticleController {
             HttpServletRequest request,
             @RequestParam(defaultValue = "false") boolean inactive,
             @RequestParam(defaultValue = "") String category,
-            @RequestParam(defaultValue = "") String kind) {
+            @RequestParam(defaultValue = "") String kind,
+            @RequestParam(defaultValue = "") String code) {
         return queries.articles(
-                (String) request.getAttribute("alonRole"), inactive, category, kind);
+                (String) request.getAttribute("alonRole"), inactive, category, kind, code);
     }
 }

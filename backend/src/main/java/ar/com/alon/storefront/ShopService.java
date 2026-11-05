@@ -73,7 +73,7 @@ public class ShopService {
                 categories,
                 "store",
                 jdbc.queryForMap(
-                        "SELECT nombre,slogan,color_principal,color_secundario,color_fondo,plantilla_tienda,titulo_tienda,descripcion_tienda FROM comercios WHERE id=?",
+                        "SELECT nombre,slogan,color_principal,color_secundario,color_fondo,plantilla_tienda,titulo_tienda,descripcion_tienda,telefono_tienda FROM comercios WHERE id=?",
                         accounts.storeId()),
                 "page",
                 page,

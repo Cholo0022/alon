@@ -21,7 +21,14 @@ export type AuthStatus = {
   setupRequired: boolean
   user: SessionUser | null
   csrfToken: string
-  license?: { active: boolean; managed: boolean; expiresAt: string }
+  license?: {
+    active: boolean
+    managed: boolean
+    expiresAt: string
+    expiringSoon?: boolean
+    daysRemaining?: number
+    expirationDate?: string
+  }
   challenge?: AccessChallenge | Record<string, never>
 }
 

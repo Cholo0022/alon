@@ -802,3 +802,13 @@
     display: none;
   }
 }
+
+.shop-slogan-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.shop-contact-phone {
+  overflow-wrap: anywhere;
+}

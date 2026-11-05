@@ -37,7 +37,8 @@ export function Combobox({
   const input = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState(false)
-  const showOptions = open && typed && !!value.trim() && options.length > 0
+  const [requested, setRequested] = useState(false)
+  const showOptions = open && (requested || (typed && !!value.trim())) && options.length > 0
   const [activeKey, setActiveKey] = useState('')
   useEffect(() => {
     input.current?.setCustomValidity(
@@ -50,6 +51,7 @@ export function Combobox({
     onChoose(option)
     setOpen(false)
     setTyped(false)
+    setRequested(false)
     setActiveKey('')
     input.current?.setCustomValidity('')
   }
@@ -77,12 +79,14 @@ export function Combobox({
         onClick={() => setOpen(true)}
         onBlur={() => {
           setTyped(false)
+          setRequested(false)
           setOpen(false)
           input.current?.setCustomValidity(
             required && !valid ? 'Elegí un registro de las sugerencias.' : '',
           )
         }}
         onChange={(event) => {
+          setRequested(false)
           setTyped(true)
           onChange(event.target.value)
           setActiveKey('')
@@ -103,8 +107,7 @@ export function Combobox({
           }
           if (
             (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
-            typed &&
-            value.trim() &&
+            (requested || (typed && value.trim())) &&
             options.length
           ) {
             event.preventDefault()
@@ -120,6 +123,10 @@ export function Combobox({
           } else if (event.key === 'Enter' && showOptions && active >= 0) {
             event.preventDefault()
             choose(options[active])
+          } else if (event.key === 'Enter' && !onEmptyEnter) {
+            event.preventDefault()
+            setRequested(true)
+            setOpen(true)
           } else if (event.key === 'Enter' && onEmptyEnter) {
             event.preventDefault()
             if (!value.trim()) onEmptyEnter()

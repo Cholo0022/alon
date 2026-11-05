@@ -75,11 +75,34 @@ public class AccessSecurityService {
                         number(user, "comercio_id"));
         boolean managed = enabled(row.get("licencia_controlada"));
         Object until = row.get("licencia_hasta");
+        Instant expiry =
+                until == null
+                        ? null
+                        : until instanceof LocalDateTime date
+                                ? date.atZone(clock.getZone()).toInstant()
+                                : instant(until);
         boolean active =
                 "SUPER".equals(user.get("rol"))
                         || !managed
-                        || until != null && instant(until).isAfter(clock.instant());
+                        || until != null && expiry.isAfter(clock.instant());
+        long daysRemaining =
+                until == null
+                        ? -1
+                        : java.time.temporal.ChronoUnit.DAYS.between(
+                                LocalDate.now(clock), expiry.atZone(clock.getZone()).toLocalDate());
+        boolean expiringSoon =
+                managed
+                        && until != null
+                        && expiry.isAfter(clock.instant())
+                        && daysRemaining >= 0
+                        && daysRemaining <= 10;
         return Map.of(
+                "expiringSoon",
+                expiringSoon,
+                "daysRemaining",
+                daysRemaining,
+                "expirationDate",
+                until == null ? "" : expiry.atZone(clock.getZone()).toLocalDate().toString(),
                 "active",
                 active,
                 "managed",

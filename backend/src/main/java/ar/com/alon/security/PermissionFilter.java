@@ -30,6 +30,10 @@ public class PermissionFilter extends OncePerRequestFilter {
                     "/api/v1/auth/security/confirm",
                     "/api/v1/auth/security/continue",
                     "/api/v1/auth/security/cancel");
+
+    @org.springframework.beans.factory.annotation.Value("${alon.accounting.enabled:false}")
+    private boolean accountingEnabled;
+
     private final UserService auth;
     private final AccessSecurityService security;
 
@@ -76,6 +80,12 @@ public class PermissionFilter extends OncePerRequestFilter {
         req.setAttribute("alonIdentity", current);
         String role = String.valueOf(current.get("rol"));
         req.setAttribute("alonRole", role);
+        if (!accountingEnabled
+                && (path.startsWith("/api/v1/accounting/")
+                        || path.startsWith("/api/v1/operations/accounting/"))) {
+            reject(res, 404, "Contabilidad no está disponible en esta versión.");
+            return;
+        }
         if ("SUPER".equals(role)) {
             chain.doFilter(req, res);
             return;

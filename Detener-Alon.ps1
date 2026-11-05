@@ -3,6 +3,7 @@ param([switch]$Comprobar)
 $ErrorActionPreference = 'Stop'
 $alonTargets = @(
     @{Port=8080; Executable='java.exe'; Path=(Join-Path $PSScriptRoot 'backend/target/alon-api-0.1.0-SNAPSHOT.jar')},
+    @{Port=5174; Executable='node.exe'; Path=(Join-Path $PSScriptRoot 'frontend/storefront-lan.mjs')},
     @{Port=5173; Executable='node.exe'; Path=(Join-Path $PSScriptRoot 'frontend/node_modules/vite/bin/vite.js')}
 )
 $alonProcesses = @()

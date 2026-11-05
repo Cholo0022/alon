@@ -12,6 +12,7 @@ it('saves the identity and announces the persisted appearance', async () => {
     ...defaultBrand,
     nombre: 'Almacén Norte',
     slogan: 'Siempre cerca',
+    telefono_tienda: '3446 - 236311',
     color_principal: '#aabbcc',
   }
   vi.mocked(apiFetch).mockResolvedValueOnce(Response.json(saved))
@@ -22,6 +23,9 @@ it('saves the identity and announces the persisted appearance', async () => {
     target: { value: saved.nombre },
   })
   fireEvent.change(screen.getByLabelText('Slogan'), { target: { value: saved.slogan } })
+  const phone = screen.getByRole('textbox', { name: /Celular de la tienda/ }) as HTMLInputElement
+  expect(phone.required).toBe(false)
+  fireEvent.change(phone, { target: { value: saved.telefono_tienda } })
   fireEvent.change(screen.getByLabelText('Color principal'), {
     target: { value: saved.color_principal },
   })
@@ -30,6 +34,7 @@ it('saves the identity and announces the persisted appearance', async () => {
   expect(JSON.parse(String(vi.mocked(apiFetch).mock.calls[0][1]?.body))).toMatchObject({
     name: saved.nombre,
     slogan: saved.slogan,
+    shopPhone: saved.telefono_tienda,
     primaryColor: saved.color_principal,
   })
   await waitFor(() => expect(updated).toHaveBeenCalledOnce())
@@ -68,4 +73,16 @@ it('offers ten templates and saves the selected design and customized welcome co
     shopDescription: saved.descripcion_tienda,
     primaryColor: defaultBrand.color_principal,
   })
+})
+
+it('allows clearing the optional shop phone', async () => {
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json(defaultBrand))
+  render(<BusinessPage brand={{ ...defaultBrand, telefono_tienda: '3446 - 236311' }} />)
+  fireEvent.change(screen.getByRole('textbox', { name: /Celular de la tienda/ }), {
+    target: { value: '' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar negocio' }))
+  await screen.findByText(/Negocio actualizado/)
+  expect(JSON.parse(String(vi.mocked(apiFetch).mock.calls[0][1]?.body)).shopPhone).toBe('')
+  expect(screen.queryByText('Celular: 3446 - 236311')).toBeNull()
 })

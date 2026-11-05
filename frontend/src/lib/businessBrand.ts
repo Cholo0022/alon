@@ -6,6 +6,7 @@ import { shopRequest } from '../shop/api'
 
 export type BusinessBrand = {
   nombre: string
+  telefono_tienda: string
   slogan: string
   color_principal: string
   color_secundario: string
@@ -17,6 +18,7 @@ export type BusinessBrand = {
 export const defaultBrand: BusinessBrand = {
   nombre: 'Mi comercio',
   slogan: '',
+  telefono_tienda: '',
   color_principal: '#006b73',
   color_secundario: '#102a43',
   color_fondo: '#f4f7f9',
@@ -32,6 +34,7 @@ export function normalizeBrand(value: Partial<BusinessBrand> | null | undefined)
   return {
     nombre: value?.nombre || defaultBrand.nombre,
     slogan: value?.slogan || '',
+    telefono_tienda: value?.telefono_tienda?.trim() || '',
     color_principal: color(value?.color_principal, defaultBrand.color_principal),
     color_secundario: color(value?.color_secundario, defaultBrand.color_secundario),
     color_fondo: color(value?.color_fondo, defaultBrand.color_fondo),

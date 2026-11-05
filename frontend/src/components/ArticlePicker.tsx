@@ -6,6 +6,7 @@ import './article-picker.css'
 
 /** Abre un listado flotante paginado de artículos o proveedores, con búsqueda y selección por teclado o ratón. */
 export function ArticlePicker({
+  onCreate,
   onChoose,
   onClose,
   message,
@@ -14,6 +15,7 @@ export function ArticlePicker({
   unitCostOverride,
   kind = '',
 }: {
+  onCreate?: () => void
   onChoose: (row: ApiRow) => void
   onClose: () => void
   message: string
@@ -221,6 +223,11 @@ export function ArticlePicker({
           </p>
         )}
         <footer>
+          {onCreate && (
+            <button type="button" className="primary-button" onClick={onCreate}>
+              Crear artículo nuevo
+            </button>
+          )}
           <span>
             Página {rows.page + 1} · {rows.length} {supplier ? 'proveedores' : 'artículos'}
             {rows.hasMore ? ' · hay más artículos' : ''}

@@ -243,7 +243,9 @@ public class SalesService extends StoreJdbcSupport {
      */
     @Transactional
     public Map<String, Object> cancelSale(long id) {
-        ar.com.alon.accounting.AccountingPeriods.checkLinked(jdbc, identity.storeId(), "VENTA", id);
+        if (identity.accountingEnabled())
+            ar.com.alon.accounting.AccountingPeriods.checkLinked(
+                    jdbc, identity.storeId(), "VENTA", id);
         assertAccountingPeriod(LocalDate.now(clock));
         Map<String, Object> sale =
                 jdbc.queryForMap(

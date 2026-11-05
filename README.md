@@ -86,7 +86,9 @@ El primer ingreso del dueño exige vincular una aplicación autenticadora y guar
 
 Desde V11, **alon** es el superusuario: ingresa con Google Authenticator y administra **Gerentes y licencias**. El Gerente recibe los accesos que alon seleccione. El menú **Seguridad** contiene el autenticador y los controles de ingreso. Solo el superusuario activa las licencias del negocio; el Gerente y los empleados no pueden renovarlas desde sus cuentas. Ver el apartado V11 de la guía de actualización.
 
-Para abrir la tienda desde un celular conectado al mismo Wi-Fi, ejecutar `Iniciar-Tienda-Wifi.ps1` después de iniciar Alon. El script muestra la dirección de la tienda (puerto 5174); mantener la PC y la ventana de ese iniciador encendidas. La gestión sigue siendo local. Consultar la sección Tienda desde el celular por Wi-Fi en la guía de actualización.
+Al iniciar Alon se prepara también la tienda para celulares del mismo Wi-Fi, en segundo plano y sin mantener una ventana abierta. La notebook debe estar encendida y conectada. Se puede iniciar por separado con Iniciar-Tienda-Wifi.ps1 -SegundoPlano; sin ese parámetro conserva el modo de ventana manual. Si cambia la dirección de Wi-Fi, el iniciador reemplaza únicamente el puente identificado de este proyecto.
+
+En esta instalación, el acceso Alon.lnk de Inicio de Windows ejecuta Inicio-Automatico-Alon.ps1 al iniciar sesión con el usuario actual. Inicia Alon, espera la conexión Wi-Fi durante el arranque y registra el resultado en .validation/runtime/inicio-automatico.log. MySQL debe estar configurado como servicio automático. La dirección vigente aparece en ese registro; puede cambiar si el router asigna otra IP. Detener-Alon.ps1 detiene también el acceso Wi-Fi. No se publican la gestión ni la base de datos en la red.
 
 ## Backup del sistema de gestión
 
@@ -120,3 +122,7 @@ El menú Contabilidad reúne el informe mensual para el contador, exportación Z
 Para Responsable Inscripto, el desglose se toma de comprobantes reales; no se calcula crédito fiscal desde totales históricos. El resumen de IVA es parcial y no sustituye IVA Simple, emisión de facturas, libros legales ni revisión profesional. Antes de actualizar la base, conservar un backup completo. Los respaldos de versiones anteriores requieren una versión compatible para su restauración, como se indica en la sección Backup.
 
 La carga de indumentaria y calzado (V13) se describe en [docs/indumentaria.md](docs/indumentaria.md). Cada talle y color conserva stock propio.
+
+## PDF de ventas
+
+Al confirmar una venta se descarga su comprobante interno en PDF, usando los importes registrados. Las ventas cortas ocupan la mitad superior de una hoja A4; los artículos largos y las ventas extensas continúan en páginas adicionales sin reducir la letra. El botón PDF del listado permite volver a descargarlo sin registrar otra venta. Si falla la descarga, la venta queda guardada y se puede reintentar desde ese botón. No emite factura fiscal ante ARCA.

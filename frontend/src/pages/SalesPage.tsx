@@ -1,4 +1,5 @@
-import { announceFiscalTarget } from '../hooks/useAccountingOptions'
+import { downloadSaleReceipt } from '../lib/salesReceipt'
+import { BarcodeEntry } from '../components/BarcodeEntry'
 import { PaymentConfirmation, type PaymentSelection } from '../components/PaymentConfirmation'
 import { useTransactionEntry } from '../hooks/useTransactionEntry'
 // Reúne los artículos de la venta y la guarda completa cuando el usuario confirma.
@@ -47,6 +48,21 @@ export function SalesPage({
   onOpenCash: () => void
   canDiscount?: boolean
 }) {
+  const [lastReceipt, setLastReceipt] = useState<{ id: number; number: string } | null>(null)
+  const [pdfBusy, setPdfBusy] = useState(false)
+  const [pdfMessage, setPdfMessage] = useState('')
+  const downloadReceipt = async (id: number, number: string) => {
+    setPdfBusy(true)
+    setPdfMessage('')
+    try {
+      await downloadSaleReceipt(id, number)
+      setPdfMessage('PDF de la venta descargado.')
+    } catch (error) {
+      setPdfMessage(error instanceof Error ? error.message : 'No se pudo descargar el PDF.')
+    } finally {
+      setPdfBusy(false)
+    }
+  }
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [paymentPartyName, setPaymentPartyName] = useState('')
   const [pendingArticle, setPendingArticle] = useState<ApiRow | null>(null)
@@ -179,17 +195,17 @@ export function SalesPage({
           })),
         }),
       })
-      const result = (await response.json().catch(() => ({}))) as { error?: string }
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string
+        id?: number
+        numero?: string
+      }
       if (!response.ok) throw new Error(result.error ?? 'No se pudo guardar la venta.')
-      const saved = result as { id?: number; total?: number }
-      if (saved.id)
-        announceFiscalTarget({
-          clase: 'VENTA',
-          id: saved.id,
-          fecha: date,
-          total: Number(saved.total ?? saleTotal),
-          tercero: paymentPartyName || 'Consumidor final',
-        })
+      if (result.id) {
+        const receipt = { id: result.id, number: result.numero ?? String(result.id) }
+        setLastReceipt(receipt)
+        void downloadReceipt(receipt.id, receipt.number)
+      }
       setPaymentOpen(false)
       window.dispatchEvent(new Event('alon:refresh'))
       setMessage('Venta guardada correctamente con ' + lines.length + ' artículos.')
@@ -343,6 +359,12 @@ export function SalesPage({
                 <DateTextInput name="date" />
               </label>
             </div>
+            <BarcodeEntry
+              onSelect={(article) => {
+                setMessage('')
+                setPendingArticle(article)
+              }}
+            />
             <div className="transaction-article-entry">
               <label>
                 Artículo
@@ -467,6 +489,17 @@ export function SalesPage({
           </p>
         )}
       </section>
+      {lastReceipt && (
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={pdfBusy}
+          onClick={() => void downloadReceipt(lastReceipt.id, lastReceipt.number)}
+        >
+          {pdfBusy ? 'Generando PDF…' : 'Descargar PDF de la última venta'}
+        </button>
+      )}
+      {pdfMessage && <p role="status">{pdfMessage}</p>}
       <ApiTable
         title="Ventas de hoy"
         endpoint={'/api/v1/alon/sales?date=' + todayLocal() + '&size=200'}
@@ -484,6 +517,21 @@ export function SalesPage({
             ),
           },
           { key: 'total', label: 'TOTAL', money: true },
+          {
+            key: 'pdf',
+            label: 'COMPROBANTE',
+            render: (row) => (
+              <button
+                type="button"
+                className="table-action-button"
+                disabled={pdfBusy}
+                onClick={() => void downloadReceipt(numberValue(row.id), textValue(row.numero))}
+                aria-label={'Descargar PDF de venta ' + textValue(row.numero)}
+              >
+                PDF
+              </button>
+            ),
+          },
           {
             key: 'estado',
             label: 'ESTADO',

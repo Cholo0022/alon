@@ -163,9 +163,10 @@ public class PurchaseService extends StoreJdbcSupport {
                 "EFECTIVO_CAJA".equals(paymentType)
                         || paid.signum() > 0 && !"EFECTIVO".equals(paymentType);
         Long cashId = fromCash ? cashLedger.requireOpenCash(date) : null;
+        boolean updateStock = !Boolean.FALSE.equals(input.updateStock());
         long purchaseId =
                 insert(
-                        "INSERT INTO compras (comercio_id,proveedor_id,tipo_documento,numero_documento,fecha,subtotal,gastos_adicionales,total,pagado,saldo,estado,condicion_pago,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        "INSERT INTO compras (comercio_id,proveedor_id,tipo_documento,numero_documento,fecha,subtotal,gastos_adicionales,total,pagado,saldo,estado,condicion_pago,medio_pago,modifica_stock) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         identity.storeId(),
                         input.supplierId(),
                         docType,
@@ -178,7 +179,8 @@ public class PurchaseService extends StoreJdbcSupport {
                         total.subtract(paid),
                         paid.compareTo(total) == 0 ? "PAGADA" : "PENDIENTE",
                         "CONTADO".equals(paymentType) ? "EFECTIVO_CAJA" : paymentType,
-                        paymentMethod);
+                        paymentMethod,
+                        updateStock);
         BigDecimal allocatedExtras = BigDecimal.ZERO;
         int row = 1;
         for (PreparedLine prepared : lines) {
@@ -222,7 +224,7 @@ public class PurchaseService extends StoreJdbcSupport {
                 // Compatibilidad con solicitudes anteriores a la confirmación de costo.
                 jdbc.update(
                         "UPDATE articulos SET stock=stock+?,costo=?,precio_venta=? WHERE id=? AND comercio_id=?",
-                        prepared.quantity(),
+                        updateStock ? prepared.quantity() : BigDecimal.ZERO,
                         weightedCost,
                         salePrice,
                         prepared.line().articleId(),
@@ -230,23 +232,24 @@ public class PurchaseService extends StoreJdbcSupport {
             } else if (input.updateCost()) {
                 jdbc.update(
                         "UPDATE articulos SET stock=stock+?,costo=? WHERE id=? AND comercio_id=?",
-                        prepared.quantity(),
+                        updateStock ? prepared.quantity() : BigDecimal.ZERO,
                         prepared.cost(),
                         prepared.line().articleId(),
                         identity.storeId());
             } else {
                 jdbc.update(
                         "UPDATE articulos SET stock=stock+? WHERE id=? AND comercio_id=?",
-                        prepared.quantity(),
+                        updateStock ? prepared.quantity() : BigDecimal.ZERO,
                         prepared.line().articleId(),
                         identity.storeId());
             }
-            this.stock.addStockMovement(
-                    prepared.line().articleId(),
-                    "COMPRA",
-                    prepared.quantity(),
-                    docNumber,
-                    "Ingreso por " + docType.toLowerCase(java.util.Locale.ROOT));
+            if (updateStock)
+                this.stock.addStockMovement(
+                        prepared.line().articleId(),
+                        "COMPRA",
+                        prepared.quantity(),
+                        docNumber,
+                        "Ingreso por " + docType.toLowerCase(java.util.Locale.ROOT));
         }
         jdbc.update(
                 "UPDATE proveedores SET saldo_actual=saldo_actual+? WHERE id=? AND comercio_id=?",
@@ -298,12 +301,13 @@ public class PurchaseService extends StoreJdbcSupport {
      */
     @Transactional
     public Map<String, Object> updatePurchase(long id, PurchaseInput input) {
-        ar.com.alon.accounting.AccountingPeriods.checkLinked(
-                jdbc, identity.storeId(), "COMPRA", id);
+        if (identity.accountingEnabled())
+            ar.com.alon.accounting.AccountingPeriods.checkLinked(
+                    jdbc, identity.storeId(), "COMPRA", id);
         assertAccountingPeriod(input.date() == null ? LocalDate.now(clock) : input.date());
         Map<String, Object> current =
                 jdbc.queryForMap(
-                        "SELECT proveedor_id,fecha,total,pagado,numero_documento,gastos_adicionales FROM compras WHERE id=? AND comercio_id=? FOR UPDATE",
+                        "SELECT proveedor_id,fecha,total,pagado,numero_documento,gastos_adicionales,modifica_stock FROM compras WHERE id=? AND comercio_id=? FOR UPDATE",
                         id,
                         identity.storeId());
         assertAccountingPeriod(
@@ -392,7 +396,12 @@ public class PurchaseService extends StoreJdbcSupport {
         allocation.forEach(line -> newValues.put(line.articleId(), line.value()));
         java.util.Set<Long> articleIds = new java.util.TreeSet<>(oldQuantities.keySet());
         articleIds.addAll(newLines.keySet());
+        Object stockFlag = current.get("modifica_stock");
+        boolean modifiesStock =
+                !Boolean.FALSE.equals(stockFlag)
+                        && !(stockFlag instanceof Number number && number.intValue() == 0);
         for (Long articleId : articleIds) {
+            if (!modifiesStock) continue;
             BigDecimal before = oldQuantities.getOrDefault(articleId, BigDecimal.ZERO);
             BigDecimal after =
                     newLines.containsKey(articleId) ? newLines.get(articleId)[0] : BigDecimal.ZERO;

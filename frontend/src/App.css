@@ -3036,3 +3036,13 @@ td.article-actions {
 #root .platform-panel > .primary-button {
   margin: 8px 10px 8px 0;
 }
+
+.license-expiry-notice {
+  background: #fff4d6;
+  border: 1px solid #bd7c14;
+  color: #654300;
+  margin-bottom: 20px;
+}
+.license-expiry-notice p {
+  margin: 6px 0 0;
+}

@@ -34,12 +34,12 @@ public class PurchaseQueries {
                 """
                 SELECT c.id, c.proveedor_id, c.numero_documento, c.tipo_documento, c.fecha, p.codigo AS proveedor_codigo,
                        p.nombre AS proveedor, COUNT(d.articulo_id) AS articulos,
-                       c.subtotal, c.gastos_adicionales, c.total, c.pagado, c.saldo, c.estado, c.condicion_pago, c.medio_pago
+                       c.subtotal, c.gastos_adicionales, c.total, c.pagado, c.saldo, c.estado, c.condicion_pago, c.medio_pago,c.modifica_stock
                 FROM compras c JOIN proveedores p ON p.id = c.proveedor_id
                 LEFT JOIN compra_detalle d ON d.compra_id = c.id
                 WHERE c.comercio_id = ?
                 GROUP BY c.id, c.numero_documento, c.tipo_documento, c.fecha, p.codigo, p.nombre,
-                         c.subtotal, c.gastos_adicionales, c.total, c.pagado, c.saldo, c.estado, c.condicion_pago, c.medio_pago
+                         c.subtotal, c.gastos_adicionales, c.total, c.pagado, c.saldo, c.estado, c.condicion_pago, c.medio_pago,c.modifica_stock
                 ORDER BY c.id DESC
                 """,
                 identity.storeId());
@@ -51,7 +51,7 @@ public class PurchaseQueries {
                 jdbc.queryForMap(
                         """
                 SELECT c.id,c.proveedor_id,c.numero_documento,c.tipo_documento,c.fecha,c.subtotal,c.gastos_adicionales,
-                       c.total,c.pagado,c.saldo,c.estado,c.condicion_pago,c.medio_pago,p.nombre AS proveedor
+                       c.total,c.pagado,c.saldo,c.estado,c.condicion_pago,c.medio_pago,c.modifica_stock,p.nombre AS proveedor
                 FROM compras c JOIN proveedores p ON p.id=c.proveedor_id
                 WHERE c.id=? AND c.comercio_id=?
                 """,

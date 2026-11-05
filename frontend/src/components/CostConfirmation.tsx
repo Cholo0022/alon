@@ -3,11 +3,13 @@ import './article-picker.css'
 
 /** Pide la decisión final de actualizar solo el costo del catálogo o conservar los precios antes de guardar la compra. */
 export function CostConfirmation({
+  kind = 'cost',
   busy,
   message,
   onConfirm,
   onCancel,
 }: {
+  kind?: 'cost' | 'stock'
   busy: boolean
   message: string
   onConfirm: (updateCost: boolean) => void
@@ -65,17 +67,30 @@ export function CostConfirmation({
         }}
       >
         <header>
-          <h2 id={id}>¿Este comprobante modifica el precio de costo?</h2>
+          <h2 id={id}>
+            {kind === 'stock'
+              ? '¿Este comprobante modifica el stock?'
+              : '¿Este comprobante modifica el precio de costo?'}
+          </h2>
         </header>
-        <p>
-          Si elegís Sí, se actualizará únicamente el costo unitario de los productos con el cargado
-          en este comprobante. El precio de venta, el flete y el porcentaje de ganancia se
-          conservan.
-        </p>
-        <p>
-          Si elegís No, se conservarán todos los precios. En ambos casos se registra la compra y el
-          ingreso de stock.
-        </p>
+        {kind === 'stock' ? (
+          <p>
+            Si elegís Sí, las cantidades del comprobante se sumarán al stock. Si elegís No, se
+            registrará la compra y su pago o deuda sin cambiar las existencias.
+          </p>
+        ) : (
+          <>
+            <p>
+              Si elegís Sí, se actualizará únicamente el costo unitario de los productos con el
+              cargado en este comprobante. El precio de venta, el flete y el porcentaje de ganancia
+              se conservan.
+            </p>
+            <p>
+              Si elegís No, se conservarán todos los precios. En el siguiente paso elegirás si
+              modifica el stock.
+            </p>
+          </>
+        )}
         {message && <p role="alert">{message}</p>}
         <div className="article-entry-actions">
           <button
