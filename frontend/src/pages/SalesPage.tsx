@@ -1,4 +1,4 @@
-import { downloadSaleReceipt } from '../lib/salesReceipt'
+import { SalesReceiptPreview } from '../components/SalesReceiptPreview'
 import { BarcodeEntry } from '../components/BarcodeEntry'
 import { PaymentConfirmation, type PaymentSelection } from '../components/PaymentConfirmation'
 import { useTransactionEntry } from '../hooks/useTransactionEntry'
@@ -49,20 +49,8 @@ export function SalesPage({
   canDiscount?: boolean
 }) {
   const [lastReceipt, setLastReceipt] = useState<{ id: number; number: string } | null>(null)
-  const [pdfBusy, setPdfBusy] = useState(false)
-  const [pdfMessage, setPdfMessage] = useState('')
-  const downloadReceipt = async (id: number, number: string) => {
-    setPdfBusy(true)
-    setPdfMessage('')
-    try {
-      await downloadSaleReceipt(id, number)
-      setPdfMessage('PDF de la venta descargado.')
-    } catch (error) {
-      setPdfMessage(error instanceof Error ? error.message : 'No se pudo descargar el PDF.')
-    } finally {
-      setPdfBusy(false)
-    }
-  }
+  const [receiptPreview, setReceiptPreview] = useState<{ id: number; number: string } | null>(null)
+  const showReceipt = (id: number, number: string) => setReceiptPreview({ id, number })
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [paymentPartyName, setPaymentPartyName] = useState('')
   const [pendingArticle, setPendingArticle] = useState<ApiRow | null>(null)
@@ -204,7 +192,7 @@ export function SalesPage({
       if (result.id) {
         const receipt = { id: result.id, number: result.numero ?? String(result.id) }
         setLastReceipt(receipt)
-        void downloadReceipt(receipt.id, receipt.number)
+        showReceipt(receipt.id, receipt.number)
       }
       setPaymentOpen(false)
       window.dispatchEvent(new Event('alon:refresh'))
@@ -493,13 +481,19 @@ export function SalesPage({
         <button
           type="button"
           className="secondary-button"
-          disabled={pdfBusy}
-          onClick={() => void downloadReceipt(lastReceipt.id, lastReceipt.number)}
+          onClick={() => showReceipt(lastReceipt.id, lastReceipt.number)}
         >
-          {pdfBusy ? 'Generando PDF…' : 'Descargar PDF de la última venta'}
+          Ver comprobante de la última venta
         </button>
       )}
-      {pdfMessage && <p role="status">{pdfMessage}</p>}
+      {receiptPreview && (
+        <SalesReceiptPreview
+          key={receiptPreview.id}
+          saleId={receiptPreview.id}
+          number={receiptPreview.number}
+          onClose={() => setReceiptPreview(null)}
+        />
+      )}
       <ApiTable
         title="Ventas de hoy"
         endpoint={'/api/v1/alon/sales?date=' + todayLocal() + '&size=200'}
@@ -524,11 +518,10 @@ export function SalesPage({
               <button
                 type="button"
                 className="table-action-button"
-                disabled={pdfBusy}
-                onClick={() => void downloadReceipt(numberValue(row.id), textValue(row.numero))}
-                aria-label={'Descargar PDF de venta ' + textValue(row.numero)}
+                onClick={() => showReceipt(numberValue(row.id), textValue(row.numero))}
+                aria-label={'Ver comprobante de venta ' + textValue(row.numero)}
               >
-                PDF
+                Ver
               </button>
             ),
           },

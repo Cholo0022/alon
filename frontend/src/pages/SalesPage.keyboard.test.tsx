@@ -1,5 +1,7 @@
-import { downloadSaleReceipt } from '../lib/salesReceipt'
-vi.mock('../lib/salesReceipt', () => ({ downloadSaleReceipt: vi.fn(async () => {}) }))
+import { loadSaleReceipt } from '../lib/salesReceipt'
+vi.mock('../lib/salesReceipt', () => ({
+  loadSaleReceipt: vi.fn(async () => new Blob(['%PDF'], { type: 'application/pdf' })),
+}))
 import { beforeEach, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { SalesPage } from './SalesPage'
@@ -12,6 +14,11 @@ const articles = [
   { id: 2, codigo: 'A2', nombre: 'Clavos', stock: 10, precio_venta: 200, unidad: 'CAJA' },
 ]
 beforeEach(() => {
+  URL.createObjectURL = vi.fn(() => 'blob:receipt-preview')
+  URL.revokeObjectURL = vi.fn()
+  vi.mocked(loadSaleReceipt)
+    .mockReset()
+    .mockResolvedValue(new Blob(['%PDF'], { type: 'application/pdf' }))
   request.mockReset()
   request.mockImplementation(async (url, options) => {
     if (url.includes('/cash/status')) return Response.json({ estado: 'ABIERTA' })
@@ -28,7 +35,7 @@ beforeEach(() => {
   })
 })
 it('opens all articles on empty Enter, adds by keyboard repeatedly and saves only at the final step', async () => {
-  vi.mocked(downloadSaleReceipt).mockRejectedValueOnce(new Error('No se pudo generar el PDF.'))
+  vi.mocked(loadSaleReceipt).mockRejectedValueOnce(new Error('No se pudo generar el PDF.'))
   render(<SalesPage onOpenCash={() => undefined} />)
   fireEvent.click(screen.getByRole('button', { name: /Nueva venta/ }))
   expect(screen.queryByLabelText('Tipo de venta')).toBeNull()
@@ -102,10 +109,23 @@ it('opens all articles on empty Enter, adds by keyboard repeatedly and saves onl
   const call = request.mock.calls.find(
     ([url, options]) => url === '/api/v1/operations/sales' && options?.method === 'POST',
   )!
-  await waitFor(() => expect(downloadSaleReceipt).toHaveBeenCalledWith(1, '1'))
+  await waitFor(() => expect(loadSaleReceipt).toHaveBeenCalledWith(1, expect.any(AbortSignal)))
   await screen.findByText('No se pudo generar el PDF.')
-  fireEvent.click(screen.getByRole('button', { name: 'Descargar PDF de la última venta' }))
-  await screen.findByText('PDF de la venta descargado.')
+  fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
+  const preview = (await screen.findByTitle(
+    'Vista del comprobante de venta 1',
+  )) as HTMLIFrameElement
+  const print = vi.fn()
+  Object.defineProperty(preview, 'contentWindow', {
+    configurable: true,
+    value: { focus: vi.fn(), print },
+  })
+  fireEvent.load(preview)
+  fireEvent.click(screen.getByRole('button', { name: 'Imprimir' }))
+  expect(print).toHaveBeenCalledOnce()
+  expect(document.querySelector('a[download]')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Cerrar comprobante' }))
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:receipt-preview')
   expect(
     request.mock.calls.filter(
       ([url, options]) => url === '/api/v1/operations/sales' && options?.method === 'POST',

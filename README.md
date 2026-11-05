@@ -125,4 +125,4 @@ La carga de indumentaria y calzado (V13) se describe en [docs/indumentaria.md](d
 
 ## PDF de ventas
 
-Al confirmar una venta se descarga su comprobante interno en PDF, usando los importes registrados. Las ventas cortas ocupan la mitad superior de una hoja A4; los artículos largos y las ventas extensas continúan en páginas adicionales sin reducir la letra. El botón PDF del listado permite volver a descargarlo sin registrar otra venta. Si falla la descarga, la venta queda guardada y se puede reintentar desde ese botón. No emite factura fiscal ante ARCA.
+Al confirmar una venta se abre en pantalla su comprobante interno en PDF, usando los importes registrados, sin descargar archivos automáticamente. Desde el visor se puede imprimir en una impresora. Las ventas cortas ocupan la mitad superior de una hoja A4; los artículos largos y las ventas extensas continúan en páginas adicionales sin reducir la letra. El botón Ver / imprimir del listado permite abrirlo otra vez sin registrar otra venta. Si falla la vista previa, la venta queda guardada y se puede reintentar desde el visor. No emite factura fiscal ante ARCA.
