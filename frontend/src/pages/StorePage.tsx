@@ -14,6 +14,19 @@ type OrderLine = {
   estado_articulo: string
   unidad: string
 }
+
+/** El formulario web recibe celulares argentinos con área, sin 0 ni 15. */
+export function orderWhatsAppUrl(contact: string): string | null {
+  const digits = contact.replace(/[^0-9]/g, '')
+  const number = /^\d{10}$/.test(digits)
+    ? '549' + digits
+    : /^54\d{10}$/.test(digits)
+      ? '549' + digits.slice(2)
+      : /^549\d{10}$/.test(digits)
+        ? digits
+        : null
+  return number ? 'https://wa.me/' + number : null
+}
 type Order = {
   id: number
   nombre_cliente: string
@@ -114,10 +127,17 @@ export function StorePage() {
     }
   }
   const pending = order?.estado === 'PENDIENTE_CONFIRMACION'
+  const whatsAppUrl = order ? orderWhatsAppUrl(order.contacto ?? '') : null
   const included = order?.lines.filter((l) => Boolean(l.incluido)) ?? []
   const shortage = included.some(
     (l) => Number(l.cantidad) > Number(l.stock) || l.estado_articulo !== 'ACTIVO',
   )
+  const approvalBlockers = [
+    ...(!order?.cash_open ? ['Abrí la caja de hoy desde Caja.'] : []),
+    ...(!included.length ? ['El pedido no tiene artículos incluidos para vender.'] : []),
+    ...(shortage ? ['Quitá los artículos inactivos o sin stock suficiente.'] : []),
+    ...(!payment ? ['Seleccioná un medio de pago.'] : []),
+  ]
   return (
     <div className="store-module">
       <section className="panel store-introduction">
@@ -204,6 +224,26 @@ export function StorePage() {
                   <p>
                     DNI: {order.dni ?? 'No informado'} · Tel.: {order.contacto}
                   </p>
+                  {whatsAppUrl && (
+                    <a
+                      className="store-whatsapp-link"
+                      href={whatsAppUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={'Chatear por WhatsApp con ' + order.nombre_cliente}
+                    >
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M20.5 3.5A11.9 11.9 0 0 0 12 0C5.4 0 0 5.4 0 12c0 2.1.5 4.2 1.6 6L0 24l6.2-1.6A12 12 0 0 0 12 24c6.6 0 12-5.4 12-12 0-3.2-1.2-6.2-3.5-8.5ZM12 22a10 10 0 0 1-5.1-1.4l-.4-.2-3.7 1 1-3.6-.3-.4A10 10 0 1 1 12 22Zm5.5-7.5c-.3-.1-1.8-.9-2.1-1-.3-.1-.5-.1-.7.2l-1 1.2c-.2.2-.4.2-.7.1a8.2 8.2 0 0 1-2.4-1.5 9 9 0 0 1-1.7-2.1c-.2-.3 0-.5.1-.6l.5-.6.3-.5c.1-.2 0-.4 0-.6L8.9 7c-.2-.5-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.4-.3.3-1.1 1.1-1.1 2.6s1.1 2.9 1.3 3.1c.1.2 2.2 3.4 5.3 4.8.7.3 1.3.5 1.8.6.8.3 1.5.2 2.1.1.6-.1 1.8-.7 2.1-1.5.2-.7.2-1.4.2-1.5-.1-.2-.3-.3-.6-.4Z" />
+                      </svg>
+                      WhatsApp
+                    </a>
+                  )}
                   <p>{order.domicilio ?? 'Domicilio no informado'}</p>
                   {order.comentario_cliente && (
                     <p className="entry-message" role="status">
@@ -300,6 +340,16 @@ export function StorePage() {
                   </table>
                 </div>
               )}
+              {pending && approvalBlockers.length > 0 && (
+                <div id="store-approval-blockers" className="entry-message" role="status">
+                  <strong>Para habilitar Confirmar venta web:</strong>
+                  <ul>
+                    {approvalBlockers.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="store-order-actions">
                 <strong>Total: {currency.format(Number(order.total_estimado))}</strong>
                 {pending && (
@@ -334,8 +384,9 @@ export function StorePage() {
                     </button>
                     <button
                       className="primary-button"
-                      disabled={
-                        busy || shortage || !included.length || !order.cash_open || !payment
+                      disabled={busy || approvalBlockers.length > 0}
+                      aria-describedby={
+                        approvalBlockers.length ? 'store-approval-blockers' : undefined
                       }
                       onClick={() => {
                         if (

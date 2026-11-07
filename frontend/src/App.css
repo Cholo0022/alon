@@ -3086,3 +3086,23 @@ td.article-actions {
 .store-order-detail {
   scroll-margin-top: 16px;
 }
+.store-whatsapp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid #15803d;
+  border-radius: 8px;
+  color: #166534;
+  background: #f0fdf4;
+  font-weight: 600;
+  text-decoration: none;
+}
+.store-whatsapp-link:hover {
+  background: #dcfce7;
+}
+.store-whatsapp-link:focus-visible {
+  outline: 2px solid #15803d;
+  outline-offset: 3px;
+}

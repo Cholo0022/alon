@@ -1,13 +1,33 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { StorePage } from './StorePage'
+import { StorePage, orderWhatsAppUrl } from './StorePage'
 import { apiFetch } from '../lib/http'
 
 vi.mock('../lib/http', () => ({ apiFetch: vi.fn() }))
 let cashOpen = true
 let customerComment = 'Es cliente web nuevo'
 const fetchMock = vi.mocked(apiFetch)
+it.each([
+  ['3446236311', 'https://wa.me/5493446236311'],
+  ['+54 9 3446 236311', 'https://wa.me/5493446236311'],
+  ['54 3446-236311', 'https://wa.me/5493446236311'],
+  ['', null],
+  ['12345', null],
+])('builds a WhatsApp link for %s', (contact, expected) => {
+  expect(orderWhatsAppUrl(contact)).toBe(expected)
+})
+
+it('offers the customer WhatsApp chat in a separate tab', async () => {
+  const user = userEvent.setup()
+  render(<StorePage />)
+  await user.click(await screen.findByRole('button', { name: 'Ver pedido' }))
+  const link = await screen.findByRole('link', {
+    name: 'Chatear por WhatsApp con Cliente de prueba',
+  })
+  expect(link.getAttribute('href')).toBe('https://wa.me/5491100000000')
+  expect(link.getAttribute('target')).toBe('_blank')
+})
 beforeEach(() => {
   cashOpen = true
   customerComment = 'Es cliente web nuevo'
@@ -76,6 +96,8 @@ it('blocks confirmation while the cash register is closed', async () => {
     true,
   )
   expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/approve'))).toBe(false)
+  expect(screen.getByText('Abrí la caja de hoy desde Caja.')).toBeTruthy()
+  expect(screen.queryByText('Seleccioná un medio de pago.')).toBeNull()
 })
 
 it('moves to and focuses the selected order after its detail loads', async () => {
@@ -103,6 +125,8 @@ it('requires a payment choice and submits it with the approval', async () => {
     screen.getByRole('combobox', { name: 'Medio de pago del pedido' }),
     'TRANSFERENCIA',
   )
+  expect(approve.hasAttribute('disabled')).toBe(false)
+  expect(screen.queryByText('Para habilitar Confirmar venta web:')).toBeNull()
   await user.click(approve)
   await waitFor(() =>
     expect(
