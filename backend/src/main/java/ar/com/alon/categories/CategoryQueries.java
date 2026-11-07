@@ -28,7 +28,7 @@ public class CategoryQueries {
     public List<Map<String, Object>> categories() {
         return pages.query(
                 "codigo,nombre",
-                "SELECT id, codigo, nombre FROM rubros WHERE comercio_id = ? ORDER BY nombre",
+                "SELECT id, codigo, nombre FROM rubros WHERE comercio_id = ? ORDER BY nombre,id",
                 identity.storeId());
     }
 }

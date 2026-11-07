@@ -20,6 +20,9 @@ type Order = {
   contacto: string
   dni: string | null
   domicilio: string | null
+  provincia?: string | null
+  ciudad?: string | null
+  comentario_cliente?: string | null
   detalle: string
   estado: string
   total_estimado: number
@@ -34,7 +37,7 @@ const statusLabel = (state: string) =>
   state === 'CONFIRMADO'
     ? 'Confirmado'
     : state === 'CANCELADO'
-      ? 'Cancelado'
+      ? 'Rechazado'
       : 'Pendiente de confirmación'
 
 /** Presenta pedidos web y su detalle para quitar artículos, elegir cobro, confirmar la venta o cancelar el pedido. */
@@ -144,6 +147,7 @@ export function StorePage() {
           { key: 'id', label: 'NÚMERO' },
           { key: 'nombre_cliente', label: 'CLIENTE' },
           { key: 'contacto', label: 'CONTACTO' },
+          { key: 'comentario_cliente', label: 'CLIENTE WEB' },
           { key: 'total_estimado', label: 'TOTAL', money: true },
           { key: 'medio_pago', label: 'MEDIO DE PAGO' },
           { key: 'estado', label: 'ESTADO', render: (row) => statusLabel(String(row.estado)) },
@@ -201,6 +205,11 @@ export function StorePage() {
                     DNI: {order.dni ?? 'No informado'} · Tel.: {order.contacto}
                   </p>
                   <p>{order.domicilio ?? 'Domicilio no informado'}</p>
+                  {order.comentario_cliente && (
+                    <p className="entry-message" role="status">
+                      {order.comentario_cliente}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <strong>{statusLabel(order.estado)}</strong>
@@ -317,10 +326,11 @@ export function StorePage() {
                       className="secondary-button"
                       disabled={busy}
                       onClick={() => {
-                        if (window.confirm('¿Cancelar este pedido?')) void action('/cancel')
+                        if (window.confirm('¿Rechazar este pedido? No se generará una venta.'))
+                          void action('/cancel')
                       }}
                     >
-                      Cancelar pedido
+                      Rechazar pedido
                     </button>
                     <button
                       className="primary-button"

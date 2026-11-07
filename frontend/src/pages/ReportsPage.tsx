@@ -109,6 +109,13 @@ const reports: { title: string; endpoint: string; columns: ApiColumn[] }[] = [
 /** Presenta los informes cerrados por nombre, abre solo el seleccionado y lo ubica arriba para leerlo con el título visible. */
 export function ReportsPage() {
   const [selected, setSelected] = useState<string | null>(null)
+  const [currentMonth] = useState(() =>
+    new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      year: 'numeric',
+      month: '2-digit',
+    }).format(new Date()),
+  )
   const id = useId()
   const selectedReport = useRef<HTMLElement>(null)
   useLayoutEffect(() => {
@@ -139,11 +146,73 @@ export function ReportsPage() {
               </button>
             </h2>
             <div id={panelId} role="region" aria-labelledby={buttonId} hidden={!open}>
-              {open && <ApiTable {...report} showTitle={false} />}
+              <ReportContent report={report} open={open} currentMonth={currentMonth} />
             </div>
           </section>
         )
       })}
     </div>
+  )
+}
+
+function ReportContent({
+  report,
+  open,
+  currentMonth,
+}: {
+  report: (typeof reports)[number]
+  open: boolean
+  currentMonth: string
+}) {
+  const [from, setFrom] = useState(currentMonth)
+  const [to, setTo] = useState(currentMonth)
+  const [period, setPeriod] = useState({ from: currentMonth, to: currentMonth })
+  if (!open) return null
+  return (
+    <>
+      <form
+        className="panel"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (from && to && from <= to) setPeriod({ from, to })
+        }}
+      >
+        <h3>Período de este informe</h3>
+        <label>
+          Desde mes{' '}
+          <input
+            type="month"
+            required
+            value={from}
+            max={to}
+            onChange={(event) => setFrom(event.target.value)}
+          />
+        </label>{' '}
+        <label>
+          Hasta mes{' '}
+          <input
+            type="month"
+            required
+            value={to}
+            min={from}
+            onChange={(event) => setTo(event.target.value)}
+          />
+        </label>{' '}
+        <button className="primary-button" type="submit">
+          Consultar período
+        </button>
+        <p>
+          Se incluyen ambos meses completos. Saldos y stock muestran el estado actual; las cuentas
+          corrientes del ranking también son actuales.
+        </p>
+      </form>
+      {open && (
+        <ApiTable
+          {...report}
+          endpoint={report.endpoint + '?' + new URLSearchParams(period).toString()}
+          showTitle={false}
+        />
+      )}
+    </>
   )
 }

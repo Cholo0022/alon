@@ -6,7 +6,7 @@ import {
   formatDateTimeDisplay,
   formatMonthDisplay,
 } from '../lib/format'
-import { useApiRows, type ApiRow } from '../hooks/useApiRows'
+import { useApiRows, rowCount, type ApiRow } from '../hooks/useApiRows'
 import { Pagination } from './Pagination'
 
 export type ApiColumn = {
@@ -53,7 +53,7 @@ export function ApiTable({
             <strong>{title}</strong>
           </div>
         )}
-        <span className="row-count">{loading ? 'Cargando…' : `${rows.length} registros`}</span>
+        <span className="row-count">{rowCount(rows, 'registros')}</span>
       </div>
       {error ? (
         <div className="no-results">

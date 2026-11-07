@@ -93,11 +93,13 @@ public class SupplierService extends StoreJdbcSupport {
     }
 
     /**
-     * Valida el pago y la caja abierta, lo aplica a las compras con deuda más antiguas y registra
-     * recibos, egreso y saldo restante.
+     * Aplica el pago a las compras con deuda más antiguas. Solo exige caja abierta y registra el
+     * egreso cuando el usuario indica que el dinero sale de caja.
      */
     @Transactional
     public Map<String, Object> createSupplierReceipt(SupplierReceiptInput input) {
+        if (input.useCash() == null)
+            throw new IllegalArgumentException("Indicá si el dinero sale de caja.");
         assertBelongs("proveedores", input.supplierId());
         LocalDate date = input.date() == null ? LocalDate.now(clock) : input.date();
         assertAccountingPeriod(date);
@@ -119,7 +121,7 @@ public class SupplierService extends StoreJdbcSupport {
         if (amount.compareTo(supplierBalance) > 0)
             throw new IllegalArgumentException(
                     "El importe supera el saldo pendiente del proveedor.");
-        Long cashId = cashLedger.requireOpenCash(date);
+        Long cashId = input.useCash() ? cashLedger.requireOpenCash(date) : null;
         List<Map<String, Object>> invoices =
                 jdbc.queryForList(
                         "SELECT id,numero_documento,total,pagado,saldo FROM compras WHERE comercio_id=? AND proveedor_id=? AND saldo>0 ORDER BY fecha,id FOR UPDATE",
@@ -172,15 +174,16 @@ public class SupplierService extends StoreJdbcSupport {
                 amount,
                 input.supplierId(),
                 identity.storeId());
-        cashLedger.addCashMovement(
-                cashId,
-                "EGRESO",
-                "PAGO_PROVEEDOR",
-                method,
-                date,
-                amount,
-                receipt,
-                "Recibo de pago a " + supplier.get("nombre"));
+        if (cashId != null)
+            cashLedger.addCashMovement(
+                    cashId,
+                    "EGRESO",
+                    "PAGO_PROVEEDOR",
+                    method,
+                    date,
+                    amount,
+                    receipt,
+                    "Recibo de pago a " + supplier.get("nombre"));
         return Map.of(
                 "recibo",
                 receipt,

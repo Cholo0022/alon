@@ -1,0 +1,33 @@
+{
+  "status" : "failed",
+  "started_at" : "2026-11-06T23:42:53.932264400Z",
+  "scope" : "Servicios Java + JDBC + transacciones reales; no HTTP, navegador, TLS ni autenticación. Sin fotos. Una caja contable compartida por 1, 3 o 5 puestos.",
+  "fixture" : {
+    "sale_lines" : 1000000,
+    "suppliers" : 250,
+    "ordinary_articles" : 9000,
+    "sales" : 100000,
+    "articles" : 10000,
+    "garments" : 500,
+    "categories" : 120,
+    "customers" : 250
+  },
+  "git_revision" : "bd75cdcdbb4d56e0db472c763023a66d3a0da0c6",
+  "source_fingerprint_sha256" : "C2524E848A2C5599835712691AC10770EC36CDA3240A6FDE85DB6AA0FE55C666",
+  "measurements" : { },
+  "schema" : "alon_perf_validation_20261106_4568ec39",
+  "host" : {
+    "os" : "Windows 11",
+    "java" : "21.0.12.1",
+    "cpu_logical" : 4,
+    "ram_bytes" : 6315139072
+  },
+  "mysql" : {
+    "version" : "8.0.42",
+    "buffer_pool_bytes" : 134217728,
+    "max_connections" : 151,
+    "transaction_isolation" : "REPEATABLE-READ"
+  },
+  "error_type" : "org.springframework.dao.DuplicateKeyException",
+  "finished_at" : "2026-11-06T23:43:21.669929200Z"
+}

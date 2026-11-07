@@ -1,0 +1,291 @@
+{
+  "status" : "completed",
+  "started_at" : "2026-11-06T23:50:17.410918100Z",
+  "scope" : "Servicios Java + JDBC + transacciones reales; no HTTP, navegador, TLS ni autenticación. Sin fotos. Una caja contable compartida por 1, 3 o 5 puestos.",
+  "fixture" : {
+    "sale_lines" : 1000000,
+    "suppliers" : 250,
+    "ordinary_articles" : 9000,
+    "sales" : 100000,
+    "articles" : 10000,
+    "garments" : 500,
+    "categories" : 120,
+    "customers" : 250
+  },
+  "git_revision" : "bd75cdcdbb4d56e0db472c763023a66d3a0da0c6",
+  "source_fingerprint_sha256" : "E6697DA431DE8F49193917E4046D6866A45D6946FAF3666A43A653B9AF448BA0",
+  "measurements" : {
+    "search_exact_code" : {
+      "p50_ms" : 9.5166,
+      "p95_under_proposed_2000ms" : true,
+      "samples" : 30,
+      "max_ms" : 18.9449,
+      "p99_ms" : 18.9449,
+      "mean_ms" : 9.429943333333334,
+      "p95_ms" : 12.2797
+    },
+    "search_name_selective" : {
+      "p50_ms" : 404.2073,
+      "p95_under_proposed_2000ms" : true,
+      "samples" : 30,
+      "max_ms" : 644.9211,
+      "p99_ms" : 644.9211,
+      "mean_ms" : 420.97232333333335,
+      "p95_ms" : 504.7241
+    },
+    "search_name_broad" : {
+      "p50_ms" : 313.3622,
+      "p95_under_proposed_2000ms" : true,
+      "samples" : 30,
+      "max_ms" : 382.6338,
+      "p99_ms" : 382.6338,
+      "mean_ms" : 321.42750333333333,
+      "p95_ms" : 366.6862
+    },
+    "catalog_grouped_first_page" : {
+      "p50_ms" : 1056.1805,
+      "p95_under_proposed_2000ms" : true,
+      "samples" : 30,
+      "max_ms" : 1158.2421,
+      "p99_ms" : 1158.2421,
+      "mean_ms" : 1067.1881733333332,
+      "p95_ms" : 1139.8748
+    },
+    "catalog_grouped_last_page" : {
+      "p50_ms" : 1078.8266,
+      "p95_under_proposed_2000ms" : true,
+      "samples" : 30,
+      "max_ms" : 1184.6925,
+      "p99_ms" : 1184.6925,
+      "mean_ms" : 1093.4284333333335,
+      "p95_ms" : 1141.5581
+    },
+    "report_daily_month" : {
+      "p50_ms" : 32.6064,
+      "p95_under_proposed_2000ms" : true,
+      "samples" : 30,
+      "max_ms" : 36.4436,
+      "p99_ms" : 36.4436,
+      "mean_ms" : 32.969833333333334,
+      "p95_ms" : 35.7627
+    },
+    "report_top_articles_year" : {
+      "p50_ms" : 25048.7692,
+      "p95_under_proposed_2000ms" : false,
+      "samples" : 30,
+      "max_ms" : 25554.6556,
+      "p99_ms" : 25554.6556,
+      "mean_ms" : 25082.248486666664,
+      "p95_ms" : 25367.0746
+    },
+    "report_monthly_year" : {
+      "p50_ms" : 2044.6645,
+      "p95_under_proposed_2000ms" : false,
+      "samples" : 30,
+      "max_ms" : 2156.5865,
+      "p99_ms" : 2156.5865,
+      "mean_ms" : 2059.34585,
+      "p95_ms" : 2114.4038
+    },
+    "dashboard_week" : {
+      "p50_ms" : 93.6713,
+      "p95_under_proposed_2000ms" : true,
+      "samples" : 30,
+      "max_ms" : 112.5284,
+      "p99_ms" : 112.5284,
+      "mean_ms" : 95.10848666666668,
+      "p95_ms" : 105.4947
+    },
+    "sales_1_different" : {
+      "p50_ms" : 89.5634,
+      "p95_under_proposed_2000ms" : true,
+      "samples" : 40,
+      "max_ms" : 205.0108,
+      "p99_ms" : 205.0108,
+      "mean_ms" : 93.900005,
+      "p95_ms" : 118.7764,
+      "checkouts" : 1,
+      "stock_mode" : "different_articles",
+      "warmup_sales" : 3,
+      "committed_sales" : 43,
+      "retries" : {
+        "p50_ms" : 5.617,
+        "p95_under_proposed_2000ms" : true,
+        "samples" : 4,
+        "max_ms" : 43.8631,
+        "p99_ms" : 43.8631,
+        "mean_ms" : 15.006525,
+        "p95_ms" : 43.8631
+      },
+      "wall_seconds_including_warmup_and_retries" : 4.999594,
+      "integrity" : "passed: stock, detail, cash, command idempotency and sale count"
+    },
+    "sales_3_different" : {
+      "p50_ms" : 216.5443,
+      "p95_under_proposed_2000ms" : true,
+      "samples" : 120,
+      "max_ms" : 355.7722,
+      "p99_ms" : 342.4497,
+      "mean_ms" : 217.96079166666667,
+      "p95_ms" : 282.7117,
+      "checkouts" : 3,
+      "stock_mode" : "different_articles",
+      "warmup_sales" : 9,
+      "committed_sales" : 129,
+      "retries" : {
+        "p50_ms" : 69.0668,
+        "p95_under_proposed_2000ms" : true,
+        "samples" : 12,
+        "max_ms" : 182.943,
+        "p99_ms" : 182.943,
+        "mean_ms" : 79.31580833333334,
+        "p95_ms" : 182.943
+      },
+      "wall_seconds_including_warmup_and_retries" : 10.5275173,
+      "integrity" : "passed: stock, detail, cash, command idempotency and sale count"
+    },
+    "sales_5_different" : {
+      "p50_ms" : 324.7767,
+      "p95_under_proposed_2000ms" : true,
+      "samples" : 200,
+      "max_ms" : 518.3127,
+      "p99_ms" : 513.034,
+      "mean_ms" : 327.01687849999996,
+      "p95_ms" : 413.0709,
+      "checkouts" : 5,
+      "stock_mode" : "different_articles",
+      "warmup_sales" : 15,
+      "committed_sales" : 215,
+      "retries" : {
+        "p50_ms" : 126.3118,
+        "p95_under_proposed_2000ms" : true,
+        "samples" : 20,
+        "max_ms" : 297.3224,
+        "p99_ms" : 297.3224,
+        "mean_ms" : 143.503955,
+        "p95_ms" : 292.0003
+      },
+      "wall_seconds_including_warmup_and_retries" : 15.4604185,
+      "integrity" : "passed: stock, detail, cash, command idempotency and sale count"
+    },
+    "sales_1_shared" : {
+      "p50_ms" : 57.8771,
+      "p95_under_proposed_2000ms" : true,
+      "samples" : 40,
+      "max_ms" : 208.7506,
+      "p99_ms" : 208.7506,
+      "mean_ms" : 67.329555,
+      "p95_ms" : 109.4574,
+      "checkouts" : 1,
+      "stock_mode" : "same_articles",
+      "warmup_sales" : 3,
+      "committed_sales" : 43,
+      "retries" : {
+        "p50_ms" : 3.3455,
+        "p95_under_proposed_2000ms" : true,
+        "samples" : 4,
+        "max_ms" : 3.7618,
+        "p99_ms" : 3.7618,
+        "mean_ms" : 3.466775,
+        "p95_ms" : 3.7618
+      },
+      "wall_seconds_including_warmup_and_retries" : 3.4700738,
+      "integrity" : "passed: stock, detail, cash, command idempotency and sale count"
+    },
+    "sales_3_shared" : {
+      "p50_ms" : 181.7883,
+      "p95_under_proposed_2000ms" : true,
+      "samples" : 120,
+      "max_ms" : 278.0638,
+      "p99_ms" : 274.4223,
+      "mean_ms" : 186.61161583333333,
+      "p95_ms" : 244.9442,
+      "checkouts" : 3,
+      "stock_mode" : "same_articles",
+      "warmup_sales" : 9,
+      "committed_sales" : 129,
+      "retries" : {
+        "p50_ms" : 75.8458,
+        "p95_under_proposed_2000ms" : true,
+        "samples" : 12,
+        "max_ms" : 156.8778,
+        "p99_ms" : 156.8778,
+        "mean_ms" : 78.18674166666666,
+        "p95_ms" : 156.8778
+      },
+      "wall_seconds_including_warmup_and_retries" : 8.9650469,
+      "integrity" : "passed: stock, detail, cash, command idempotency and sale count"
+    },
+    "sales_5_shared" : {
+      "p50_ms" : 297.1489,
+      "p95_under_proposed_2000ms" : true,
+      "samples" : 200,
+      "max_ms" : 472.7582,
+      "p99_ms" : 445.7516,
+      "mean_ms" : 308.8319045,
+      "p95_ms" : 408.0254,
+      "checkouts" : 5,
+      "stock_mode" : "same_articles",
+      "warmup_sales" : 15,
+      "committed_sales" : 215,
+      "retries" : {
+        "p50_ms" : 119.5479,
+        "p95_under_proposed_2000ms" : true,
+        "samples" : 20,
+        "max_ms" : 307.4344,
+        "p99_ms" : 307.4344,
+        "mean_ms" : 127.38659499999999,
+        "p95_ms" : 236.0783
+      },
+      "wall_seconds_including_warmup_and_retries" : 14.4583558,
+      "integrity" : "passed: stock, detail, cash, command idempotency and sale count"
+    }
+  },
+  "schema" : "alon_perf_validation_20261106_a0ec37cd",
+  "host" : {
+    "os" : "Windows 11",
+    "java" : "21.0.12.1",
+    "cpu_logical" : 4,
+    "ram_bytes" : 6315139072
+  },
+  "mysql" : {
+    "version" : "8.0.42",
+    "buffer_pool_bytes" : 134217728,
+    "max_connections" : 151,
+    "transaction_isolation" : "REPEATABLE-READ"
+  },
+  "seed_ms" : 161963.0616,
+  "history_note" : "Historial sintético insertado por lotes para consultas: no se generaron auditorías ni movimientos históricos de caja/stock. Las ventas concurrentes sí recorren la lógica transaccional y sus movimientos reales.",
+  "complete_list_checks" : "passed: tenant, debt before pagination, 125 debtors, second page, category 120, customer phone 250, 9500 grouped products",
+  "query_plans" : {
+    "name_contains" : [ {
+      "id" : 1,
+      "select_type" : "SIMPLE",
+      "table" : "articulos",
+      "partitions" : null,
+      "type" : "ref",
+      "possible_keys" : "uq_articulo_codigo,uk_articulo_comercio,ix_articulos_rubro,ix_articulos_stock,fk_articulo_proveedor_tenant",
+      "key" : "uq_articulo_codigo",
+      "key_len" : "8",
+      "ref" : "const",
+      "rows" : 4845,
+      "filtered" : 100.0,
+      "Extra" : "Using where"
+    } ],
+    "exact_code" : [ {
+      "id" : 1,
+      "select_type" : "SIMPLE",
+      "table" : "articulos",
+      "partitions" : null,
+      "type" : "const",
+      "possible_keys" : "uq_articulo_codigo,uk_articulo_comercio,ix_articulos_rubro,ix_articulos_stock,fk_articulo_proveedor_tenant",
+      "key" : "uq_articulo_codigo",
+      "key_len" : "130",
+      "ref" : "const,const",
+      "rows" : 1,
+      "filtered" : 100.0,
+      "Extra" : "Using index"
+    } ]
+  },
+  "finished_at" : "2026-11-07T00:11:07.194101900Z"
+}

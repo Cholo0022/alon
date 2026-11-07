@@ -1,6 +1,6 @@
 // Busca y elige artículos con el teclado para agregarlos a una venta o una compra.
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
-import { useApiRows, type ApiRow } from '../hooks/useApiRows'
+import { useApiRows, rowCount, type ApiRow } from '../hooks/useApiRows'
 import { currency, numberValue, textValue } from '../lib/format'
 import './article-picker.css'
 
@@ -229,8 +229,7 @@ export function ArticlePicker({
             </button>
           )}
           <span>
-            Página {rows.page + 1} · {rows.length} {supplier ? 'proveedores' : 'artículos'}
-            {rows.hasMore ? ' · hay más artículos' : ''}
+            Página {rows.page + 1} · {rowCount(rows, supplier ? 'proveedores' : 'artículos')}
           </span>
           <div>
             <button

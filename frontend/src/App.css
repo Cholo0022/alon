@@ -3046,3 +3046,27 @@ td.article-actions {
 .license-expiry-notice p {
   margin: 6px 0 0;
 }
+
+.sale-customer-field {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+}
+.sale-customer-field > button {
+  justify-self: start;
+  white-space: normal;
+  text-align: left;
+}
+
+#root input[aria-invalid='true'],
+#root select[aria-invalid='true'],
+#root textarea[aria-invalid='true'] {
+  border: 2px solid #b91c1c;
+  outline-color: #b91c1c;
+  background-color: #fff1f2;
+  color: #7f1d1d;
+}
+#root label:has([aria-invalid='true']) {
+  color: #b91c1c;
+}

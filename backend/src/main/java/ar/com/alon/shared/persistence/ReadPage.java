@@ -52,7 +52,22 @@ public class ReadPage {
             args.add("%" + search.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%");
             sql = sql.replace("LIKE LOWER(?)", "LIKE LOWER(?) ESCAPE '!'");
         }
+        publishTotal(sql, args.toArray());
         return jdbc.queryForList(sql + " LIMIT ? OFFSET ?", concat(args, size, (long) page * size));
+    }
+
+    /** Cuenta el conjunto filtrado sin cambiar la respuesta de array de la API. */
+    public void publishTotal(String sql, Object... parameters) {
+        if (!(RequestContextHolder.getRequestAttributes()
+                        instanceof ServletRequestAttributes attributes)
+                || !"true".equals(attributes.getRequest().getParameter("includeTotal"))
+                || attributes.getResponse() == null) return;
+        Long total =
+                jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM (" + sql + ") alon_count", Long.class, parameters);
+        attributes
+                .getResponse()
+                .setHeader("X-Total-Count", String.valueOf(total == null ? 0 : total));
     }
 
     /**

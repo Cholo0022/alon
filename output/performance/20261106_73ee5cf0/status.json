@@ -1,0 +1,7 @@
+{
+  "status": "blocked",
+  "phase": "preflight",
+  "checked_at": "2026-11-06T20:40:33.6892694-03:00",
+  "timings_measured": false,
+  "note": "No se pudo completar la conexión o preparar la prueba. No se modificó la base del negocio."
+}

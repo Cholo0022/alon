@@ -28,7 +28,7 @@ Para crear cuentas de prueba en una base sin usuarios, iniciar con SPRING_PROFIL
 
 ## Funcionamiento y reglas
 
-La tienda local está en http://127.0.0.1:5173/tienda. Comparte catálogo y stock con Alon, permite registrar compradores y envía pedidos pendientes para revisar en Tienda online. Consultar [imágenes, pedidos y configuración](docs/tienda/README.md). Las fotos deben respaldarse junto con la base.
+La tienda local está en http://127.0.0.1:5173/tienda. Comparte catálogo y stock con Alon y recibe pedidos sin usuario ni contraseña. Al enviarlos se solicitan nombre, apellido, celular de diez dígitos, DNI, provincia (Entre Ríos por defecto) y ciudad (Larroque por defecto). El vendedor ve si es cliente web nuevo o si ya tiene otra compra web confirmada, contacta al cliente y confirma o rechaza el pedido desde Tienda online. Consultar [imágenes, pedidos y configuración](docs/tienda/README.md). Las fotos deben respaldarse junto con la base.
 
 - Ventas, compras, pagos, stock y caja se guardan en transacciones. Cada escritura comercial requiere Idempotency-Key; la web lo genera y lo conserva cuando se pierde una respuesta. Reutilizar una clave con datos diferentes devuelve conflicto.
 - Los importes usan DECIMAL/BigDecimal y las cantidades hasta tres decimales. Se rechaza precisión excesiva en vez de redondear silenciosamente la entrada.
@@ -126,3 +126,31 @@ La carga de indumentaria y calzado (V13) se describe en [docs/indumentaria.md](d
 ## PDF de ventas
 
 Al confirmar una venta se abre en pantalla su comprobante interno en PDF, usando los importes registrados, sin descargar archivos automáticamente. Desde el visor se puede imprimir en una impresora. Las ventas cortas ocupan la mitad superior de una hoja A4; los artículos largos y las ventas extensas continúan en páginas adicionales sin reducir la letra. El botón Ver / imprimir del listado permite abrirlo otra vez sin registrar otra venta. Si falla la vista previa, la venta queda guardada y se puede reintentar desde el visor. No emite factura fiscal ante ARCA.
+
+## Informes, resumen semanal y respaldo de imágenes
+
+Los informes de movimientos abren en el mes corriente de Argentina. Cada informe tiene su propia selección Desde mes / Hasta mes y conserva el rango al cambiar de informe durante la visita a Informes. Ambos meses se incluyen completos. Saldos de proveedores, stock y cuentas corrientes muestran el estado actual. El inicio resume movimientos de lunes a domingo inclusive; los contadores de catálogo, clientes, proveedores y stock bajo conservan su alcance actual.
+
+Para crear una copia independiente y verificada de las fotos, ejecutar `./Respaldar-Imagenes-Alon.ps1` desde la carpeta del proyecto. Guarda ZIP con fecha y un manifiesto SHA-256 en `D:\Respaldos\Alon\Imagenes`, sin eliminar versiones anteriores. Se puede indicar `-Destino` para un disco externo y `-DirectorioImagenes` si se usa otra ubicación. No modificar fotos mientras se realiza la copia. Para recuperar las referencias de cada foto a sus artículos, conservar también el backup completo de la base. Esta herramienta es manual, no una tarea programada.
+
+En Ventas, «Crear cliente nuevo sin salir de la venta» permite darlo de alta y seleccionarlo sin perder artículos ni fecha. Está disponible con el permiso Ventas; modificar, eliminar y consultar la sección Clientes sigue requiriendo su permiso propio. El teléfono configurado en Modificar negocio se muestra en la cabecera de la tienda y de su vista previa; al vaciarlo desaparece.
+
+## Carga unificada de comprobantes de compra
+
+Compras permite mezclar artículos, indumentaria y calzado en un comprobante. El buscador abre en Todos; el filtro es opcional. Se pueden crear productos o proveedores dentro de la carga con el permiso Compras. Estas altas no habilitan modificar o eliminar registros del catálogo o de proveedores. El lector de código conserva la carga individual de la variante exacta.
+
+Al elegir una prenda desde el buscador se abre una tabla de sus variantes activas existentes, agrupadas por clase, modelo, marca, sistema de talles, público, temporada y material dentro del comercio. Cada código tiene su propia cantidad y recibe el costo común indicado. Se pueden corregir cantidades y costos en la lista final; indumentaria y calzado admiten solo cantidades enteras. El comprobante admite hasta 500 renglones. Las variantes nuevas se crean con Crear producto.
+
+La confirmación reúne condición de pago, medio, ingreso al stock y actualización del costo. Por defecto ingresa stock y conserva los costos del catálogo. Actualizar costo modifica solo el costo unitario; mantiene precio de venta, flete y margen. El borrador conserva proveedor, cabecera, renglones y gastos en este navegador, separado por usuario y comercio; permite continuar o descartar y se elimina tras un guardado confirmado. No reemplaza un backup ni sincroniza entre dispositivos.
+
+## Prendas y talles en la tienda
+
+Una prenda publicada aparece como una sola tarjeta con selección de color y talle. El stock y el precio se muestran para la variante elegida; el carrito y el pedido conservan su código individual. Los talles agotados se identifican como Sin stock y no se pueden agregar. Las publicaciones se paginan por prenda, por lo que sus talles no se separan entre páginas. El agrupamiento usa clase de producto, modelo, marca, sistema de talles, material, público y temporada del mismo comercio.
+
+En Compras → Crear producto → Indumentaria o Calzado se completan los datos comunes una vez y se agregan renglones con talle, color y cantidad. El código de cada variante es opcional: se genera si se deja vacío. Se crean hasta 100 variantes juntas, con reversión completa si falla alguna; luego se agregan sus cantidades al comprobante. La creación no suma stock: las cantidades ingresan al guardar la compra con ingreso al stock habilitado.
+
+En Artículos → Cargar artículo, Tipo de producto permite elegir Artículo común (stock general), Indumentaria o Calzado (stock por talle/número). Los productos con talles usan el mismo formulario de datos comunes y una tabla de stock inicial por talle y color, incluido cero. Se guarda directamente el stock inicial y sus movimientos de alta, sin crear una compra. Las compras mantienen su comportamiento: crear talles no suma stock hasta guardar el comprobante.
+
+La validación de altas y modificaciones marca en rojo todos los campos inválidos y lleva al primero, abriendo los detalles plegados si hace falta. Los errores de formato del servidor conservan la ruta del campo (incluido el renglón del talle). La carga por talles envía explícitamente las opciones de flete requeridas para evitar rechazar formularios completos.
+
+El Enter del lector en los formularios de artículos y talles avanza la carga sin guardarla. En Modificar artículo, Agregar talles a esta prenda permite crear nuevas combinaciones de talle y color con stock inicial independiente. Los datos, precio y fotos se toman del modelo guardado; se conservan los stocks anteriores y se rechazan las combinaciones repetidas. Los cambios del formulario de modificación que aún no se hayan guardado permanecen abiertos.

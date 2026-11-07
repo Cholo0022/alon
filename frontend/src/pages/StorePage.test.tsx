@@ -6,9 +6,11 @@ import { apiFetch } from '../lib/http'
 
 vi.mock('../lib/http', () => ({ apiFetch: vi.fn() }))
 let cashOpen = true
+let customerComment = 'Es cliente web nuevo'
 const fetchMock = vi.mocked(apiFetch)
 beforeEach(() => {
   cashOpen = true
+  customerComment = 'Es cliente web nuevo'
   fetchMock.mockReset()
   fetchMock.mockImplementation(async (url) =>
     Response.json(
@@ -23,6 +25,7 @@ beforeEach(() => {
             medio_pago: null,
             venta_id: null,
             cash_open: cashOpen,
+            comentario_cliente: customerComment,
             lines: [
               {
                 id: 1,
@@ -42,6 +45,22 @@ beforeEach(() => {
     ),
   )
 })
+
+it.each(['Es cliente web nuevo', 'Este cliente ya ha comprado en la web'])(
+  'shows the seller comment %s and offers rejection',
+  async (comment) => {
+    customerComment = comment
+    const user = userEvent.setup()
+    render(<StorePage />)
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }, { timeout: 10_000 }))
+    expect(await screen.findByText(comment, {}, { timeout: 10_000 })).toBeTruthy()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await user.click(screen.getByRole('button', { name: 'Rechazar pedido' }))
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/cancel'))).toBe(true),
+    )
+  },
+)
 
 it('blocks confirmation while the cash register is closed', async () => {
   cashOpen = false

@@ -32,7 +32,7 @@ public class SupplierController {
      * Recibe la solicitud y delega su ejecución al servicio. Crea un proveedor con código propio y
      * datos de identificación y contacto normalizados dentro del comercio.
      */
-    @PostMapping("/operations/suppliers")
+    @PostMapping({"/operations/suppliers", "/operations/purchases/suppliers"})
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> createSupplier(@Valid @RequestBody SupplierInput input) {
         return commands.execute("createSupplier", input, () -> service.createSupplier(input));
@@ -93,8 +93,9 @@ public class SupplierController {
      */
     @GetMapping("/alon/suppliers")
     public List<Map<String, Object>> suppliers(
-            @RequestParam(defaultValue = "false") boolean inactive) {
-        return queries.suppliers(inactive);
+            @RequestParam(defaultValue = "false") boolean inactive,
+            @RequestParam(defaultValue = "false") boolean debtOnly) {
+        return queries.suppliers(inactive, debtOnly);
     }
 
     /**

@@ -3,7 +3,7 @@ import { DeleteRecordButton } from '../components/DeleteRecordButton'
 import { useState } from 'react'
 
 import { currency, textValue, numberValue } from '../lib/format'
-import { useApiRows, type ApiRow } from '../hooks/useApiRows'
+import { useApiRows, rowCount, type ApiRow } from '../hooks/useApiRows'
 import { Pagination } from '../components/Pagination'
 import { LocalEntryPanel, StatusPill } from '../components/Forms'
 
@@ -26,11 +26,7 @@ export function CustomerList() {
     creditLimit: numberValue(row.limite_credito),
     status: textValue(row.estado) === 'ACTIVO' ? 'Activo' : 'Inactivo',
   }))
-  const filtered = customers.filter((customer) =>
-    `${customer.code} ${customer.name} ${customer.email}`
-      .toLocaleLowerCase('es-AR')
-      .includes(query.toLocaleLowerCase('es-AR')),
-  )
+  const filtered = customers
 
   return (
     <>
@@ -46,6 +42,7 @@ export function CustomerList() {
           onSaved={() => setEditing(null)}
           fields={[
             { name: 'name', label: 'Nombre y apellido', defaultValue: textValue(editing.nombre) },
+            { name: 'dni', label: 'DNI (solo números)', defaultValue: textValue(editing.dni) },
             { name: 'phone', label: 'Teléfono', defaultValue: textValue(editing.telefono) },
             {
               name: 'email',
@@ -68,6 +65,7 @@ export function CustomerList() {
           endpoint="/api/v1/operations/customers"
           fields={[
             { name: 'name', label: 'Nombre y apellido' },
+            { name: 'dni', label: 'DNI (solo números)' },
             { name: 'phone', label: 'Teléfono' },
             { name: 'email', label: 'Email', type: 'email' },
             { name: 'creditLimit', label: 'Límite de crédito', type: 'number' },
@@ -89,7 +87,7 @@ export function CustomerList() {
             <span className="alon-tag">
               {showInactive ? 'CLIENTES DESACTIVADOS' : 'CLIENTES ACTIVOS'}
             </span>
-            <strong>{filtered.length} clientes</strong>
+            <strong>{rowCount(apiRows, 'clientes')}</strong>
           </div>
           <div className="directory-filters">
             <input
@@ -133,6 +131,9 @@ export function CustomerList() {
                   </td>
                   <td data-label="Cliente" className="strong-cell">
                     {customer.name}
+                    {textValue(customer.raw.dni) && (
+                      <small> · DNI {textValue(customer.raw.dni)}</small>
+                    )}
                   </td>
                   <td data-label="Contacto">
                     <span className="contact-cell">

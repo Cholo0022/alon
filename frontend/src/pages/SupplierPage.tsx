@@ -9,7 +9,7 @@ import {
   formatDateDisplay,
   dateDisplayToIso,
 } from '../lib/format'
-import { useApiRows, type ApiRow } from '../hooks/useApiRows'
+import { useApiRows, rowCount, type ApiRow } from '../hooks/useApiRows'
 import { Pagination } from '../components/Pagination'
 import { DateTextInput, LocalEntryPanel, StatusPill } from '../components/Forms'
 
@@ -33,6 +33,7 @@ export function SupplierList() {
   const apiRows = useApiRows(
     '/api/v1/alon/suppliers?inactive=' + showInactive + '&q=' + encodeURIComponent(query),
   )
+  const debtRows = useApiRows('/api/v1/alon/suppliers?debtOnly=true&q=' + encodeURIComponent(query))
   const suppliers = apiRows.map((row) => ({
     id: numberValue(row.id),
     raw: row,
@@ -44,14 +45,13 @@ export function SupplierList() {
     balance: numberValue(row.saldo_pendiente),
     status: textValue(row.estado) === 'ACTIVO' ? 'Activo' : 'Inactivo',
   }))
-  const filtered = suppliers.filter((supplier) =>
-    `${supplier.code} ${supplier.name} ${supplier.specialty} ${supplier.email}`
-      .toLocaleLowerCase('es-AR')
-      .includes(query.toLocaleLowerCase('es-AR')),
-  )
-  const owedSuppliers = filtered.filter(
-    (supplier) => supplier.balance > 0 && supplier.status === 'Activo',
-  )
+  const filtered = suppliers
+  const owedSuppliers = debtRows.map((row) => ({
+    id: numberValue(row.id),
+    code: textValue(row.codigo),
+    name: textValue(row.nombre),
+    balance: numberValue(row.saldo_pendiente),
+  }))
 
   /** Selecciona al proveedor a pagar, propone su saldo y desplaza la pantalla al formulario del recibo. */
   const startReceipt = (supplier: { id: number; name: string; balance: number }) => {
@@ -85,8 +85,12 @@ export function SupplierList() {
   /** Valida fecha e importe, registra el pago al proveedor y muestra el recibo con el saldo restante. */
   const saveReceipt = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!selectedSupplier) return
+    if (!selectedSupplier || busy) return
     const values = new FormData(event.currentTarget)
+    if (!['yes', 'no'].includes(String(values.get('useCash')))) {
+      setMessage('Elegí si el dinero para el pago sale de caja.')
+      return
+    }
     const date = dateDisplayToIso(values.get('date'))
     const paymentAmount = Number(amount)
     if (!date) {
@@ -108,6 +112,7 @@ export function SupplierList() {
           date,
           amount: paymentAmount,
           paymentMethod: values.get('paymentMethod'),
+          useCash: values.get('useCash') === 'yes',
         }),
       })
       const body = (await response.json().catch(() => ({}))) as ApiRow
@@ -182,10 +187,7 @@ export function SupplierList() {
       <section className="supplier-debt-toolbar">
         <div>
           <span className="alon-tag">CUENTAS A PAGAR</span>
-          <strong>
-            {suppliers.filter((supplier) => supplier.balance > 0).length} proveedores con saldo
-            pendiente
-          </strong>
+          <strong>{rowCount(debtRows, 'proveedores con saldo pendiente')}</strong>
         </div>
         <button
           className="primary-button"
@@ -235,10 +237,11 @@ export function SupplierList() {
                 ))}
               </tbody>
             </table>
-            {owedSuppliers.length === 0 && (
+            {!debtRows.loading && !debtRows.error && owedSuppliers.length === 0 && (
               <div className="no-results">No hay proveedores con saldo pendiente.</div>
             )}
           </div>
+          <Pagination rows={debtRows} label="proveedores con deuda" />
         </section>
       )}
       {selectedSupplier && (
@@ -285,6 +288,16 @@ export function SupplierList() {
                 <option value="EFECTIVO">Efectivo</option>
                 <option value="TRANSFERENCIA">Transferencia</option>
                 <option value="MERCADO_PAGO">Mercado Pago</option>
+              </select>
+            </label>
+            <label>
+              ¿Vas a sacar dinero de caja para realizar este pago?
+              <select name="useCash" required defaultValue="" disabled={busy}>
+                <option value="" disabled>
+                  Elegí una opción
+                </option>
+                <option value="yes">Sí, sale de caja y se registra en el arqueo</option>
+                <option value="no">No, pago con dinero fuera de caja</option>
               </select>
             </label>
             <div className="entry-actions">
@@ -343,7 +356,7 @@ export function SupplierList() {
             <span className="alon-tag">
               {showInactive ? 'PROVEEDORES DESACTIVADOS' : 'PROVEEDORES ACTIVOS'}
             </span>
-            <strong>{filtered.length} proveedores</strong>
+            <strong>{rowCount(apiRows, 'proveedores')}</strong>
           </div>
           <div className="directory-filters">
             <input

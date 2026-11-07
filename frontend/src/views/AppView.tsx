@@ -204,7 +204,10 @@ export function MainApp({
                   <strong>
                     {summary ? 'Datos del comercio conectados' : 'Cargando datos del comercio'}
                   </strong>{' '}
-                  — Información registrada en tu comercio.
+                  — Resumen semanal de lunes a domingo inclusive.{' '}
+                  {summary?.semana_desde
+                    ? `${String(summary.semana_desde)} al ${String(summary.semana_hasta)}`
+                    : ''}
                 </span>
                 <span className="notice-badge">ALON</span>
               </div>
@@ -227,7 +230,7 @@ export function MainApp({
                 </article>
                 <article className="metric-card">
                   <div className="metric-heading">
-                    <span>Ventas acumuladas</span>
+                    <span>Ventas de la semana</span>
                     <span className="metric-icon peach">▤</span>
                   </div>
                   <strong className="metric-value metric-money">
@@ -252,7 +255,7 @@ export function MainApp({
                 <article className="panel sales-panel">
                   <div className="panel-heading">
                     <div>
-                      <h2>Movimiento de ventas</h2>
+                      <h2>Movimiento de ventas de la semana</h2>
                       <p>{String(summary?.ventas ?? '—')} operaciones confirmadas.</p>
                     </div>
                     <button
@@ -336,6 +339,8 @@ export function MainApp({
             </>
           ) : activeSection === 'articulos' ? (
             <ArticleList
+              key={`${user.comercio_id}:${user.id}`}
+              draftScope={`${user.comercio_id}:${user.id}`}
               canEditCosts={permissions.includes('costos') || permissions.includes('compras')}
             />
           ) : activeSection === 'rubros' ? (
@@ -350,7 +355,7 @@ export function MainApp({
               onOpenCash={() => setActiveSection('caja')}
             />
           ) : activeSection === 'compras' ? (
-            <PurchasesPage />
+            <PurchasesPage draftScope={`${user.comercio_id}:${user.id}`} />
           ) : activeSection === 'caja' ? (
             <CashPage />
           ) : activeSection === 'informes' ? (

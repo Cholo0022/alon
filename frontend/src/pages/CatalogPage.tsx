@@ -1,4 +1,7 @@
-import { ApparelEntry } from '../components/ApparelFields'
+import { LookupField } from '../components/LookupField'
+import { GarmentEditor } from '../components/GarmentEditor'
+import { AddApparelSizesDialog } from '../components/AddApparelSizesDialog'
+import { CatalogArticleEntry } from '../components/CatalogArticleEntry'
 import { apparelFields } from '../lib/apparelFields'
 import { DeleteRecordButton } from '../components/DeleteRecordButton'
 // Permite buscar artículos, editar sus datos y organizar el catálogo por rubro.
@@ -6,7 +9,7 @@ import { useState } from 'react'
 import { CategoryPricePanel } from '../components/CategoryPricePanel'
 
 import { currency, textValue, numberValue } from '../lib/format'
-import { useApiRows, type ApiRow } from '../hooks/useApiRows'
+import { useApiRows, rowCount, type ApiRow } from '../hooks/useApiRows'
 import { Pagination } from '../components/Pagination'
 import { type EntryField, LocalEntryPanel } from '../components/Forms'
 import { ApiTable } from '../components/ApiTable'
@@ -14,59 +17,59 @@ import { ArticleImageEditor } from '../components/ArticleImageEditor'
 import type { SavedArticlePhoto } from '../components/ArticlePhotosField'
 
 /** Presenta el catálogo con búsquedas, altas, edición, fotos, cambios de estado y aumentos por rubro según los permisos. */
-export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }) {
+export function ArticleList({
+  canEditCosts = false,
+  draftScope,
+}: {
+  canEditCosts?: boolean
+  draftScope?: string
+}) {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('Todos los rubros')
   const [showInactive, setShowInactive] = useState(false)
+  const [addingSizes, setAddingSizes] = useState(false)
+  const [sizesMessage, setSizesMessage] = useState('')
   const [editing, setEditing] = useState<ApiRow | null>(null)
   const [imageArticle, setImageArticle] = useState<{ id: number; name: string } | null>(null)
-  const categoryRows = useApiRows('/api/v1/alon/categories')
   const apiRows = useApiRows(
-    '/api/v1/alon/articles?inactive=' +
+    '/api/v1/alon/articles/grouped?inactive=' +
       showInactive +
       '&q=' +
       encodeURIComponent(query) +
       '&category=' +
       encodeURIComponent(category === 'Todos los rubros' ? '' : category),
   )
-  const allRows = useApiRows('/api/v1/alon/articles')
   const articles = apiRows
     .map((row) => ({
       id: numberValue(row.id),
       code: textValue(row.codigo),
-      name: textValue(row.nombre),
+      name: textValue(row.nombre_publico ?? row.nombre),
+      grouped: Array.isArray(row.variants),
+      sizes: Array.isArray(row.variants)
+        ? new Set((row.variants as ApiRow[]).map((item) => textValue(item.talle))).size
+        : 0,
       category: textValue(row.rubro),
-      stock: numberValue(row.stock),
+      stock: numberValue(row.stock_total ?? row.stock),
       unit: textValue(row.unidad),
       cost: numberValue(row.costo),
       freightPercent: numberValue(row.flete_porcentaje),
       margin: numberValue(row.margen_porcentaje),
       round: Boolean(row.redondeo_precio),
-      price: numberValue(row.precio_venta),
+      price: Array.isArray(row.variants)
+        ? Math.min(...(row.variants as ApiRow[]).map((item) => numberValue(item.precio_venta)))
+        : numberValue(row.precio_venta),
+      priceVaries:
+        Array.isArray(row.variants) &&
+        new Set((row.variants as ApiRow[]).map((item) => numberValue(item.precio_venta))).size > 1,
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'es-AR'))
-  const categories = [
-    ...new Set([
-      ...categoryRows.map((row) => textValue(row.nombre)),
-      ...articles.map((article) => article.category),
-    ]),
-  ].sort((a, b) => a.localeCompare(b, 'es-AR'))
-  const filtered = articles.filter((article) => {
-    const matchesQuery = `${article.code} ${article.name} ${article.category}`
-      .toLocaleLowerCase('es-AR')
-      .includes(query.toLocaleLowerCase('es-AR'))
-    return matchesQuery && (category === 'Todos los rubros' || article.category === category)
-  })
+  const filtered = articles
 
   /** Prepara la definición del formulario de artículo, incluyendo sus valores actuales y las opciones de rubros y proveedores. */
   const articleFields = (row?: ApiRow): EntryField[] => {
     /** Lee un dato del artículo que se edita o devuelve el valor inicial para un alta. */
     const value = (key: string, fallback = '') => (row ? textValue(row[key] ?? fallback) : fallback)
     const selectedCategory = value('rubro_id')
-    const categoryOptions = categoryRows.map((item) => ({
-      value: String(item.id),
-      label: textValue(item.nombre),
-    }))
     return [
       ...(row && row.tipo_producto !== 'ARTICULO' && row.tipo_producto ? apparelFields(row) : []),
       {
@@ -81,9 +84,8 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
             : value('nombre'),
         ...(!row
           ? {
-              suggestions: allRows
-                .filter((item) => textValue(item.estado) !== 'INACTIVO')
-                .map((item) => textValue(item.nombre)),
+              suggestions: [],
+              suggestionEndpoint: '/api/v1/alon/articles',
             }
           : {}),
       },
@@ -94,7 +96,6 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
               name: 'categoryId',
               label: 'Rubro',
               valueType: 'number' as const,
-              options: categoryOptions,
               lookupEndpoint: '/api/v1/alon/categories',
               defaultLabel: value('rubro'),
               searchable: true,
@@ -170,7 +171,21 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
   return (
     <>
       {canEditCosts && <CategoryPricePanel />}
-      {canEditCosts && !editing && <ApparelEntry />}
+      {sizesMessage && (
+        <p role="status" className="entry-message">
+          {sizesMessage}
+        </p>
+      )}
+      {addingSizes && editing && (
+        <AddApparelSizesDialog
+          article={editing}
+          onClose={() => setAddingSizes(false)}
+          onSaved={() => {
+            setAddingSizes(false)
+            setSizesMessage('Talles agregados. Se conservaron los stocks que ya estaban cargados.')
+          }}
+        />
+      )}
       {imageArticle && (
         <ArticleImageEditor
           key={imageArticle.id}
@@ -178,11 +193,37 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
           onClose={() => setImageArticle(null)}
         />
       )}
-      {canEditCosts &&
-        (editing ? (
+      {(canEditCosts || (editing && Array.isArray(editing.variants))) &&
+        (editing && Array.isArray(editing.variants) ? (
+          <GarmentEditor
+            articleId={Number(editing.id)}
+            canEdit={canEditCosts && !showInactive}
+            onBack={() => setEditing(null)}
+            onSaved={() => {
+              setEditing(null)
+              window.dispatchEvent(new Event('alon:refresh'))
+            }}
+          />
+        ) : editing ? (
           <LocalEntryPanel
             key={'edit-' + textValue(editing.id)}
             title={'Modificar artículo · ' + textValue(editing.nombre)}
+            headerContent={
+              editing.tipo_producto && editing.tipo_producto !== 'ARTICULO' ? (
+                <div className="entry-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => {
+                      setSizesMessage('')
+                      setAddingSizes(true)
+                    }}
+                  >
+                    Agregar talles a esta prenda
+                  </button>
+                </div>
+              ) : undefined
+            }
             action="Guardar cambios"
             endpoint={'/api/v1/operations/articles/' + textValue(editing.id)}
             method="PUT"
@@ -192,23 +233,16 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
             onSaved={() => setEditing(null)}
             initialOpen
             panelId="article-editor"
-            duplicateNames={allRows
-              .filter((item) => numberValue(item.id) !== numberValue(editing.id))
-              .map((item) => textValue(item.nombre))}
             fields={articleFields(editing)}
           />
         ) : (
-          <LocalEntryPanel
-            title="Nuevo artículo"
-            action="Cargar artículo"
-            endpoint="/api/v1/operations/articles"
-            pricePreview
-            articlePhotos
-            duplicateNames={allRows.map((row) => textValue(row.nombre))}
+          <CatalogArticleEntry
+            draftScope={draftScope}
             fields={articleFields()}
+            duplicateNames={[]}
           />
         ))}
-      {editing && (
+      {editing && !Array.isArray(editing.variants) && (
         <button
           className="secondary-button article-cancel-edit"
           type="button"
@@ -221,7 +255,7 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
         <div className="directory-toolbar">
           <div>
             <span className="alon-tag">{showInactive ? 'ARTÍCULOS DESACTIVADOS' : 'CATÁLOGO'}</span>
-            <strong>{filtered.length} artículos</strong>
+            <strong>{rowCount(apiRows, 'productos')}</strong>
           </div>
           <div className="directory-filters">
             <input
@@ -231,16 +265,24 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
-            <select
-              aria-label="Filtrar por rubro"
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
+            <LookupField
+              key={String(showInactive) + category}
+              name="catalogCategory"
+              label="Filtrar por rubro"
+              endpoint="/api/v1/alon/categories"
+              required={false}
+              initialRecord={
+                category === 'Todos los rubros' ? undefined : { id: category, nombre: category }
+              }
+              onSelect={(row) => setCategory(row ? textValue(row.nombre) : 'Todos los rubros')}
+            />
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => setCategory('Todos los rubros')}
             >
-              <option>Todos los rubros</option>
-              {categories.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
+              Todos los rubros
+            </button>
             <button
               className="secondary-button"
               type="button"
@@ -275,7 +317,7 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
                 return (
                   <tr key={article.code}>
                     <td data-label="Código" className="mono-cell">
-                      {article.code}
+                      {article.grouped ? textValue(row?.modelo) || 'Prenda' : article.code}
                     </td>
                     <td data-label="Artículo" className="strong-cell">
                       {article.name}
@@ -284,6 +326,7 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
                       <span className="category-chip">{article.category}</span>
                     </td>
                     <td data-label="Stock">
+                      {article.grouped && <small>{article.sizes} talles · </small>}
                       <span className={article.stock < 20 ? 'stock-low' : 'stock-ok'}>
                         {article.stock}
                       </span>{' '}
@@ -296,11 +339,12 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
                       {article.round ? ' · redondeo $10' : ''}
                     </td>
                     <td data-label="Precio" className="strong-cell">
+                      {article.priceVaries ? 'Desde ' : ''}
                       {currency.format(article.price)}
                     </td>
                     <td data-label="Acciones" className="article-actions">
                       <div className="row-actions">
-                        {!showInactive && (
+                        {!showInactive && !article.grouped && (
                           <button
                             className="secondary-button"
                             onClick={() => setImageArticle({ id: article.id, name: article.name })}
@@ -310,19 +354,21 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
                         )}
                         {article.id > 0 && (
                           <>
-                            {!showInactive && canEditCosts && (
+                            {(article.grouped || (!showInactive && canEditCosts)) && (
                               <button
                                 type="button"
                                 className="secondary-button"
                                 onClick={() => row && setEditing(row)}
                               >
-                                Modificar
+                                {canEditCosts && !showInactive ? 'Modificar' : 'Ver talles'}
                               </button>
                             )}
-                            <DeleteRecordButton
-                              endpoint={`/api/v1/operations/articles/${article.id}`}
-                              name={article.name}
-                            />
+                            {!article.grouped && (
+                              <DeleteRecordButton
+                                endpoint={`/api/v1/operations/articles/${article.id}`}
+                                name={article.name}
+                              />
+                            )}
                           </>
                         )}
                       </div>
@@ -363,7 +409,6 @@ export function ArticleList({ canEditCosts = false }: { canEditCosts?: boolean }
 
 /** Presenta el alta y el listado de rubros usados para organizar los artículos. */
 export function CategoriesPage() {
-  const rows = useApiRows('/api/v1/alon/categories')
   return (
     <>
       <LocalEntryPanel
@@ -379,7 +424,7 @@ export function CategoriesPage() {
           { key: 'codigo', label: 'CÓDIGO' },
           { key: 'nombre', label: 'RUBRO' },
         ]}
-        note={`${rows.length} rubros cargados. Los rubros activos aparecen al crear o modificar un artículo.`}
+        note="Los rubros activos aparecen al crear o modificar un artículo."
       />
     </>
   )

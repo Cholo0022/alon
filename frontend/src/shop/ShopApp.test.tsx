@@ -1,7 +1,7 @@
 import { shopTemplates } from '../lib/shopTemplates'
 import { defaultBrand, normalizeBrand } from '../lib/businessBrand'
 import { beforeEach, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ShopApp from './ShopApp'
 import { shopRequest } from './api'
@@ -45,33 +45,58 @@ beforeEach(() => {
   })
 })
 
-it('requires choosing a payment method before submitting', async () => {
-  const user = userEvent.setup()
-  render(<ShopApp />)
-  await user.click(
-    await screen.findByRole('button', { name: '+ Agregar al carrito' }, { timeout: 10000 }),
-  )
-  await user.click(screen.getByRole('button', { name: 'Agregar cantidad al carrito' }))
-  await user.click(screen.getByRole('button', { name: 'Enviar pedido →' }))
-  expect(screen.getByRole('alert').textContent).toContain('Elegí un medio de pago')
-  expect(request.mock.calls.some(([path]) => path === '/orders')).toBe(false)
-})
+function fillContact() {
+  for (const [label, value] of [
+    ['Nombre', 'Ana'],
+    ['Apellido', 'Prueba'],
+    ['Celular (10 dígitos)', '3446236311'],
+    ['DNI', '30111222'],
+  ])
+    fireEvent.change(screen.getByLabelText(label), { target: { value } })
+}
+async function submitGuestOrder(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /Enviar pedido/ }))
+  fillContact()
+  await user.click(screen.getByRole('button', { name: 'Confirmar envío del pedido' }))
+}
 
-it('requires login before submitting an order', async () => {
-  request.mockImplementation(async (path) =>
-    path === '/session'
-      ? { user: {} }
-      : { items: [product], total: 1, categories: [], store: { nombre: 'Comercio' } },
-  )
+it('opens contact details with local defaults without asking for login or payment', async () => {
   const user = userEvent.setup()
   render(<ShopApp />)
   await user.click(await screen.findByRole('button', { name: '+ Agregar al carrito' }))
   await user.click(screen.getByRole('button', { name: 'Agregar cantidad al carrito' }))
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Medio de pago' }), 'EFECTIVO')
-  await user.click(screen.getByRole('button', { name: 'Enviar pedido →' }))
-  expect(screen.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: /Enviar pedido/ }))
+  expect(screen.getByRole('dialog', { name: 'Datos para enviar el pedido' })).toBeTruthy()
+  expect((screen.getByLabelText('Provincia') as HTMLInputElement).value).toBe('Entre Ríos')
+  expect((screen.getByLabelText('Ciudad') as HTMLInputElement).value).toBe('Larroque')
+  expect(screen.queryByRole('button', { name: 'Ingresar' })).toBeNull()
+  expect(screen.queryByLabelText(/contraseña/i)).toBeNull()
+  expect(screen.queryByRole('combobox', { name: 'Medio de pago' })).toBeNull()
+  expect(request.mock.calls.some(([path]) => path === '/orders')).toBe(false)
+})
+
+it('submits a guest order with contact data and no account or payment choice', async () => {
+  const user = userEvent.setup()
+  render(<ShopApp />)
+  await user.click(await screen.findByRole('button', { name: '+ Agregar al carrito' }))
+  await user.click(screen.getByRole('button', { name: 'Agregar cantidad al carrito' }))
+  await submitGuestOrder(user)
+  await screen.findByText(/Pedido #42 enviado/)
+  const call = request.mock.calls.find(([path]) => path === '/orders')!
+  expect(JSON.parse(String(call[1]?.body))).toMatchObject({
+    buyer: {
+      firstName: 'Ana',
+      lastName: 'Prueba',
+      phone: '3446236311',
+      dni: '30111222',
+      province: 'Entre Ríos',
+      city: 'Larroque',
+    },
+    lines: [{ articleId: 1, quantity: 1, expectedPrice: 100 }],
+  })
+  expect(JSON.parse(String(call[1]?.body))).not.toHaveProperty('paymentMethod')
   expect(
-    request.mock.calls.some(([path, options]) => path === '/orders' && options?.method === 'POST'),
+    request.mock.calls.some(([path]) => ['/login', '/register', '/password'].includes(path)),
   ).toBe(false)
 })
 
@@ -84,8 +109,7 @@ it('requires reviewing a changed price before placing the order', async () => {
   render(<ShopApp />)
   await user.click(await screen.findByRole('button', { name: '+ Agregar al carrito' }))
   await user.click(screen.getByRole('button', { name: 'Agregar cantidad al carrito' }))
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Medio de pago' }), 'EFECTIVO')
-  await user.click(screen.getByRole('button', { name: 'Enviar pedido →' }))
+  await submitGuestOrder(user)
   await waitFor(() =>
     expect(screen.getByRole('alert').textContent).toContain('Actualizamos los precios'),
   )
@@ -106,59 +130,38 @@ it('reuses the operation key when retrying after a lost response', async () => {
   const view = render(<ShopApp />)
   await user.click(await screen.findByRole('button', { name: '+ Agregar al carrito' }))
   await user.click(screen.getByRole('button', { name: 'Agregar cantidad al carrito' }))
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Medio de pago' }), 'EFECTIVO')
-  await user.click(screen.getByRole('button', { name: 'Enviar pedido →' }))
+  await submitGuestOrder(user)
   await screen.findByText('Respuesta perdida')
   view.unmount()
   render(<ShopApp />)
-  await screen.findByRole('button', { name: 'Mis pedidos' })
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Medio de pago' }), 'EFECTIVO')
-  await user.click(screen.getByRole('button', { name: 'Enviar pedido →' }))
+  await screen.findByRole('heading', { name: 'Artículo de prueba', level: 2 })
+  await submitGuestOrder(user)
   await screen.findByText(/Pedido #42 enviado/)
   const calls = request.mock.calls.filter(
     ([path, options]) => path === '/orders' && options?.method === 'POST',
   )
   expect(calls).toHaveLength(2)
-  expect(JSON.parse(String(calls[1][1]?.body)).paymentMethod).toBe('EFECTIVO')
+  expect(JSON.parse(String(calls[1][1]?.body)).buyer.phone).toBe('3446236311')
   expect(new Headers(calls[0][1]?.headers).get('Idempotency-Key')).toEqual(
     new Headers(calls[1][1]?.headers).get('Idempotency-Key'),
   )
 })
 
-it('registers location with Argentina selected by default and allows another country', async () => {
-  const implementation = request.getMockImplementation()!
-  request.mockImplementation(async (path, options) =>
-    path === '/session'
-      ? { user: {} }
-      : path === '/register'
-        ? buyer
-        : implementation(path, options),
-  )
+it('allows changing the province and city before sending the order', async () => {
   const user = userEvent.setup()
   render(<ShopApp />)
-  await user.click(await screen.findByRole('button', { name: 'Ingresar' }))
-  await user.click(screen.getByRole('button', { name: 'Primera vez · Crear cuenta' }))
-  const country = screen.getByRole('combobox', { name: 'País' }) as HTMLSelectElement
-  expect(country.value).toBe('Argentina')
-  await user.type(screen.getByLabelText('Nombre'), 'Ana')
-  await user.type(screen.getByLabelText('Apellido'), 'Prueba')
-  await user.type(screen.getByLabelText('DNI'), '30111222')
-  await user.type(screen.getByLabelText('Domicilio'), 'Calle 123')
-  await user.type(screen.getByLabelText('Código postal'), '11000')
-  await user.type(screen.getByLabelText('Ciudad'), 'Montevideo')
-  await user.type(screen.getByLabelText('Provincia'), 'Montevideo')
-  await user.selectOptions(country, 'Uruguay')
-  await user.type(screen.getByLabelText('Teléfono (código de área y número)'), '3446236311')
-  expect((screen.getByLabelText(/^Contraseña/) as HTMLInputElement).minLength).toBe(4)
-  await user.type(screen.getByLabelText(/^Contraseña/), '1234')
-  await user.click(screen.getByRole('button', { name: 'Crear cuenta' }))
-  await waitFor(() => expect(request.mock.calls.some(([path]) => path === '/register')).toBe(true))
-  const call = request.mock.calls.find(([path]) => path === '/register')!
-  expect(JSON.parse(String(call[1]?.body))).toMatchObject({
-    postalCode: '11000',
-    city: 'Montevideo',
-    province: 'Montevideo',
-    country: 'Uruguay',
+  await user.click(await screen.findByRole('button', { name: '+ Agregar al carrito' }))
+  await user.click(screen.getByRole('button', { name: 'Agregar cantidad al carrito' }))
+  await user.click(screen.getByRole('button', { name: /Enviar pedido/ }))
+  fillContact()
+  fireEvent.change(screen.getByLabelText('Provincia'), { target: { value: 'Buenos Aires' } })
+  fireEvent.change(screen.getByLabelText('Ciudad'), { target: { value: 'Tandil' } })
+  await user.click(screen.getByRole('button', { name: 'Confirmar envío del pedido' }))
+  await screen.findByText(/Pedido #42 enviado/)
+  const call = request.mock.calls.find(([path]) => path === '/orders')!
+  expect(JSON.parse(String(call[1]?.body)).buyer).toMatchObject({
+    province: 'Buenos Aires',
+    city: 'Tandil',
   })
 })
 
@@ -295,30 +298,14 @@ it('switches among all ten templates without changing the cart or shopping contr
 })
 
 /** Cambia la contraseña de la cuenta compradora sin pedir la anterior ni solicitar datos de otra persona. */
-it('changes the signed-in shopper password using only a new four-character password', async () => {
-  const implementation = request.getMockImplementation()!
-  request.mockImplementation(async (path, options) =>
-    path === '/password' ? buyer : implementation(path, options),
-  )
-  const user = userEvent.setup()
+it('does not show account or password controls even if an old shopper session exists', async () => {
   render(<ShopApp />)
-  await user.click(await screen.findByRole('button', { name: 'Cambiar contraseña' }))
-  const field = screen.getByLabelText(/^Nueva contraseña/) as HTMLInputElement
-  expect(field.minLength).toBe(4)
-  expect(screen.queryByLabelText(/contraseña anterior/i)).toBeNull()
-  expect(screen.queryByLabelText(/código de verificación/i)).toBeNull()
-  await user.type(field, '1234')
-  await user.click(screen.getByRole('button', { name: 'Guardar nueva contraseña' }))
-  expect(
-    await screen.findByText(
-      'Contraseña actualizada. Usá la nueva contraseña en tus próximos ingresos.',
-    ),
-  ).toBeTruthy()
-  const call = request.mock.calls.find(([path]) => path === '/password')!
-  expect(JSON.parse(String(call[1]?.body))).toEqual({ password: '1234' })
+  await screen.findByRole('heading', { name: 'Artículo de prueba', level: 2 })
+  expect(screen.queryByRole('button', { name: 'Ingresar' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Cambiar contraseña' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Mis pedidos' })).toBeNull()
 })
 
-/** El acceso flotante no aparece con carrito vacío aunque el panel esté fuera de la pantalla. */
 it('hides the cart shortcut until a product has been added', async () => {
   class Observer {
     callback: IntersectionObserverCallback
@@ -348,34 +335,16 @@ it('hides the cart shortcut until a product has been added', async () => {
 })
 
 /** Recupera una cuenta antes de ingresar enviando solamente teléfono y clave nueva. */
-it('offers simple password recovery next to first-time registration', async () => {
-  const original = request.getMockImplementation()!
-  request.mockImplementation(async (path, options) =>
-    path === '/session'
-      ? { user: {} }
-      : path === '/password/reset'
-        ? { ok: true }
-        : original(path, options),
-  )
+it('returns to the cart without sending an order when contact entry is cancelled', async () => {
   const user = userEvent.setup()
   render(<ShopApp />)
-  await user.click(await screen.findByRole('button', { name: 'Ingresar' }))
-  expect(screen.getByRole('button', { name: 'Primera vez · Crear cuenta' })).toBeTruthy()
-  await user.click(
-    screen.getByRole('button', { name: 'Olvidé mi contraseña · Modificar contraseña' }),
-  )
-  await user.type(screen.getByLabelText('Teléfono (código de área y número)'), '3446236311')
-  const field = screen.getByLabelText(/^Nueva contraseña/) as HTMLInputElement
-  expect(field.minLength).toBe(4)
-  await user.type(field, '1234')
-  await user.click(screen.getByRole('button', { name: 'Guardar nueva contraseña' }))
-  expect(
-    await screen.findByText(
-      'Contraseña modificada. Ingresá con tu teléfono y la nueva contraseña.',
-    ),
-  ).toBeTruthy()
-  const call = request.mock.calls.find(([path]) => path === '/password/reset')!
-  expect(JSON.parse(String(call[1]?.body))).toEqual({ phone: '3446236311', password: '1234' })
+  await user.click(await screen.findByRole('button', { name: '+ Agregar al carrito' }))
+  await user.click(screen.getByRole('button', { name: 'Agregar cantidad al carrito' }))
+  await user.click(screen.getByRole('button', { name: /Enviar pedido/ }))
+  await user.click(screen.getByRole('button', { name: 'Volver al carrito' }))
+  expect(screen.queryByRole('dialog', { name: 'Datos para enviar el pedido' })).toBeNull()
+  expect(JSON.parse(localStorage.getItem('alon-shop-cart')!)).toHaveLength(1)
+  expect(request.mock.calls.some(([path]) => path === '/orders')).toBe(false)
 })
 
 it('shows the product title as the first text after its image without repeating the category', async () => {
@@ -386,7 +355,7 @@ it('shows the product title as the first text after its image without repeating 
   expect(body.querySelector('.shop-product-category')).toBeNull()
 })
 
-it('shows the optional shop phone below the slogan and removes it when cleared', async () => {
+it('shows the optional shop phone in the header and removes it when cleared', async () => {
   const original = request.getMockImplementation()!
   request.mockImplementation(async (path, options) =>
     path === '/business'
@@ -395,8 +364,7 @@ it('shows the optional shop phone below the slogan and removes it when cleared',
   )
   render(<ShopApp />)
   const phone = await screen.findByText('Celular: 3446 - 236311')
-  expect(phone.previousElementSibling?.textContent).toBe(defaultBrand.nombre + ' · Siempre cerca')
-  expect(phone.closest('footer')?.className).toBe('shop-footer')
+  expect(phone.closest('header')?.className).toBe('shop-header')
   act(() =>
     window.dispatchEvent(
       new CustomEvent('alon:business-updated', {

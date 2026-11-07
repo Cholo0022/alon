@@ -13,7 +13,7 @@ export function Pagination({ rows, label = 'registros' }: { rows: PagedRows; lab
           ? 'No se pudieron cargar los datos'
           : rows.loading
             ? 'Cargando…'
-            : `Página ${rows.page + 1} · ${rows.length} ${label}`}
+            : `Página ${rows.page + 1} · ${rows.length} ${label} en esta página${rows.total == null ? '' : ` · ${rows.total} en total`}`}
       </span>
       <button type="button" disabled={!rows.hasMore || rows.loading} onClick={rows.next}>
         Siguiente

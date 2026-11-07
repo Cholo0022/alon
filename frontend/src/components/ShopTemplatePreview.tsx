@@ -19,7 +19,12 @@ export function ShopTemplatePreview({
       aria-hidden={compact || undefined}
     >
       <div className="shop-header">
-        <span className="shop-brand">{brand.nombre || 'Tu comercio'}</span>
+        <div className="shop-header-brand">
+          <span className="shop-brand">{brand.nombre || 'Tu comercio'}</span>
+          {brand.telefono_tienda.trim() && (
+            <span className="shop-contact-phone">Celular: {brand.telefono_tienda.trim()}</span>
+          )}
+        </div>
         <span className="preview-search">Buscar productos</span>
       </div>
       {brand.slogan && (
@@ -62,9 +67,6 @@ export function ShopTemplatePreview({
           <strong>
             {brand.nombre} · {brand.slogan || 'Tu comercio conectado'}
           </strong>
-          {brand.telefono_tienda.trim() && (
-            <span className="shop-contact-phone">Celular: {brand.telefono_tienda.trim()}</span>
-          )}
         </div>
       </div>
     </div>

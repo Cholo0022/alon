@@ -1,9 +1,12 @@
+import { preventImplicitArticleSubmit } from '../lib/articleKeyboard'
+import { clearFieldValidation, showFieldErrors, validateForm } from '../lib/formValidation'
 import { sentenceCase } from '../lib/sentenceCase'
 // Construye formularios reutilizables y convierte sus campos en los datos que espera el servidor.
 import { QuantityInput } from './QuantityInput'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Combobox } from './Combobox'
 import { LookupField } from './LookupField'
+import { useApiRows } from '../hooks/useApiRows'
 import { apiFetch } from '../lib/http'
 import { ArticlePhotosField } from './ArticlePhotosField'
 import { photoPayload, savedPhotos, type SavedArticlePhoto } from '../lib/articlePhotos'
@@ -28,6 +31,7 @@ export type EntryField = {
   searchable?: boolean
   exclusiveGroup?: string
   suggestions?: string[]
+  suggestionEndpoint?: string
   checkboxName?: string
   checkboxLabel?: string
   checkedByDefault?: boolean
@@ -36,7 +40,16 @@ export type EntryField = {
 /** Sugiere nombres de artículos existentes mientras permite escribir un nombre nuevo para el alta. */
 export function ArticleNameSearch({ field }: { field: EntryField }) {
   const [value, setValue] = useState(sentenceCase(field.defaultValue ?? ''))
-  const options = (field.suggestions ?? [])
+  const suggestions = useApiRows(
+    field.suggestionEndpoint && value.trim()
+      ? field.suggestionEndpoint + '?q=' + encodeURIComponent(value)
+      : null,
+  )
+  const options = (
+    field.suggestionEndpoint
+      ? suggestions.map((row) => textValue(row.nombre))
+      : (field.suggestions ?? [])
+  )
     .filter((name) => name.toLocaleLowerCase('es-AR').includes(value.toLocaleLowerCase('es-AR')))
     .map((name) => ({ value: name, label: name }))
   return (
@@ -117,6 +130,10 @@ export function LocalEntryPanel({
   panelId,
   articlePhotos = false,
   initialPhotos = [],
+  headerContent,
+  replacementForm,
+  externalBusy = false,
+  onOpenChange,
 }: {
   title: string
   action: string
@@ -131,6 +148,10 @@ export function LocalEntryPanel({
   panelId?: string
   articlePhotos?: boolean
   initialPhotos?: SavedArticlePhoto[]
+  headerContent?: ReactNode
+  replacementForm?: ReactNode
+  externalBusy?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const panel = useRef<HTMLElement>(null)
   const [open, setOpen] = useState(initialOpen)
@@ -213,6 +234,11 @@ export function LocalEntryPanel({
     event.preventDefault()
     if (busy || readingPhotos) return
     const formElement = event.currentTarget
+    const invalid = validateForm(formElement)
+    if (invalid) {
+      setMessage(invalid)
+      return
+    }
     const form = new FormData(formElement)
     const submittedName = String(form.get('name') ?? '')
       .trim()
@@ -349,36 +375,7 @@ export function LocalEntryPanel({
         fields?: Record<string, string>
       }
       if (!response.ok) {
-        for (const [key, message] of Object.entries(result.fields ?? {})) {
-          const names: Record<string, string> = {
-            'apparel.size': 'apparelSize',
-            'apparel.color': 'apparelColor',
-            'apparel.brand': 'apparelBrand',
-            'apparel.model': 'apparelModel',
-            'apparel.description': 'apparelDescription',
-            'apparel.material': 'apparelMaterial',
-            'apparel.sizeSystem': 'apparelSizeSystem',
-            'apparel.audience': 'apparelAudience',
-            'apparel.season': 'apparelSeason',
-            'apparel.kind': 'apparelKind',
-          }
-          let field = formElement.elements.namedItem(names[key] ?? key)
-          if (field instanceof HTMLInputElement && field.type === 'hidden')
-            field =
-              field
-                .closest('.searchable-field')
-                ?.querySelector<HTMLInputElement>('input[role="combobox"]') ?? field
-          if (
-            field instanceof HTMLInputElement ||
-            field instanceof HTMLTextAreaElement ||
-            field instanceof HTMLSelectElement
-          ) {
-            field.setCustomValidity(message)
-            field.reportValidity()
-            field.focus()
-            break
-          }
-        }
+        showFieldErrors(formElement, result.fields ?? {})
         throw new Error(result.error ?? 'No se pudo guardar el registro.')
       }
       if (endpoint.endsWith('/cash/close')) setCashReport(result)
@@ -389,6 +386,7 @@ export function LocalEntryPanel({
       setPhotos([])
       setCalculatedPrice(null)
       setOpen(false)
+      onOpenChange?.(false)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No se pudo conectar con el servidor.')
     } finally {
@@ -406,7 +404,9 @@ export function LocalEntryPanel({
         <button
           className="primary-button"
           type="button"
+          disabled={externalBusy}
           onClick={() => {
+            onOpenChange?.(!open)
             setOpen((value) => {
               const next = !value
               if (next && endpoint.endsWith('/cash/close')) {
@@ -421,10 +421,16 @@ export function LocalEntryPanel({
           {open ? 'Cerrar' : `＋ ${action}`}
         </button>
       </div>
-      {open && (
+      {open && headerContent}
+      {open && replacementForm}
+      {open && !replacementForm && (
         <form
           className="entry-form"
+          noValidate
+          onInputCapture={clearFieldValidation}
+          onChangeCapture={clearFieldValidation}
           onSubmit={submit}
+          onKeyDown={articlePhotos ? preventImplicitArticleSubmit : undefined}
           onBlurCapture={(event) => {
             const field = event.target
             if (
@@ -589,6 +595,7 @@ export function LocalEntryPanel({
                           articlePhotos && field.name !== 'code' ? 'sentences' : 'off'
                         }
                         required={
+                          field.name !== 'dni' &&
                           !(
                             pricePreview &&
                             ['freightPerUnit', 'freightPercent'].includes(field.name)

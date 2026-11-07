@@ -1,0 +1,52 @@
+.shop-checkout-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  background: rgb(13 31 45 / 60%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.shop-checkout-dialog {
+  width: min(100%, 620px);
+  max-height: 90dvh;
+  overflow: auto;
+  background: #fff;
+  color: var(--shop-ink);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 70px rgb(0 0 0 / 24%);
+}
+.shop-checkout-dialog h2 {
+  margin-top: 0;
+}
+.shop-checkout-dialog .shop-account-form {
+  margin-top: 16px;
+  padding: 0;
+  border: 0;
+}
+.shop-contact-fields {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.shop-contact-fields input {
+  width: 100%;
+}
+@media (max-width: 520px) {
+  .shop-checkout-backdrop {
+    padding: 10px;
+  }
+  .shop-checkout-dialog {
+    padding: 18px;
+  }
+  .shop-contact-fields {
+    grid-template-columns: 1fr;
+  }
+}

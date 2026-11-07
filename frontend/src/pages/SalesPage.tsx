@@ -1,3 +1,4 @@
+import { CustomerEntryDialog } from '../components/CustomerEntryDialog'
 import { SalesReceiptPreview } from '../components/SalesReceiptPreview'
 import { BarcodeEntry } from '../components/BarcodeEntry'
 import { PaymentConfirmation, type PaymentSelection } from '../components/PaymentConfirmation'
@@ -48,6 +49,9 @@ export function SalesPage({
   onOpenCash: () => void
   canDiscount?: boolean
 }) {
+  const [customerOpen, setCustomerOpen] = useState(false)
+  const [customer, setCustomer] = useState<ApiRow | undefined>()
+  const [customerVersion, setCustomerVersion] = useState(0)
   const [lastReceipt, setLastReceipt] = useState<{ id: number; number: string } | null>(null)
   const [receiptPreview, setReceiptPreview] = useState<{ id: number; number: string } | null>(null)
   const showReceipt = (id: number, number: string) => setReceiptPreview({ id, number })
@@ -80,12 +84,13 @@ export function SalesPage({
     const onShortcut = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key.toLowerCase() === 'g') {
         event.preventDefault()
-        if (!busy && !articlePickerOpen && !paymentOpen) saleFormRef.current?.requestSubmit()
+        if (!busy && !articlePickerOpen && !paymentOpen && !customerOpen)
+          saleFormRef.current?.requestSubmit()
       }
     }
     window.addEventListener('keydown', onShortcut)
     return () => window.removeEventListener('keydown', onShortcut)
-  }, [open, busy, articlePickerOpen, paymentOpen])
+  }, [open, busy, articlePickerOpen, paymentOpen, customerOpen])
   // Agrega el artículo a la venta en pantalla; todavía no guarda ni descuenta stock.
   /** Valida artículo, cantidad, descuento y stock disponible y agrega el renglón al borrador de venta. */
   const addLine = (
@@ -195,6 +200,8 @@ export function SalesPage({
         showReceipt(receipt.id, receipt.number)
       }
       setPaymentOpen(false)
+      setCustomer(undefined)
+      setCustomerVersion((version) => version + 1)
       window.dispatchEvent(new Event('alon:refresh'))
       setMessage('Venta guardada correctamente con ' + lines.length + ' artículos.')
       setLines([])
@@ -312,6 +319,16 @@ export function SalesPage({
           }}
         />
       )}
+      {customerOpen && (
+        <CustomerEntryDialog
+          onCancel={() => setCustomerOpen(false)}
+          onSaved={(row) => {
+            setCustomer(row)
+            setCustomerVersion((version) => version + 1)
+            setCustomerOpen(false)
+          }}
+        />
+      )}
       <CashStatusNotice onOpenCash={onOpenCash} />
       <section className="entry-panel sale-entry">
         <div className="entry-heading">
@@ -333,15 +350,27 @@ export function SalesPage({
         {open && (
           <form className="entry-form" ref={saleFormRef} onSubmit={submitSale}>
             <div className="transaction-header">
-              <label>
-                Cliente
-                <LookupField
-                  name="customerId"
-                  defaultName="Consumidor final"
-                  label="Cliente"
-                  endpoint="/api/v1/alon/lookups/customers"
-                />
-              </label>
+              <div className="sale-customer-field">
+                <label>
+                  Cliente
+                  <LookupField
+                    key={customerVersion}
+                    initialRecord={customer}
+                    name="customerId"
+                    defaultName="Consumidor final"
+                    label="Cliente"
+                    endpoint="/api/v1/alon/lookups/customers"
+                  />
+                </label>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={busy || paymentOpen}
+                  onClick={() => setCustomerOpen(true)}
+                >
+                  ＋ Crear cliente nuevo sin salir de la venta
+                </button>
+              </div>
               <label>
                 Fecha
                 <DateTextInput name="date" />

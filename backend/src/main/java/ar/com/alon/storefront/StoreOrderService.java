@@ -60,7 +60,9 @@ public class StoreOrderService extends StoreJdbcSupport {
     public Map<String, Object> detail(long id) {
         var order =
                 jdbc.queryForMap(
-                        "SELECT id,nombre_cliente,contacto,dni,domicilio,detalle,total_estimado,estado,creado_en,confirmado_en,medio_pago,venta_id FROM pedidos_tienda WHERE comercio_id=? AND id=?",
+                        "SELECT p.id,p.nombre_cliente,p.contacto,p.dni,p.domicilio,p.provincia,p.ciudad,p.detalle,p.total_estimado,p.estado,p.creado_en,p.confirmado_en,p.medio_pago,p.venta_id,"
+                                + StoreOrderQueries.customerCommentSql("p")
+                                + " AS comentario_cliente FROM pedidos_tienda p WHERE p.comercio_id=? AND p.id=?",
                         identity.storeId(),
                         id);
         var lines =
@@ -132,11 +134,21 @@ public class StoreOrderService extends StoreJdbcSupport {
             throw new IllegalArgumentException("El pedido no tiene un comprador vinculado.");
         var buyer =
                 jdbc.queryForMap(
-                        "SELECT cliente_id FROM compradores_tienda WHERE comercio_id=? AND id=? FOR UPDATE",
+                        "SELECT cliente_id,dni FROM compradores_tienda WHERE comercio_id=? AND id=? FOR UPDATE",
                         identity.storeId(),
                         buyerId.longValue());
         long customerId;
-        if (buyer.get("cliente_id") instanceof Number existing) customerId = existing.longValue();
+        var matches =
+                jdbc.queryForList(
+                        "SELECT id FROM clientes WHERE comercio_id=? AND dni=? ORDER BY id FOR UPDATE",
+                        identity.storeId(),
+                        buyer.get("dni"));
+        if (matches.size() > 1)
+            throw new ar.com.alon.shared.web.BusinessConflict(
+                    "Hay varios clientes con ese DNI. Revisá los duplicados antes de confirmar el pedido.");
+        if (!matches.isEmpty()) customerId = ((Number) matches.getFirst().get("id")).longValue();
+        else if (buyer.get("cliente_id") instanceof Number existing)
+            customerId = existing.longValue();
         else {
             customerId =
                     ((Number)
@@ -147,15 +159,16 @@ public class StoreOrderService extends StoreJdbcSupport {
                                                                     order.get("nombre_cliente")),
                                                             String.valueOf(order.get("contacto")),
                                                             "",
-                                                            BigDecimal.ZERO))
+                                                            BigDecimal.ZERO,
+                                                            String.valueOf(buyer.get("dni"))))
                                             .get("id"))
                             .longValue();
-            jdbc.update(
-                    "UPDATE compradores_tienda SET cliente_id=? WHERE comercio_id=? AND id=?",
-                    customerId,
-                    identity.storeId(),
-                    buyerId.longValue());
         }
+        jdbc.update(
+                "UPDATE compradores_tienda SET cliente_id=? WHERE comercio_id=? AND id=?",
+                customerId,
+                identity.storeId(),
+                buyerId.longValue());
         var saleLines = new java.util.ArrayList<ar.com.alon.sales.dto.SaleLine>();
         var prices = new java.util.HashMap<Long, BigDecimal>();
         for (var line : lines) {

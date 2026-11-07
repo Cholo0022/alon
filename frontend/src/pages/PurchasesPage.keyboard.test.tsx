@@ -107,24 +107,8 @@ it('keeps the supplier and document while repeatedly adding from the purchase pi
   fireEvent.change(within(paymentDialog).getByLabelText('Medio de pago'), {
     target: { value: 'EFECTIVO' },
   })
+  fireEvent.click(within(paymentDialog).getByLabelText('Actualizar costo del catálogo'))
   fireEvent.click(within(paymentDialog).getByRole('button', { name: 'Confirmar factura' }))
-  expect(
-    request.mock.calls.some(
-      ([url, options]) => url === '/api/v1/operations/purchases' && options?.method === 'POST',
-    ),
-  ).toBe(false)
-  const costDialog = screen.getByRole('dialog', {
-    name: '¿Este comprobante modifica el precio de costo?',
-  })
-  fireEvent.keyDown(costDialog, { key: 's' })
-  expect(
-    request.mock.calls.some(
-      ([url, options]) => url === '/api/v1/operations/purchases' && options?.method === 'POST',
-    ),
-  ).toBe(false)
-  fireEvent.keyDown(screen.getByRole('dialog', { name: '¿Este comprobante modifica el stock?' }), {
-    key: 's',
-  })
   await waitFor(() =>
     expect(
       request.mock.calls.some(
@@ -166,7 +150,9 @@ it('respects a cost entered before opening the picker and restores focus on Esca
     key: 'Enter',
   })
   const row = screen.getByText('A1 · Martillo').closest('tr')!
-  expect(row.querySelector('[data-label="Costo unitario"]')?.textContent).toContain('55,50')
+  expect((row.querySelector('[data-label="Costo unitario"] input') as HTMLInputElement).value).toBe(
+    '55.5',
+  )
   fireEvent.keyDown(screen.getByRole('combobox', { name: 'Artículo' }), { key: 'Enter' })
   const listSearch = screen.getByRole('combobox', { name: 'Buscar en el listado de artículos' })
   fireEvent.change(listSearch, { target: { value: 'Clavos' } })
@@ -220,11 +206,8 @@ it('starts at the unnamed supplier, opens the supplier directory with Enter and 
     target: { value: 'CUENTA_CORRIENTE' },
   })
   expect(screen.queryByLabelText('Medio de pago')).toBeNull()
+  fireEvent.click(screen.getByLabelText('Ingresar cantidades al stock'))
   fireEvent.click(screen.getByRole('button', { name: 'Confirmar factura' }))
-  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'n' })
-  fireEvent.keyDown(screen.getByRole('dialog', { name: '¿Este comprobante modifica el stock?' }), {
-    key: 'n',
-  })
   await waitFor(() =>
     expect(
       request.mock.calls.some(
@@ -245,14 +228,14 @@ it('starts at the unnamed supplier, opens the supplier directory with Enter and 
   })
 })
 
-it('opens a separate apparel and footwear picker while preserving the purchase document', async () => {
+it('starts with all products and filters apparel without leaving the document', async () => {
   render(<PurchasesPage />)
   fireEvent.click(screen.getByRole('button', { name: /Cargar factura/ }))
   await screen.findByLabelText('Número de comprobante')
   fireEvent.change(screen.getByLabelText('Número de comprobante'), { target: { value: 'F-ROPA' } })
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Cargar indumentaria o calzado al comprobante' }),
-  )
+  expect((screen.getByLabelText('Mostrar productos') as HTMLSelectElement).value).toBe('')
+  fireEvent.change(screen.getByLabelText('Mostrar productos'), { target: { value: 'VESTIMENTA' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Buscar productos' }))
   expect(
     screen.getByRole('dialog', { name: 'Elegir indumentaria o calzado · talle y color' }),
   ).toBeTruthy()
@@ -275,7 +258,7 @@ it('creates an article from the invoice without losing its header or existing li
     unidad: 'UNIDAD',
   }
   request.mockImplementation(async (url, options) => {
-    if (url === '/api/v1/operations/articles' && options?.method === 'POST')
+    if (url === '/api/v1/operations/purchases/articles' && options?.method === 'POST')
       return Response.json({ id: 3, codigo: 'N3' })
     if (url.includes('code=N3')) return Response.json([created])
     if (url.includes('/alon/categories')) return Response.json([{ id: 1, nombre: 'General' }])
@@ -295,7 +278,7 @@ it('creates an article from the invoice without losing its header or existing li
   fireEvent.keyDown(within(first).getByLabelText('Costo unitario'), { key: 'Enter' })
   expect(screen.getByText('A1 · Martillo')).toBeTruthy()
   expect(
-    screen.getByRole('button', { name: 'Crear artículo nuevo sin salir de la factura' }),
+    screen.getByRole('button', { name: 'Crear producto sin salir del comprobante' }),
   ).toBeTruthy()
   fireEvent.keyDown(screen.getByRole('combobox', { name: 'Artículo' }), { key: 'Enter' })
   fireEvent.click(

@@ -13,16 +13,25 @@ export function PaymentConfirmation({
   onConfirm,
   onCancel,
   onChange,
+  purchaseOptions = false,
+  documentSummary,
 }: {
   mode: 'sale' | 'purchase'
   total: number
   partyName: string
   busy: boolean
   message: string
-  onConfirm: (selection: PaymentSelection) => void
+  onConfirm: (
+    selection: PaymentSelection,
+    choices?: { updateCost: boolean; updateStock: boolean },
+  ) => void
   onCancel: () => void
+  documentSummary?: string
+  purchaseOptions?: boolean
   onChange: () => void
 }) {
+  const [updateCost, setUpdateCost] = useState(false)
+  const [updateStock, setUpdateStock] = useState(true)
   const [condition, setCondition] = useState('')
   const [method, setMethod] = useState('')
   const form = useRef<HTMLFormElement>(null)
@@ -56,7 +65,7 @@ export function PaymentConfirmation({
     }
     if (event.key === 'Tab') {
       const fields = form.current?.querySelectorAll<HTMLElement>(
-        'select:not(:disabled),button:not(:disabled)',
+        'select:not(:disabled),input:not(:disabled),button:not(:disabled)',
       )
       if (fields?.length) {
         const first = fields[0],
@@ -84,6 +93,7 @@ export function PaymentConfirmation({
             <h2 id={id + '-title'}>
               {mode === 'purchase' ? 'Confirmar factura de compra' : 'Confirmar venta'}
             </h2>
+            {documentSummary && <p>{documentSummary}</p>}
             <p>
               {partyName}
               <br />
@@ -96,11 +106,14 @@ export function PaymentConfirmation({
           onKeyDown={keyboard}
           onSubmit={(event) => {
             event.preventDefault()
-            if (!busy && condition && (credit || cashBox || method))
-              onConfirm({
+            if (!busy && condition && (credit || cashBox || method)) {
+              const selection = {
                 condition,
                 paymentMethod: credit ? 'CUENTA_CORRIENTE' : cashBox ? 'EFECTIVO' : method,
-              })
+              }
+              if (purchaseOptions) onConfirm(selection, { updateCost, updateStock })
+              else onConfirm(selection)
+            }
           }}
         >
           <label>
@@ -163,6 +176,37 @@ export function PaymentConfirmation({
                   ? 'El total queda pendiente en la cuenta del cliente.'
                   : 'Se registra el cobro en la caja abierta de la fecha de la venta.'}
             </p>
+          )}
+          {purchaseOptions && (
+            <fieldset className="purchase-final-options" disabled={busy}>
+              <legend>Stock y costo</legend>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={updateStock}
+                  onChange={(event) => setUpdateStock(event.target.checked)}
+                />{' '}
+                Ingresar cantidades al stock
+              </label>
+              <p>
+                {updateStock
+                  ? 'Se sumarán las cantidades de este comprobante.'
+                  : 'La compra quedará registrada sin volver a ingresar mercadería al stock.'}
+              </p>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={updateCost}
+                  onChange={(event) => setUpdateCost(event.target.checked)}
+                />{' '}
+                Actualizar costo del catálogo
+              </label>
+              <p>
+                {updateCost
+                  ? 'Se actualizará solo el costo unitario. Se mantienen el precio de venta, el flete y el margen.'
+                  : 'Se conservarán los costos y precios actuales del catálogo.'}
+              </p>
+            </fieldset>
           )}
           {message && (
             <p className="article-picker-message" role="alert">

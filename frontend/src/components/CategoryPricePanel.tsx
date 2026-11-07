@@ -1,8 +1,8 @@
 // Muestra una vista previa antes de aplicar un aumento de precios a un rubro.
 import { useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
-import { useApiRows } from '../hooks/useApiRows'
-import { currency, textValue } from '../lib/format'
+import { LookupField } from './LookupField'
+import { currency } from '../lib/format'
 
 type Preview = {
   count: number
@@ -11,7 +11,6 @@ type Preview = {
 }
 /** Gestiona la vista previa y aplicación de aumentos por rubro, evitando aplicar una simulación que quedó desactualizada. */
 export function CategoryPricePanel() {
-  const categories = useApiRows('/api/v1/alon/categories')
   const [open, setOpen] = useState(false)
   const [categoryId, setCategoryId] = useState('')
   const [percent, setPercent] = useState('')
@@ -92,25 +91,20 @@ export function CategoryPricePanel() {
       </div>
       {open && (
         <form className="entry-form" onSubmit={submit}>
-          <label>
-            Rubro
-            <select
-              value={categoryId}
-              onChange={(e) => {
-                invalidate()
-                setCategoryId(e.target.value)
-              }}
-              required
-              disabled={busy}
-            >
-              <option value="">Elegí un rubro</option>
-              {categories.map((row) => (
-                <option key={textValue(row.id)} value={textValue(row.id)}>
-                  {textValue(row.nombre)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0 }}>
+            <label>
+              Rubro
+              <LookupField
+                name="priceCategory"
+                label="Rubro"
+                endpoint="/api/v1/alon/categories"
+                onSelect={(row) => {
+                  invalidate()
+                  setCategoryId(row ? String(row.id) : '')
+                }}
+              />
+            </label>
+          </fieldset>
           <label>
             Aumento porcentual
             <input
@@ -133,7 +127,7 @@ export function CategoryPricePanel() {
               Se aumenta el precio de venta actual de todos los artículos activos del rubro,
               respetando su opción de redondeo.
             </span>
-            <button className="primary-button" disabled={busy || categories.loading}>
+            <button className="primary-button" disabled={busy || !categoryId}>
               {busy ? 'Procesando…' : 'Ver aumento'}
             </button>
           </div>

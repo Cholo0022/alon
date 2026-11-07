@@ -8,4 +8,10 @@ public record CustomerInput(
         @NotBlank @Size(max = 150) String name,
         @Size(max = 40) String phone,
         @Email @Size(max = 160) String email,
-        BigDecimal creditLimit) {}
+        BigDecimal creditLimit,
+        @Pattern(regexp = "[0-9]{0,12}", message = "El DNI debe contener solo números.")
+                String dni) {
+    public CustomerInput(String name, String phone, String email, BigDecimal creditLimit) {
+        this(name, phone, email, creditLimit, null);
+    }
+}

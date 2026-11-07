@@ -26,8 +26,10 @@ beforeEach(() => {
 it('previews a category increase before applying the reviewed prices', async () => {
   render(<CategoryPricePanel />)
   fireEvent.click(screen.getByRole('button', { name: 'Modificar precios' }))
-  await screen.findByRole('option', { name: 'Almacén' })
-  fireEvent.change(screen.getByLabelText('Rubro'), { target: { value: '1' } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Rubro' }), {
+    target: { value: 'Almacén' },
+  })
+  fireEvent.click(await screen.findByRole('option', { name: 'Almacén' }))
   fireEvent.change(screen.getByLabelText('Aumento porcentual'), { target: { value: '10' } })
   fireEvent.click(screen.getByRole('button', { name: 'Ver aumento' }))
   const apply = await screen.findByRole('button', { name: 'Aplicar aumento a 2 artículos' })
@@ -48,8 +50,10 @@ it('previews a category increase before applying the reviewed prices', async () 
 it('invalidates the preview when the percentage changes and when prices become stale', async () => {
   render(<CategoryPricePanel />)
   fireEvent.click(screen.getByRole('button', { name: 'Modificar precios' }))
-  await screen.findByRole('option', { name: 'Almacén' })
-  fireEvent.change(screen.getByLabelText('Rubro'), { target: { value: '1' } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Rubro' }), {
+    target: { value: 'Almacén' },
+  })
+  fireEvent.click(await screen.findByRole('option', { name: 'Almacén' }))
   fireEvent.change(screen.getByLabelText('Aumento porcentual'), { target: { value: '10' } })
   fireEvent.click(screen.getByRole('button', { name: 'Ver aumento' }))
   await screen.findByRole('button', { name: /Aplicar aumento/ })

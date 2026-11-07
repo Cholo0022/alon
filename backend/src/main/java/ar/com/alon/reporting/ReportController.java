@@ -20,8 +20,10 @@ public class ReportController {
      * la API, delegando la consulta al repositorio.
      */
     @GetMapping("/alon/reports/daily-sales")
-    public List<Map<String, Object>> dailySales() {
-        return queries.dailySales();
+    public List<Map<String, Object>> dailySales(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        return queries.dailySales(from, to);
     }
 
     /**
@@ -29,8 +31,10 @@ public class ReportController {
      * la consulta al repositorio.
      */
     @GetMapping("/alon/reports/monthly-sales")
-    public List<Map<String, Object>> monthlySales() {
-        return queries.monthlySales();
+    public List<Map<String, Object>> monthlySales(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        return queries.monthlySales(from, to);
     }
 
     /**
@@ -38,8 +42,10 @@ public class ReportController {
      * delegando la consulta al repositorio.
      */
     @GetMapping("/alon/reports/payment-methods")
-    public List<Map<String, Object>> paymentMethods() {
-        return queries.paymentMethods();
+    public List<Map<String, Object>> paymentMethods(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        return queries.paymentMethods(from, to);
     }
 
     /**
@@ -47,8 +53,10 @@ public class ReportController {
      * delegando la consulta al repositorio.
      */
     @GetMapping("/alon/reports/top-customers")
-    public List<Map<String, Object>> topCustomers() {
-        return queries.topCustomers();
+    public List<Map<String, Object>> topCustomers(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        return queries.topCustomers(from, to);
     }
 
     /**
@@ -56,8 +64,10 @@ public class ReportController {
      * la consulta al repositorio.
      */
     @GetMapping("/alon/reports/top-articles")
-    public List<Map<String, Object>> topArticles() {
-        return queries.topArticles();
+    public List<Map<String, Object>> topArticles(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        return queries.topArticles(from, to);
     }
 
     /**
@@ -65,8 +75,10 @@ public class ReportController {
      * delegando la consulta al repositorio.
      */
     @GetMapping("/alon/reports/purchases-by-article")
-    public List<Map<String, Object>> purchasesByArticle() {
-        return queries.purchasesByArticle();
+    public List<Map<String, Object>> purchasesByArticle(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        return queries.purchasesByArticle(from, to);
     }
 
     /**
@@ -83,8 +95,10 @@ public class ReportController {
      * consulta al repositorio.
      */
     @GetMapping("/alon/reports/expenses")
-    public List<Map<String, Object>> expenses() {
-        return queries.expenses();
+    public List<Map<String, Object>> expenses(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        return queries.expenses(from, to);
     }
 
     /**

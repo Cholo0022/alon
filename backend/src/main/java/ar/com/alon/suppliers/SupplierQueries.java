@@ -28,12 +28,17 @@ public class SupplierQueries {
      * Consulta proveedores del comercio filtrados por estado, con identificación y saldo pendiente.
      */
     public List<Map<String, Object>> suppliers(boolean inactive) {
+        return suppliers(inactive, false);
+    }
+
+    public List<Map<String, Object>> suppliers(boolean inactive, boolean debtOnly) {
         return pages.query(
-                "codigo,nombre,telefono,email",
+                "codigo,nombre,especialidad,telefono,email",
                 """
                 SELECT id, codigo, nombre, cuit, especialidad, telefono, email, saldo_actual AS saldo_pendiente, estado
-                FROM proveedores WHERE comercio_id = ? AND estado=? ORDER BY nombre,id
-                """,
+                FROM proveedores WHERE comercio_id = ? AND estado=? %s ORDER BY nombre,id
+                """
+                        .formatted(debtOnly ? "AND saldo_actual>0" : ""),
                 identity.storeId(),
                 inactive ? "INACTIVO" : "ACTIVO");
     }

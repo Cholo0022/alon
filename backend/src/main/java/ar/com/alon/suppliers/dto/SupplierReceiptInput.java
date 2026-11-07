@@ -9,4 +9,5 @@ public record SupplierReceiptInput(
         @Positive long supplierId,
         LocalDate date,
         BigDecimal amount,
-        @Size(max = 30) String paymentMethod) {}
+        @Size(max = 30) String paymentMethod,
+        @NotNull Boolean useCash) {}

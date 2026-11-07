@@ -45,6 +45,24 @@ public class PurchaseQueries {
                 identity.storeId());
     }
 
+    /** Consulta todas las variantes activas del modelo seleccionado dentro del mismo comercio. */
+    public List<Map<String, Object>> variants(long articleId) {
+        return pages.query(
+                "a.codigo,a.nombre,a.talle,a.color",
+                """
+            SELECT a.id,a.codigo,a.nombre,a.tipo_producto,a.modelo,a.marca,a.talle,a.color,a.sistema_talle,a.costo,a.unidad
+            FROM articulos a JOIN articulos base ON base.comercio_id=a.comercio_id
+              AND base.tipo_producto=a.tipo_producto AND base.modelo=a.modelo AND base.marca=a.marca
+              AND base.sistema_talle=a.sistema_talle AND base.publico=a.publico
+              AND base.temporada=a.temporada AND base.material=a.material
+            WHERE base.id=? AND a.comercio_id=? AND base.estado='ACTIVO' AND a.estado='ACTIVO'
+              AND base.tipo_producto IN ('INDUMENTARIA','CALZADO')
+            ORDER BY a.color,a.talle,a.codigo,a.id
+            """,
+                articleId,
+                identity.storeId());
+    }
+
     /** Consulta cabecera y renglones de una compra perteneciente al comercio. */
     public Map<String, Object> purchaseDetails(long id) {
         Map<String, Object> purchase =

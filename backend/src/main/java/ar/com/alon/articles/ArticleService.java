@@ -101,6 +101,402 @@ public class ArticleService extends StoreJdbcSupport {
         return Map.of("id", id, "codigo", code, "nombre", name);
     }
 
+    /** Crea todos los talles de una prenda juntos, sin ingresar stock fuera del comprobante. */
+    @Transactional
+    public java.util.List<Map<String, Object>> createPurchaseApparel(
+            ar.com.alon.articles.dto.PurchaseApparelInput input) {
+        return createApparelVariants(input, false);
+    }
+
+    /** Añade talles al modelo guardado sin modificar stock ni datos de variantes anteriores. */
+    @Transactional
+    public java.util.List<Map<String, Object>> addApparelVariants(
+            long id, ar.com.alon.articles.dto.AddApparelVariantsInput input) {
+        if (!identity.permits("compras")) identity.require("costos");
+        var base =
+                jdbc.queryForMap(
+                        "SELECT * FROM articulos WHERE comercio_id=? AND id=? AND estado='ACTIVO' FOR UPDATE",
+                        identity.storeId(),
+                        id);
+        String kind = String.valueOf(base.get("tipo_producto"));
+        if (!java.util.Set.of("INDUMENTARIA", "CALZADO").contains(kind))
+            throw new IllegalArgumentException("Este artículo no usa talles.");
+        var existing =
+                jdbc.queryForList(
+                        "SELECT a.talle,a.color FROM articulos a WHERE a.comercio_id=? AND a.tipo_producto=? AND a.modelo=? AND a.marca=? AND a.sistema_talle=? AND a.publico=? AND a.temporada=? AND a.material=?",
+                        identity.storeId(),
+                        kind,
+                        base.get("modelo"),
+                        base.get("marca"),
+                        base.get("sistema_talle"),
+                        base.get("publico"),
+                        base.get("temporada"),
+                        base.get("material"));
+        var seen = new java.util.HashSet<String>();
+        for (var row : existing)
+            seen.add(
+                    String.valueOf(row.get("talle")).trim().toUpperCase(java.util.Locale.ROOT)
+                            + "\n"
+                            + String.valueOf(row.get("color"))
+                                    .trim()
+                                    .toUpperCase(java.util.Locale.ROOT));
+        var errors = new java.util.LinkedHashMap<String, String>();
+        for (int index = 0; index < input.variants().size(); index++) {
+            var variant = input.variants().get(index);
+            String key =
+                    variant.size().trim().toUpperCase(java.util.Locale.ROOT)
+                            + "\n"
+                            + variant.color().trim().toUpperCase(java.util.Locale.ROOT);
+            if (!seen.add(key)) {
+                errors.put(
+                        "variants[" + index + "].size",
+                        "Este talle y color ya existen en la prenda.");
+                errors.put("variants[" + index + "].color", "Elegí una combinación nueva.");
+            }
+        }
+        if (!errors.isEmpty())
+            throw new ar.com.alon.shared.web.FieldValidationException(
+                    "Hay talles y colores que ya están cargados en esta prenda.", errors);
+        String name = String.valueOf(base.get("nombre"));
+        String suffix = " · " + base.get("talle") + " · " + base.get("color");
+        if (name.endsWith(suffix)) name = name.substring(0, name.length() - suffix.length());
+        var apparel =
+                new ar.com.alon.articles.dto.ApparelInput(
+                        kind,
+                        String.valueOf(base.get("modelo")),
+                        String.valueOf(base.get("marca")),
+                        String.valueOf(base.get("talle")),
+                        String.valueOf(base.get("sistema_talle")),
+                        String.valueOf(base.get("color")),
+                        String.valueOf(base.get("material")),
+                        String.valueOf(base.get("publico")),
+                        String.valueOf(base.get("temporada")),
+                        base.get("descripcion") == null
+                                ? name
+                                : String.valueOf(base.get("descripcion")));
+        var first = input.variants().getFirst();
+        boolean round =
+                Boolean.TRUE.equals(base.get("redondeo_precio"))
+                        || "1".equals(String.valueOf(base.get("redondeo_precio")));
+        boolean publish =
+                Boolean.TRUE.equals(base.get("cargar_web"))
+                        || "1".equals(String.valueOf(base.get("cargar_web")));
+        var product =
+                new ArticleInput(
+                        first.code(),
+                        name,
+                        0,
+                        0,
+                        "UNIDAD",
+                        (BigDecimal) base.get("costo"),
+                        BigDecimal.ZERO,
+                        (BigDecimal) base.get("flete_porcentaje"),
+                        false,
+                        true,
+                        (BigDecimal) base.get("margen_porcentaje"),
+                        round,
+                        BigDecimal.ZERO,
+                        (BigDecimal) base.get("stock_minimo"),
+                        null,
+                        null,
+                        publish,
+                        apparel);
+        var saved =
+                createApparelVariants(
+                        new ar.com.alon.articles.dto.PurchaseApparelInput(
+                                product, input.variants()),
+                        true);
+        for (var variant : saved) {
+            long variantId = ((Number) variant.get("id")).longValue();
+            jdbc.update(
+                    "UPDATE articulos SET precio_venta=?,imagen_clave=?,imagen_ilustrativa=? WHERE comercio_id=? AND id=?",
+                    base.get("precio_venta"),
+                    base.get("imagen_clave"),
+                    base.get("imagen_ilustrativa"),
+                    identity.storeId(),
+                    variantId);
+            jdbc.update(
+                    "INSERT INTO articulo_imagenes(comercio_id,articulo_id,posicion,clave,ilustrativa) SELECT comercio_id,?,posicion,clave,ilustrativa FROM articulo_imagenes WHERE comercio_id=? AND articulo_id=?",
+                    variantId,
+                    identity.storeId(),
+                    id);
+        }
+        audit.record("articulo", id, "AGREGAR_TALLES", null, saved);
+        return saved;
+    }
+
+    @Transactional
+    public java.util.List<Map<String, Object>> updateApparelGroup(
+            long id, ar.com.alon.articles.dto.ApparelGroupUpdateInput input) {
+        if (!identity.permits("compras")) identity.require("costos");
+        var snapshot = ApparelGroups.load(jdbc, identity.storeId(), id, true);
+        if (!snapshot.token().equals(input.token()))
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT,
+                    "La prenda cambió desde que la abriste. Volvé a cargar los datos antes de guardar para conservar el stock actualizado.");
+        var requested =
+                new java.util.LinkedHashMap<
+                        Long, ar.com.alon.articles.dto.ApparelGroupUpdateInput.Line>();
+        for (var line : input.lines())
+            if (requested.put(line.id(), line) != null)
+                throw new IllegalArgumentException("Hay talles repetidos en la solicitud.");
+        var ids = new java.util.HashSet<Long>();
+        snapshot.rows().forEach(row -> ids.add(((Number) row.get("id")).longValue()));
+        if (!ids.equals(requested.keySet()))
+            throw new IllegalArgumentException("Revisá la lista de talles de esta prenda.");
+        for (var row : snapshot.rows()) {
+            long variantId = ((Number) row.get("id")).longValue();
+            var line = requested.get(variantId);
+            BigDecimal quantity =
+                    ar.com.alon.shared.validation.DecimalRules.quantity(
+                            line.stock(), false, "El stock no puede ser negativo.");
+            if (quantity.stripTrailingZeros().scale() > 0)
+                throw new IllegalArgumentException("Usá cantidades enteras por talle.");
+            BigDecimal delta = quantity.subtract((BigDecimal) row.get("stock"));
+            if (delta.signum() != 0) {
+                jdbc.update(
+                        "UPDATE articulos SET stock=? WHERE comercio_id=? AND id=?",
+                        quantity,
+                        identity.storeId(),
+                        variantId);
+                stock.addStockMovement(
+                        variantId, "AJUSTE", delta, "PRENDA-" + id, "Ajuste de stock por talle");
+            }
+            if (line.code() != null)
+                jdbc.update(
+                        "UPDATE articulos SET codigo=? WHERE comercio_id=? AND id=?",
+                        required(line.code(), "El código no puede estar vacío."),
+                        identity.storeId(),
+                        variantId);
+        }
+        var all = new java.util.ArrayList<Map<String, Object>>(snapshot.rows());
+        if (input.newVariants() != null && !input.newVariants().isEmpty())
+            all.addAll(
+                    addApparelVariants(
+                            id,
+                            new ar.com.alon.articles.dto.AddApparelVariantsInput(
+                                    input.newVariants())));
+        var common = input.common();
+        if (common != null) {
+            var base = snapshot.base();
+            String model =
+                    common.model() == null
+                            ? String.valueOf(base.get("modelo"))
+                            : required(common.model(), "Completá el modelo.");
+            String brand =
+                    common.brand() == null
+                            ? String.valueOf(base.get("marca"))
+                            : required(common.brand(), "Completá la marca.");
+            String material =
+                    common.material() == null
+                            ? String.valueOf(base.get("material"))
+                            : required(common.material(), "Completá el material.");
+            String system =
+                    common.sizeSystem() == null
+                            ? String.valueOf(base.get("sistema_talle"))
+                            : required(common.sizeSystem(), "Completá el sistema de talles.");
+            String audience =
+                    common.audience() == null
+                            ? String.valueOf(base.get("publico"))
+                            : required(common.audience(), "Completá el público.");
+            String season =
+                    common.season() == null
+                            ? String.valueOf(base.get("temporada"))
+                            : required(common.season(), "Completá la temporada.");
+            var allIds = all.stream().map(row -> ((Number) row.get("id")).longValue()).toList();
+            var args =
+                    new java.util.ArrayList<Object>(
+                            java.util.List.of(
+                                    identity.storeId(),
+                                    base.get("tipo_producto"),
+                                    model,
+                                    brand,
+                                    material,
+                                    system,
+                                    audience,
+                                    season));
+            args.addAll(allIds);
+            Integer collisions =
+                    jdbc.queryForObject(
+                            "SELECT COUNT(*) FROM articulos WHERE comercio_id=? AND tipo_producto=? AND modelo=? AND marca=? AND material=? AND sistema_talle=? AND publico=? AND temporada=? AND id NOT IN ("
+                                    + String.join(
+                                            ",", java.util.Collections.nCopies(allIds.size(), "?"))
+                                    + ")",
+                            Integer.class,
+                            args.toArray());
+            // Las variantes inactivas del modelo se conservan fuera de esta edición.
+            boolean identityChanged =
+                    !model.equals(base.get("modelo"))
+                            || !brand.equals(base.get("marca"))
+                            || !material.equals(base.get("material"))
+                            || !system.equals(base.get("sistema_talle"))
+                            || !audience.equals(base.get("publico"))
+                            || !season.equals(base.get("temporada"));
+            if (identityChanged && collisions != null && collisions > 0)
+                throw new IllegalArgumentException(
+                        "Ya existe otra prenda con esos datos de modelo. Elegí una referencia diferente.");
+            for (var item : all) {
+                long variantId = ((Number) item.get("id")).longValue();
+                var row =
+                        jdbc.queryForMap(
+                                "SELECT * FROM articulos WHERE comercio_id=? AND id=?",
+                                identity.storeId(),
+                                variantId);
+                String name =
+                        common.name() == null
+                                ? String.valueOf(row.get("nombre"))
+                                : required(common.name(), "Completá el nombre.")
+                                        + " · "
+                                        + row.get("talle")
+                                        + " · "
+                                        + row.get("color");
+                if (name.length() > 180)
+                    throw new IllegalArgumentException("El nombre es demasiado largo.");
+                jdbc.update(
+                        "UPDATE articulos SET nombre=?,modelo=?,marca=?,material=?,sistema_talle=?,publico=?,temporada=?,descripcion=?,costo=?,precio_venta=?,cargar_web=? WHERE comercio_id=? AND id=?",
+                        name,
+                        model,
+                        brand,
+                        material,
+                        system,
+                        audience,
+                        season,
+                        common.description() == null
+                                ? row.get("descripcion")
+                                : required(common.description(), "Completá la descripción."),
+                        common.cost() == null
+                                ? row.get("costo")
+                                : nonNegative(common.cost(), "El costo no puede ser negativo."),
+                        common.salePrice() == null
+                                ? row.get("precio_venta")
+                                : nonNegative(
+                                        common.salePrice(), "El precio no puede ser negativo."),
+                        common.publishOnWeb() == null
+                                ? row.get("cargar_web")
+                                : common.publishOnWeb(),
+                        identity.storeId(),
+                        variantId);
+            }
+        }
+        var after = new java.util.ArrayList<Map<String, Object>>();
+        for (var item : all)
+            after.add(
+                    jdbc.queryForMap(
+                            "SELECT * FROM articulos WHERE comercio_id=? AND id=?",
+                            identity.storeId(),
+                            item.get("id")));
+        audit.record("articulo", id, "MODIFICAR_PRENDA", snapshot.rows(), after);
+        return after;
+    }
+
+    @Transactional
+    public void copyApparelPhotos(long source, long target) {
+        jdbc.queryForObject(
+                "SELECT id FROM articulos WHERE comercio_id=? AND id=?",
+                Long.class,
+                identity.storeId(),
+                target);
+        var base =
+                jdbc.queryForMap(
+                        "SELECT imagen_clave,imagen_ilustrativa FROM articulos WHERE comercio_id=? AND id=?",
+                        identity.storeId(),
+                        source);
+        jdbc.update(
+                "DELETE FROM articulo_imagenes WHERE comercio_id=? AND articulo_id=?",
+                identity.storeId(),
+                target);
+        jdbc.update(
+                "INSERT INTO articulo_imagenes(comercio_id,articulo_id,posicion,clave,ilustrativa) SELECT comercio_id,?,posicion,clave,ilustrativa FROM articulo_imagenes WHERE comercio_id=? AND articulo_id=?",
+                target,
+                identity.storeId(),
+                source);
+        jdbc.update(
+                "UPDATE articulos SET imagen_clave=?,imagen_ilustrativa=? WHERE comercio_id=? AND id=?",
+                base.get("imagen_clave"),
+                base.get("imagen_ilustrativa"),
+                identity.storeId(),
+                target);
+    }
+
+    /** Registra el stock inicial por talle en el alta del catálogo. */
+    @Transactional
+    public java.util.List<Map<String, Object>> createCatalogApparel(
+            ar.com.alon.articles.dto.PurchaseApparelInput input) {
+        return createApparelVariants(input, true);
+    }
+
+    private java.util.List<Map<String, Object>> createApparelVariants(
+            ar.com.alon.articles.dto.PurchaseApparelInput input, boolean initialStock) {
+        var base = input.product();
+        if (base.apparel() == null)
+            throw new IllegalArgumentException("Completá los datos de la prenda.");
+        var seen = new java.util.HashSet<String>();
+        var result = new java.util.ArrayList<Map<String, Object>>();
+        for (var variant : input.variants()) {
+            if (variant.quantity() < (initialStock ? 0 : 1))
+                throw new IllegalArgumentException(
+                        "Ingresá cantidades enteras válidas para cada talle.");
+            String combination =
+                    variant.size().trim().toUpperCase(java.util.Locale.ROOT)
+                            + "\n"
+                            + variant.color().trim().toUpperCase(java.util.Locale.ROOT);
+            if (!seen.add(combination))
+                throw new IllegalArgumentException("Hay talles y colores repetidos en la prenda.");
+            var a = base.apparel();
+            String name =
+                    base.name().trim()
+                            + " · "
+                            + variant.size().trim()
+                            + " · "
+                            + variant.color().trim();
+            if (name.length() > 180)
+                throw new IllegalArgumentException("El nombre de la prenda es demasiado largo.");
+            var apparel =
+                    new ar.com.alon.articles.dto.ApparelInput(
+                            a.kind(),
+                            a.model(),
+                            a.brand(),
+                            variant.size(),
+                            a.sizeSystem(),
+                            variant.color(),
+                            a.material(),
+                            a.audience(),
+                            a.season(),
+                            a.description());
+            var article =
+                    new ArticleInput(
+                            variant.code(),
+                            name,
+                            0,
+                            0,
+                            "UNIDAD",
+                            base.cost(),
+                            BigDecimal.ZERO,
+                            base.freightPercent(),
+                            false,
+                            false,
+                            base.marginPercent(),
+                            base.roundPrice(),
+                            initialStock ? BigDecimal.valueOf(variant.quantity()) : BigDecimal.ZERO,
+                            base.minimumStock(),
+                            null,
+                            base.photos(),
+                            base.publishOnWeb(),
+                            apparel);
+            var saved = new java.util.LinkedHashMap<String, Object>(createArticle(article));
+            if (base.salePrice() != null)
+                jdbc.update(
+                        "UPDATE articulos SET precio_venta=? WHERE comercio_id=? AND id=?",
+                        nonNegative(base.salePrice(), "El precio no puede ser negativo."),
+                        identity.storeId(),
+                        saved.get("id"));
+            saved.put("quantity", variant.quantity());
+            saved.put("unitCost", base.cost() == null ? BigDecimal.ZERO : base.cost());
+            result.add(saved);
+        }
+        return result;
+    }
+
     /**
      * Bloquea el artículo del comercio, valida sus nuevos datos y actualiza precios y stock dejando
      * trazabilidad de los ajustes.

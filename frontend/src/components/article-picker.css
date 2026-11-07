@@ -279,3 +279,172 @@
 .barcode-create-dialog > * {
   flex-shrink: 0;
 }
+
+.customer-entry-dialog fieldset {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.customer-entry-dialog .entry-actions {
+  flex-wrap: wrap;
+}
+
+.purchase-product-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  grid-column: 1 / -1;
+}
+.purchase-product-tools > label {
+  min-width: 200px;
+  flex: 1;
+}
+.purchase-entry .purchase-lines input {
+  width: 120px;
+  max-width: 100%;
+  min-height: 40px;
+}
+.purchase-dialog {
+  width: min(520px, 100%);
+  overflow-y: auto;
+}
+.purchase-dialog-wide {
+  width: min(960px, 100%);
+}
+.purchase-dialog > form {
+  padding: 0 24px 24px;
+  display: grid;
+  gap: 16px;
+}
+.purchase-dialog label {
+  display: grid;
+  gap: 7px;
+}
+.purchase-dialog fieldset {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.purchase-dialog input {
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+}
+.purchase-dialog .entry-actions {
+  flex-wrap: wrap;
+}
+.purchase-variant-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.purchase-variant-table :is(th, td) {
+  padding: 10px;
+  text-align: left;
+  border: 1px solid #d0d9e3;
+  vertical-align: top;
+}
+.purchase-variant-table td {
+  min-width: 110px;
+}
+.purchase-variant-table label + label {
+  margin-top: 10px;
+}
+.purchase-variant-table input {
+  width: 90px;
+}
+.purchase-final-options {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #d0d9e3;
+  border-radius: 8px;
+  min-width: 0;
+}
+.purchase-final-options label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.purchase-final-options input[type='checkbox'] {
+  width: 20px;
+  min-height: 20px;
+  flex-shrink: 0;
+}
+.purchase-final-options p {
+  font-size: 13px;
+  margin: 0;
+  line-height: 1.5;
+}
+.barcode-create-dialog label:has(> input[type='hidden']) {
+  display: none;
+}
+
+.purchase-new-apparel,
+.purchase-new-apparel > fieldset,
+.purchase-apparel-common {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.purchase-new-apparel > fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.purchase-new-apparel label {
+  display: grid;
+  gap: 6px;
+}
+.purchase-new-apparel input:not([type='checkbox']),
+.purchase-new-apparel select,
+.purchase-new-apparel textarea {
+  min-height: 42px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.purchase-new-apparel .purchase-variant-table input {
+  width: 130px;
+}
+.purchase-new-apparel details {
+  border: 1px solid #d0d9e3;
+  padding: 14px;
+  border-radius: 8px;
+}
+.purchase-new-apparel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.purchase-apparel-common {
+  margin-top: 14px;
+}
+
+.catalog-article-kind {
+  display: grid;
+  gap: 8px;
+  margin: 16px 24px;
+  max-width: 480px;
+  font-weight: 600;
+}
+.catalog-article-kind select {
+  min-height: 44px;
+  width: 100%;
+}
+.entry-panel > .purchase-new-apparel {
+  margin: 20px 24px;
+}
+
+.apparel-price-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.apparel-size-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.apparel-size-buttons button[aria-pressed='true'] { border: 2px solid #087f74; background: #e7f7f2; font-weight: 700; }
+.purchase-new-apparel .apparel-inline-check { display: flex; gap: 10px; align-items: center; }
+.apparel-inline-check input[type='checkbox'] { width: 20px; height: 20px; flex: 0 0 auto; }
+.garment-editor > .purchase-new-apparel { margin: 20px 24px; }
+.garment-maintenance { margin: 20px 24px; }
+@media (max-width: 600px) { .apparel-price-fields { grid-template-columns: 1fr; } }

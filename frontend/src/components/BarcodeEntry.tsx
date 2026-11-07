@@ -1,3 +1,5 @@
+import { readApparelDraft } from '../lib/apparelDraft'
+import { NewPurchaseApparelForm } from './NewPurchaseApparelForm'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { apiFetch } from '../lib/http'
@@ -90,6 +92,7 @@ export function BarcodeEntry({
         <NewPurchaseArticleDialog
           initialCode={missing}
           onClose={() => setMissing('')}
+          endpoint="/api/v1/operations/purchases/articles"
           onSaved={(saved) => {
             setMissing('')
             setCode('')
@@ -108,10 +111,18 @@ export function BarcodeEntry({
 
 export function NewPurchaseArticleDialog({
   initialCode = '',
+  multipleApparel = false,
+  apparelDraftKey,
+  maxVariants = 100,
+  endpoint = '/api/v1/operations/purchases/articles',
   onClose,
   onSaved,
 }: {
   initialCode?: string
+  multipleApparel?: boolean
+  apparelDraftKey?: string
+  maxVariants?: number
+  endpoint?: string
   onClose: () => void
   onSaved: (saved: Record<string, unknown>) => void
 }) {
@@ -124,7 +135,9 @@ export function NewPurchaseArticleDialog({
       origin?.focus()
     }
   }, [])
-  const [apparel, setApparel] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [kind, setKind] = useState(() => multipleApparel ? readApparelDraft(apparelDraftKey)?.kind ?? 'ARTICULO' : 'ARTICULO')
+  const apparel = kind !== 'ARTICULO'
   return createPortal(
     <div className="article-picker-backdrop">
       <section
@@ -136,7 +149,7 @@ export function NewPurchaseArticleDialog({
           if (event.key === 'Escape') {
             event.preventDefault()
             event.stopPropagation()
-            onClose()
+            if (!saving) onClose()
           }
           if (event.key === 'Tab') {
             const controls = Array.from(
@@ -157,67 +170,92 @@ export function NewPurchaseArticleDialog({
         }}
         aria-label="Nuevo artículo de la compra"
       >
-        <button type="button" className="secondary-button" onClick={() => onClose()}>
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={saving}
+          onClick={() => onClose()}
+        >
           Cancelar alta
         </button>
         <label>
-          <input
-            type="checkbox"
-            checked={apparel}
-            onChange={(event) => setApparel(event.target.checked)}
-          />{' '}
-          Indumentaria o calzado
+          Tipo de producto
+          <select disabled={saving} value={kind} onChange={(event) => setKind(event.target.value)}>
+            <option value="ARTICULO">Artículo</option>
+            <option value="INDUMENTARIA">Indumentaria</option>
+            <option value="CALZADO">Calzado</option>
+          </select>
         </label>
-        <LocalEntryPanel
-          key={initialCode + apparel}
-          initialOpen
-          title="Nuevo artículo de la compra"
-          action="Cargar artículo"
-          endpoint="/api/v1/operations/articles"
-          articlePhotos
-          pricePreview
-          fields={[
-            { name: 'code', label: 'Código o código de barras', defaultValue: initialCode },
-            { name: 'name', label: 'Nombre del artículo' },
-            ...(apparel
-              ? apparelFields()
-              : [
-                  {
-                    name: 'categoryId',
-                    label: 'Rubro',
-                    valueType: 'number' as const,
-                    lookupEndpoint: '/api/v1/alon/categories',
-                  },
-                ]),
-            {
-              name: 'unit',
-              label: 'Unidad',
-              defaultValue: 'UNIDAD',
-              options: (apparel ? ['UNIDAD'] : ['UNIDAD', 'KILO', 'METRO', 'LITRO', 'CAJA']).map(
-                (value) => ({ value, label: value }),
-              ),
-            },
-            ...['minimumStock', 'cost', 'freightPercent', 'marginPercent'].map((name, index) => ({
-              name,
-              label: [
-                'Stock mínimo',
-                'Costo unitario',
-                'Flete (% del costo)',
-                'Porcentaje de ganancia',
-              ][index],
-              type: 'number',
-              defaultValue: '0',
-            })),
-            {
-              name: 'roundPrice',
-              label: 'Redondear al próximo $10',
-              type: 'checkbox',
-              defaultValue: 'true',
-            },
-            { name: 'publishOnWeb', label: 'Publicar en la página', type: 'checkbox' },
-          ]}
-          onSaved={onSaved}
-        />
+        {apparel && multipleApparel ? (
+          <NewPurchaseApparelForm
+            key={kind}
+            kind={kind}
+            maxVariants={maxVariants}
+            onSaved={onSaved}
+            onBusyChange={setSaving}
+          />
+        ) : (
+          <LocalEntryPanel
+            key={initialCode + kind}
+            initialOpen
+            title="Nuevo artículo de la compra"
+            action="Cargar artículo"
+            endpoint={endpoint}
+            articlePhotos
+            pricePreview
+            fields={[
+              { name: 'code', label: 'Código o código de barras', defaultValue: initialCode },
+              { name: 'name', label: 'Nombre del artículo' },
+              ...(apparel
+                ? apparelFields().map((field) =>
+                    field.name === 'apparelKind'
+                      ? {
+                          ...field,
+                          options: undefined,
+                          type: 'hidden',
+                          defaultValue: kind,
+                          label: '',
+                        }
+                      : field,
+                  )
+                : [
+                    {
+                      name: 'categoryId',
+                      label: 'Rubro',
+                      valueType: 'number' as const,
+                      lookupEndpoint: '/api/v1/alon/categories',
+                    },
+                  ]),
+              {
+                name: 'unit',
+                label: 'Unidad',
+                defaultValue: 'UNIDAD',
+                options: (apparel ? ['UNIDAD'] : ['UNIDAD', 'KILO', 'METRO', 'LITRO', 'CAJA']).map(
+                  (value) => ({ value, label: value }),
+                ),
+              },
+              ...['minimumStock', 'cost', 'freightPercent', 'marginPercent'].map((name, index) => ({
+                name,
+                label: [
+                  'Stock mínimo',
+                  'Costo unitario',
+                  'Flete (% del costo)',
+                  'Porcentaje de ganancia',
+                ][index],
+                type: 'number',
+                defaultValue: '0',
+              })),
+              {
+                name: 'roundPrice',
+                label: 'Redondear al próximo $10',
+                type: 'checkbox',
+                defaultValue: 'true',
+              },
+              { name: 'publishOnWeb', label: 'Publicar en la página', type: 'checkbox' },
+            ]}
+            onSaved={onSaved}
+          />
+        )}
       </section>
     </div>,
     document.body,

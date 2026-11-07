@@ -21,6 +21,12 @@ public class OperationsExceptionHandler {
      * Convierte una validación de negocio fallida en una respuesta 400 con el mensaje de error para
      * el usuario.
      */
+    @ExceptionHandler(FieldValidationException.class)
+    public ResponseEntity<Map<String, Object>> fieldValidation(FieldValidationException exception) {
+        return ResponseEntity.badRequest()
+                .body(Map.of("error", exception.getMessage(), "fields", exception.fields()));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> invalidInput(IllegalArgumentException exception) {
         return ResponseEntity.badRequest().body(Map.of("error", exception.getMessage()));
@@ -65,28 +71,111 @@ public class OperationsExceptionHandler {
         var fields = new java.util.LinkedHashMap<String, String>();
         for (var field : exception.getBindingResult().getFieldErrors())
             fields.putIfAbsent(
-                    field.getField(), "Completá este campo y revisá su formato y longitud.");
-        var labels =
-                Map.ofEntries(
-                        Map.entry("name", "nombre"),
-                        Map.entry("code", "código (máximo 30 caracteres)"),
-                        Map.entry("apparel.size", "talle"),
-                        Map.entry("apparel.color", "color"),
-                        Map.entry("apparel.brand", "marca"),
-                        Map.entry("apparel.model", "modelo"),
-                        Map.entry("supplierId", "proveedor"),
-                        Map.entry("apparel.description", "descripción"));
+                    field.getField(),
+                    switch (field.getCode() == null ? "" : field.getCode()) {
+                        case "NotBlank", "NotNull", "NotEmpty" -> "Completá este campo.";
+                        case "Min", "Positive", "PositiveOrZero", "DecimalMin", "Max" ->
+                                "Revisá la cantidad y los límites permitidos.";
+                        case "Size" -> "Revisá la longitud permitida para este campo.";
+                        case "Email" -> "Ingresá un email válido.";
+                        default -> "Revisá el formato de este campo.";
+                    });
         return ResponseEntity.badRequest()
                 .body(
                         Map.of(
                                 "error",
                                 "Revisá los campos señalados: "
                                         + fields.keySet().stream()
-                                                .map(key -> labels.getOrDefault(key, key))
+                                                .map(this::fieldLabel)
                                                 .collect(java.util.stream.Collectors.joining(", "))
                                         + ".",
                                 "fields",
                                 fields));
+    }
+
+    /** Conserva el campo que falló al convertir una cantidad o un formato JSON. */
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> unreadable(
+            org.springframework.http.converter.HttpMessageNotReadableException exception) {
+        Throwable cause = exception;
+        while (cause != null) {
+            if (cause instanceof tools.jackson.core.JacksonException mapping
+                    && !mapping.getPath().isEmpty()) {
+                var path = new StringBuilder();
+                for (var reference : mapping.getPath()) {
+                    if (reference.getPropertyName() != null) {
+                        if (!path.isEmpty()) path.append('.');
+                        path.append(reference.getPropertyName());
+                    } else if (reference.getIndex() >= 0)
+                        path.append('[').append(reference.getIndex()).append(']');
+                }
+                if (!path.isEmpty()) {
+                    String message = "Revisá el formato de este campo.";
+                    if (cause
+                                    instanceof
+                                    tools.jackson.databind.exc.MismatchedInputException mismatch
+                            && (mismatch.getTargetType() == int.class
+                                    || mismatch.getTargetType() == long.class))
+                        message = "Ingresá un número entero dentro del límite permitido.";
+                    return ResponseEntity.badRequest()
+                            .body(
+                                    Map.of(
+                                            "error",
+                                            "Revisá el campo señalado: "
+                                                    + fieldLabel(path.toString())
+                                                    + ".",
+                                            "fields",
+                                            Map.of(path.toString(), message)));
+                }
+            }
+            cause = cause.getCause();
+        }
+        return ResponseEntity.badRequest()
+                .body(
+                        Map.of(
+                                "error",
+                                "La solicitud tiene un formato inválido. Revisá los datos y volvé a guardar."));
+    }
+
+    private String fieldLabel(String path) {
+        String key = path.startsWith("product.") ? path.substring(8) : path;
+        var variant = java.util.regex.Pattern.compile("variants\\[(\\d+)\\]\\.(\\w+)").matcher(key);
+        if (variant.matches()) {
+            String label =
+                    switch (variant.group(2)) {
+                        case "size" -> "talle";
+                        case "color" -> "color";
+                        case "code" -> "código";
+                        case "quantity" -> "cantidad";
+                        default -> "dato";
+                    };
+            return label + " del renglón " + (Integer.parseInt(variant.group(1)) + 1);
+        }
+        return switch (key) {
+            case "buyer.firstName" -> "nombre";
+            case "buyer.lastName" -> "apellido";
+            case "buyer.phone" -> "celular de diez dígitos";
+            case "buyer.dni" -> "DNI";
+            case "buyer.province" -> "provincia";
+            case "buyer.city" -> "ciudad";
+            case "buyer" -> "datos de contacto";
+            case "name" -> "nombre";
+            case "code" -> "código";
+            case "cost" -> "costo";
+            case "initialStock", "minimumStock" -> "stock";
+            case "freightPercent" -> "flete";
+            case "marginPercent" -> "ganancia";
+            case "apparel.model" -> "modelo";
+            case "apparel.brand" -> "marca";
+            case "apparel.size" -> "talle";
+            case "apparel.color" -> "color";
+            case "apparel.material" -> "material";
+            case "apparel.description" -> "descripción";
+            case "apparel.sizeSystem" -> "sistema de talles";
+            case "apparel.audience" -> "público";
+            case "apparel.season" -> "temporada";
+            default -> key;
+        };
     }
 
     /**
@@ -94,7 +183,6 @@ public class OperationsExceptionHandler {
      * validación.
      */
     @ExceptionHandler({
-        org.springframework.http.converter.HttpMessageNotReadableException.class,
         org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
         jakarta.validation.ConstraintViolationException.class,
         org.springframework.web.method.annotation.HandlerMethodValidationException.class

@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint --deny-warnings",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run && node --test storefront-lan.test.mjs",
     "format": "prettier --write src *.ts *.json",
     "format:check": "prettier --check src *.ts *.json"
   },

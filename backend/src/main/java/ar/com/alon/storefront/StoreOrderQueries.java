@@ -27,12 +27,27 @@ public class StoreOrderQueries {
     /** Consulta pedidos web del comercio con estado, datos de cliente y total. */
     public List<Map<String, Object>> storeOrders() {
         return pages.query(
-                "nombre_cliente,contacto,detalle",
+                "p.nombre_cliente,p.contacto,p.detalle",
                 """
-                SELECT id, nombre_cliente, contacto, detalle, total_estimado, estado, creado_en, medio_pago, venta_id
-                FROM pedidos_tienda WHERE comercio_id = ? ORDER BY creado_en DESC
-                """,
+                SELECT p.id,p.nombre_cliente,p.contacto,p.detalle,p.total_estimado,p.estado,p.creado_en,p.medio_pago,p.venta_id,
+                %s AS comentario_cliente
+                FROM pedidos_tienda p WHERE p.comercio_id = ? ORDER BY p.creado_en DESC,p.id DESC
+                """
+                        .formatted(customerCommentSql("p")),
                 identity.storeId());
+    }
+
+    /** Solo una venta confirmada de otro pedido acredita una compra web previa. */
+    static String customerCommentSql(String alias) {
+        return "CASE WHEN "
+                + alias
+                + ".comprador_id IS NULL THEN NULL WHEN EXISTS (SELECT 1 FROM pedidos_tienda anterior JOIN ventas v ON v.id=anterior.venta_id AND v.comercio_id=anterior.comercio_id WHERE anterior.comercio_id="
+                + alias
+                + ".comercio_id AND anterior.comprador_id="
+                + alias
+                + ".comprador_id AND anterior.id<>"
+                + alias
+                + ".id AND anterior.estado='CONFIRMADO' AND v.estado='CONFIRMADA') THEN 'Este cliente ya ha comprado en la web' ELSE 'Es cliente web nuevo' END";
     }
 
     /**

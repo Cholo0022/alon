@@ -133,6 +133,12 @@ public class PermissionFilter extends OncePerRequestFilter {
                                         .split(","))
                         .filter(s -> !s.isBlank())
                         .collect(Collectors.toSet());
+        if ("POST".equals(req.getMethod())
+                && path.equals("/api/v1/operations/customers")
+                && permissions.contains("ventas")) {
+            chain.doFilter(req, res);
+            return;
+        }
         if ("GET".equals(req.getMethod())
                 && (path.equals("/api/v1/alon/lookups/customers")
                                 && (permissions.contains("ventas")

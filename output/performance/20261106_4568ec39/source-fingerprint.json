@@ -1,0 +1,510 @@
+﻿[
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\accounting\\AccountingController.java",
+        "sha256":  "1A8CB941591A75581BBA214F3E4E459B33890D2937D12BF592D3DFA4110926D4"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\accounting\\AccountingPeriods.java",
+        "sha256":  "B1007519FD1496A8B1B5E1DEFFB2FFD4CEA4A2A6516FB75C56C17F0C316325C1"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\accounting\\AccountingReport.java",
+        "sha256":  "41ADF291E023F8A06094E14F0E1C3927D39AB23D998F7FBF0B66BCEED2CE2158"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\accounting\\AccountingService.java",
+        "sha256":  "DC7A0D2E7476379048B22F03317E5473018845CB01AC1CEC5D97BFAF49D8DEC0"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\accounting\\FiscalInput.java",
+        "sha256":  "655FE827F31E1023457CCE8CD4F33134FFE6D16AC47C8BA95079BB07DCA9FF1D"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\accounting\\FiscalService.java",
+        "sha256":  "00E4B077B0C25B222FC6E29D2F5DB9E2854DB7FB44970E8586E5FA0AE258DBD5"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\AlonApplication.java",
+        "sha256":  "1E1835FCC21D6587B90ECE65696500ABD3F53691B0847E49F3FECF4D6B0B6BFD"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\ApparelGroups.java",
+        "sha256":  "5ADE807130AD0E584F44F6EB3F3A100A0FAC468E2BF9B4FB3C03509544ECF069"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\ArticleController.java",
+        "sha256":  "69A4BE39A371D2717EA9CF1558B7111F1E1AE12136F86B7690C4133A97F4EF8E"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\ArticleImageController.java",
+        "sha256":  "572971ABE0092CC3D9FF71E7B1ED70ED6AFF5A644CE8ED083CB09C2C3D360491"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\ArticleImageStorage.java",
+        "sha256":  "8517AEB63BA2415261E5593F3B5192D9639F112DF31BE38E22203863D16AD6C1"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\ArticlePhotoQueries.java",
+        "sha256":  "7033A2C1526CE477C061C389BC73F2E26799E9468D8DCCBDED6866DACBA8CC56"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\ArticlePhotoService.java",
+        "sha256":  "828FEF1D17A4A38487DA60DEA107A6C10A36595610D0FA2DC9998594083B3EDA"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\ArticlePricing.java",
+        "sha256":  "11112B0A4B3F66629BA3E64003EC04482B29C52F5E62171C662F12BCE7DC80A5"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\ArticleQueries.java",
+        "sha256":  "A1BAE4291F9F0E668537EEE22BAD1CFC18E7FC4E28D020DC5A71A7B92113B5D7"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\ArticleService.java",
+        "sha256":  "E2DCA04C3A7AE4C353F73E55CD7C174C3F75BBF72CFCF23CF9794D253464D570"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\CategoryPriceController.java",
+        "sha256":  "5C2E1AFDEF606F1D758B042B92B89155CE4B64A326FA37E6ED7C7741F9301CC5"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\CategoryPriceService.java",
+        "sha256":  "8F78AED9E1741C4DA7E7116B07EBBEE5CECD1A78511554361DE1D4BE467063D5"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\dto\\AddApparelVariantsInput.java",
+        "sha256":  "07AEC5A98AB93FEBD62C5754BF5FE9707D9D380D7771F1D86FD5C722AD669F61"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\dto\\ApparelGroupUpdateInput.java",
+        "sha256":  "7ADB3890685B9064142316F5F6F82A48E05F3BAE651CCB246CC5F6B7B8E859E6"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\dto\\ApparelInput.java",
+        "sha256":  "FC821FB5CE78FA78339A044495473CB91837C88B7F208B84665075E72F27AC0B"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\dto\\ArticleInput.java",
+        "sha256":  "51ACD1FBB1FB4BB2B78309F19367217E15A7584905CEAB026E7AE818F6A465BF"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\dto\\ArticlePhotoInput.java",
+        "sha256":  "25CFDB0F141DEDFC31D329859753F59D4CC8FB72C60285464E595320673F8D7F"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\articles\\dto\\PurchaseApparelInput.java",
+        "sha256":  "8E64DEAB009C2D59D9F5E9B6A205BD5151220B1164E97718DCB1ED85A24BECB5"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\backup\\BackupArchive.java",
+        "sha256":  "24F3EE6074C4D7F0A76EE7F314BF792860670475EE98E0302D1508462A79189B"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\backup\\BackupController.java",
+        "sha256":  "E07C80A306CE8F00F65224FB8D03BB9EA8FA7CF7B7DEDE569EB71B53E720004A"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\backup\\BackupRestoreService.java",
+        "sha256":  "C4E18624C364754F867361B4E7FDE9F20E228EF31940EB9DD2EA8B3B0AF95C08"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\backup\\BackupService.java",
+        "sha256":  "9278930C8CDBD58362587B7F2B3C0A07F91B7614F3789C64D3078C889BC563C4"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\backup\\BackupSql.java",
+        "sha256":  "00FC583559754FAA5079CD1778BAECAB3007262C8B269693AF83B85E24DB8F63"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\backup\\RestoreGate.java",
+        "sha256":  "87A186BCEF7FB0AFC4D2D11A56F55665BD4144FB2F1E7577576909836C443E24"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\business\\BusinessController.java",
+        "sha256":  "3676460901BC54023EB4BEA43B313156960FD8163276DEBFBB999F5054703181"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\business\\BusinessService.java",
+        "sha256":  "1F8C6B5A6A49C42DD058F9039CDEFAB66FE5DC9C376C058DC05814332F4461C7"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\cash\\CashController.java",
+        "sha256":  "F0B707A689B6D96F54F8C15E7B6B5DDDD0E204F3BEFA828A6AB481470387BF5D"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\cash\\CashLedger.java",
+        "sha256":  "9C541F0A81165B2EAE577F03CF1129EFD31A5E0B0BBAC8E1E83C145D5C7C08D1"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\cash\\CashQueries.java",
+        "sha256":  "6F780548CADEDBFFCD4E28682A8C4BB0856B6B17E5D36063744542300BDDF0A7"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\cash\\CashService.java",
+        "sha256":  "B369AA36EA85B6728C1F35D6C24A5B70B9C59E6AB6D4698084F4506A8F2BB5EF"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\cash\\dto\\CashCloseInput.java",
+        "sha256":  "81D75DFD6B3CAD21080BC0672558A17B9420266D27BEBF2C96DA90DCA25399EB"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\cash\\dto\\CashOpenInput.java",
+        "sha256":  "9C6EB5D8CBE19F1DC6CCBB2D746B09C4D4CC27BB5A73FD26F6917F3068E5B777"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\cash\\dto\\ExpenseInput.java",
+        "sha256":  "AF534E075BAAC5CEE3F88533A31A8754B7EE05756BF26DFCB3815819F9C4BFF7"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\categories\\CategoryController.java",
+        "sha256":  "B0076643B86E63FEA0A1AB963147695D3DCE887CEE568D81F1DF24DA5C783823"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\categories\\CategoryQueries.java",
+        "sha256":  "E667C6D2FC6F49D990963A916BBD225F3149046B27A4BE8DB60640C2F93F13A7"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\categories\\CategoryService.java",
+        "sha256":  "F661672D84E4DE8D704BF229842A71F854FFDC991946DADE42C71FF9096A0396"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\categories\\dto\\CategoryInput.java",
+        "sha256":  "C46206F99245D76682CF680A5CA97E3498B803C649F58DC1943BB1F9F5657200"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\config\\LegacySchemaAdoption.java",
+        "sha256":  "84F4DB2343327009C6C6744AC28682E37661CE595A036C98287B6B6589057EA2"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\config\\TimeConfiguration.java",
+        "sha256":  "F71545DD85D40F1B13694D3623BF1CD215B587777F8637D52540D1B2F9076D4E"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\customers\\CustomerController.java",
+        "sha256":  "5058DE4DB969D24DAE1F0AB0290788ED1BF6807378F805F548592082341566DE"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\customers\\CustomerQueries.java",
+        "sha256":  "86A92CEC5FDB1687517ED71ADEF75227D1F3A6E30CF8A1E9352424C014BBF7A8"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\customers\\CustomerService.java",
+        "sha256":  "963441B9746AF217A46CEE8DE557C0747CB1EDFEC5FF1AFC2559131779CC3034"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\customers\\dto\\CustomerInput.java",
+        "sha256":  "A48C9C618D73225942E1C001860065AF1DF1854752EBDE0BC807A2DDDF093280"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\dashboard\\DashboardController.java",
+        "sha256":  "524B215AE6FB0F76561CDDB27C26213343C5F85BA79D5EF7332CE8D7D3CC4049"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\dashboard\\DashboardQueries.java",
+        "sha256":  "D63091D2425AC6196891C20F4E99D584CA47CBEC05343ADB450B6DE95DCE1695"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\health\\HealthController.java",
+        "sha256":  "1A719422FF2D3227C33BF7CDF7A915A2E6D85C329D292389F485FB27F6382835"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\purchases\\dto\\PurchaseInput.java",
+        "sha256":  "0AEA88C3494B09CB85448B58631DA51D1FA69814E83C810A299D59AB77B35FB2"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\purchases\\dto\\PurchaseLineInput.java",
+        "sha256":  "A071DD2908B703E8FEF59BF544E434D6A6C73DDAD5F95E792144B0D43DB88B3C"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\purchases\\PurchaseController.java",
+        "sha256":  "7B5CFFBD9D9FE08CD95D6E009083D32FD0C71B2CAC4951FD7AD44AF3853D617F"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\purchases\\PurchaseQueries.java",
+        "sha256":  "C95D31DE638B0ECCCE41FD4666A69B7F1901672208377F9C1B6513D747B31897"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\purchases\\PurchaseService.java",
+        "sha256":  "A38F4BF3E8A3212AEDC8603135139742790E8FD445E6DDB027EA3C1EF89AE33D"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\purchases\\PurchaseValuation.java",
+        "sha256":  "D9FD7BFE4E4352A0776CCD190792B3D1BCF7974BAE92FA516C55B4F56B9BFBAB"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\reporting\\ReportController.java",
+        "sha256":  "FC8F392424492E1687C2BD21071B0FFDC64C88F43393C39EF0D6742023BA3E4A"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\reporting\\ReportQueries.java",
+        "sha256":  "A45C9005111921CFE0C3ABA1499F19FCBA84B35D6764C25CD8CD0CC2770A5F2D"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\sales\\dto\\SaleInput.java",
+        "sha256":  "8CCD83D5C457A9F337EBE9F7F8DE26FEA18FEF4BFCB5826C1BAB9B0C82871108"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\sales\\dto\\SaleLine.java",
+        "sha256":  "D926B77D169A8ACE17508579B06F69390C8A6E567AAB70B7B2868628E82C0430"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\sales\\SalesController.java",
+        "sha256":  "5DA0AA59F7975A7344F910A8F1CEA83CF639F443C4E465F590D5DB2D1CE2B534"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\sales\\SalesQueries.java",
+        "sha256":  "65329D7DB1F1EE4E2CE553F3701A292C6529376A19CA94AEB71AEB340EDEF185"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\sales\\SalesReceiptController.java",
+        "sha256":  "2953E41A3FA74EDC0E325FB4E8FE35ABB0735DCDE0B370091DF0CF1CAEBA7D4D"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\sales\\SalesReceiptPdf.java",
+        "sha256":  "3F23A3A8ED3113BAA5E3E4E0DF8C0321078035D6DB088121F6999DEC521983C3"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\sales\\SalesService.java",
+        "sha256":  "FBE1514291FB982040CF7D345147CB551A8C0AAA77FB94B1C6E72269EC62BB6F"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\security\\AccessSecurityController.java",
+        "sha256":  "273E4BD200C4858F29B1F09B56DB866036CC5828C444D36AF6490CC1B77D7C71"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\security\\AccessSecurityService.java",
+        "sha256":  "AFFB33B4F48AE980094A756C4FDC86D1F2791D54F989BB79D4B7E83FD3629493"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\security\\BrowserSecurityFilter.java",
+        "sha256":  "DA111F27933265E598D0570ABE2DF10A15FEA18ABEA625C41E6F7CF05CE0CB95"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\security\\LoginThrottle.java",
+        "sha256":  "B991D267E19C68A506EFA00E690C0DD52D22A0BA9427E3B486A0D6F4BD7C893D"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\security\\PasswordHasher.java",
+        "sha256":  "2BE9B80B1A8F2215B3138F5998315E15AC5994A1F1533123A562FCEB40A3D696"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\security\\PermissionFilter.java",
+        "sha256":  "0413570BAD74B75CDFCD11EFFAA45CC210C397DC6E7B2326977E0E2650266363"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\security\\PlatformAdministration.java",
+        "sha256":  "3977A88C070B3CC61F592F87FA453B399AF952714418912618FBFDDCF649A050"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\security\\PlatformController.java",
+        "sha256":  "01BEE006A35DCC3AE5598DF87C34CFC7C3FA5D74FC9B95E7103DEED98E04FE96"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\security\\RequestIdentity.java",
+        "sha256":  "8EF9781EE8CAA37D9CBF7F9B4C85310D31004FAB60248E4A77ED8250C37B26C8"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\security\\SecurityNotifications.java",
+        "sha256":  "4019C5676098ACE174260A7CE1A0AA484EC0FEE4937019C08A6D3C512D7E20EA"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\security\\TotpSecurity.java",
+        "sha256":  "D143F3ECD5793C826AB7E383FD18A0038195893A623EB99372CEDA9B66A924E7"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\security\\UserRoles.java",
+        "sha256":  "750E7D73A634D35DFE3FA17B1F8FD1C942B0EB3AF376901DC7868B277E27B2CF"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\shared\\audit\\AuditLog.java",
+        "sha256":  "8FFB49193B73B2CB5A97DE7EBD51A4F0275446B2CD6DA56AAD467F481F61D5A8"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\shared\\commands\\CommandExecutor.java",
+        "sha256":  "E9749EEB7E8B1CB2B74500B19619A91B37AB247731E14CBED18A8E1BB955D3D1"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\shared\\persistence\\ReadPage.java",
+        "sha256":  "E9A2253B5D11A4B9CD7F17D4A5433BB6DB967C65C73EEA1244327E79815DC936"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\shared\\persistence\\StoreJdbcSupport.java",
+        "sha256":  "573255B5688ECC312F3EC2DBC7F6929D7EBE6242DB4256B464151EF718EC877E"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\shared\\validation\\DecimalRules.java",
+        "sha256":  "78103A7ECFAF3E76B4755CD57155A9BA2182A774663122246467799CA01466C0"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\shared\\web\\BusinessConflict.java",
+        "sha256":  "A55A5C2D352C891B09D558547701C74D72E5D8DA79C8C554D751413747F9D2E2"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\shared\\web\\FieldValidationException.java",
+        "sha256":  "8B156DEAE96AC486DE3C5165BA8CE2DEC77D025BF5F43741F8594EC977FE65D7"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\shared\\web\\OperationsExceptionHandler.java",
+        "sha256":  "071D9259769AA6A2FFDB74B74A58BB1FC6F5B597387E30B7D1F745A425600D5B"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\shared\\web\\RecordDeletionController.java",
+        "sha256":  "327C3BF93C5C4BABC609A9A19D5810A14914C756C3AFFDBCABD4C1910CE95716"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\stock\\StockController.java",
+        "sha256":  "7E62C819363070B11E97A9611DD71D5897741D42E105F81092A42CB7EE02743A"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\stock\\StockQueries.java",
+        "sha256":  "A9F41A4CC6683199445B5DC7EA00F4011A3E49E0D3C4AA5F8A3F99127B6E1626"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\stock\\StockRepository.java",
+        "sha256":  "153C041CDE627E3C6C925C7BC744E7916D525B896BEB6DD7885BF8DCB5F374ED"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\storefront\\dto\\StoreOrderInput.java",
+        "sha256":  "8E9EFA69DA9E6B2387BE1C0753DEEC54277FA55DC08842FAD501859AE4E60A81"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\storefront\\ShopAccountService.java",
+        "sha256":  "EF6D5990891957EE6631AEF04EC0CF616EEBFAC76A99BE862139B848F8115EDA"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\storefront\\ShopController.java",
+        "sha256":  "604C3B0F523955E97F71DB6DBFFD512C4E16912A9D786001B6B4F677F8014DA8"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\storefront\\ShopService.java",
+        "sha256":  "43ECB84AE8D80DD75E8E3E9E52496369D25F1F8D6797FEB4DDD1F75A858C4DEB"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\storefront\\StoreOrderController.java",
+        "sha256":  "B87F9B9C952CB0BA06679ABF337C60A33A18EA2652C977E7442C06D012B668A9"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\storefront\\StoreOrderQueries.java",
+        "sha256":  "60FE51D40EDB0F290271DE30722FC093DF38D79EC3E3894DCD04C7C3B0509EB7"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\storefront\\StoreOrderService.java",
+        "sha256":  "261B8C1BE2AE5968E86143B79EC91BACC42E23C10E4FAA7D9585C30A162DE7FD"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\suppliers\\dto\\SupplierInput.java",
+        "sha256":  "166990F99DF41D18E2192E2C7D21936CB7B28C599F782ECD9D598133E007E6F4"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\suppliers\\dto\\SupplierReceiptInput.java",
+        "sha256":  "1B4C996A0555900F46FD9B38ACF122E2F7CB3AB329DC60DD12DBE6539E2EE41F"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\suppliers\\SupplierController.java",
+        "sha256":  "C9095AB41785A395D7794B20F985EEB870853D326727DB39AF81A2CB71BAFDC6"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\suppliers\\SupplierQueries.java",
+        "sha256":  "B10A0083909C366A69699369C9776FEE4506255AB258D3FE58A70B69EC66F0D6"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\suppliers\\SupplierService.java",
+        "sha256":  "18642902EA3E3D47AD34624151CADC232028EB1B86F858FF91777ED972E437BA"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\users\\AuthController.java",
+        "sha256":  "8540DC0DB49FBE2AA1048B0127CC00D70220AF46023AD988F51ECFAFAD64464D"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\users\\SessionUser.java",
+        "sha256":  "82DF57300AC1D5EC49B57EE3D29959C5DEF65B9327039028E62D7569C7A19AB4"
+    },
+    {
+        "path":  "backend\\src\\main\\java\\ar\\com\\alon\\users\\UserService.java",
+        "sha256":  "4022547E134A8B9CDF7C49105D7CD0C90F7FC2B56AA32F01177CA22A78B294C1"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\application.properties",
+        "sha256":  "FDCF44134B970526E1E24E43C8B26A67C2287FB50BEA2F6608FA73815E48E552"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\application-local.properties",
+        "sha256":  "2C019A934EE723CA68B79F182F8F4C58456ECC7708C0B78B94DA39B4B7D3A7AA"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\application-production.properties",
+        "sha256":  "286A07AEE58D885453D7E5B66E3EC4D3AEA64C91A8FEA752D424300804F7EC88"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V1__esquema_inicial.sql",
+        "sha256":  "FCC09A5DB75D4D7E2CC0F95FD45D61649EB2A75911FC56D5F0F82454F9A6798B"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V10__seguridad_ingreso.sql",
+        "sha256":  "EE23FF08BACE17BFF13D7B616C74F8B4AEA529E05A43D0F111FDAF07E4122963"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V11__superusuario_y_licencias.sql",
+        "sha256":  "08FEFE410C68D238085AB73B1742DCC263ACCFBFDC6E1B172419046A0EC58E1B"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V12__contabilidad_y_periodos.sql",
+        "sha256":  "4336CABF22AB6BAEA76E987680A3260E40C5C919EA853D1E0558CDD1914686CA"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V13__indumentaria_y_calzado.sql",
+        "sha256":  "17A9ECDF8ECEA071D219263D1E1E5B8D646B0C146C1A2816495E6276528A6B1E"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V14__flete_solo_porcentaje.sql",
+        "sha256":  "AFFDCDD64E2E439D76617D1E65F79FCD782D6C0EDB4E98EB5D789A98C9FADB7B"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V15__articulos_sin_proveedor_obligatorio.sql",
+        "sha256":  "B83441587C86721BB49B2C8AF0E2FD9BAFBD27787C32B775E83CFA53C1B7E261"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V16__compras_stock_opcional.sql",
+        "sha256":  "98120D73D070643CB1AE878EAABF91B22AE0C6A33E32436557780DA9B18319A7"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V17__telefono_publico_tienda.sql",
+        "sha256":  "816F079B99F527837E6BF1BCF0A369C34D7EDA2579EB7EBADB7AFC6433FE4ECC"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V2__integridad_y_auditoria.sql",
+        "sha256":  "A94E36D41DA1A5326D46D908C792BEAA45B26175B79A132B0350AA030FF01F57"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V3__tienda_online.sql",
+        "sha256":  "4514BF802C30A4E20287ADD9120A901A9FFE003CA109F6F39D9E1FE72CF44467"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V4__ventas_web_y_pago.sql",
+        "sha256":  "DCB74846466335C6D893A163729EA5E10DE64A9D7A8CAB06BFE3E225C5E1EC38"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V5__galeria_articulos.sql",
+        "sha256":  "8576172482ED185E3BB15A5564EFC724586148A02A03A8F7677B580A1A045525"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V6__publicacion_web_y_ubicacion.sql",
+        "sha256":  "A06EF4E9571F3B7F9CA4DDECE57CDD338AFAFE9592168DDDFDF8CA726FB0A9C5"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V7__identidad_comercio.sql",
+        "sha256":  "11AF2C3EA63DE1F3BD1D5018A9D49B211165B0FC8F69C88D084FDDB59F95D576"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V8__condicion_pago_compras.sql",
+        "sha256":  "C8DDCB4B50053CC3029AB06F627353AF0740DBDBC75A7FE0A099396D1A77E6D8"
+    },
+    {
+        "path":  "backend\\src\\main\\resources\\db\\migration\\V9__plantillas_tienda.sql",
+        "sha256":  "1A397DE0C43594D53FCC5286A53E7D89CD63458FB45ABBB1DA3D03320BB315D2"
+    },
+    {
+        "path":  "backend\\src\\test\\java\\ar\\com\\alon\\performance\\CapacityBenchmarkTest.java",
+        "sha256":  "A8A1C33F0207CABCDF99899C82E7FE86A9CCBC18E3CA2A992C7C381D80126EB6"
+    }
+]

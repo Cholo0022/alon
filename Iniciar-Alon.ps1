@@ -78,6 +78,13 @@ if ($Reiniciar) {
     Restart-AlonPort 5173 'node.exe' (Join-Path $alonFrontend 'node_modules/vite/bin/vite.js')
 }
 
+# Aplica una compilación preparada solo cuando el servidor está detenido.
+$alonPreparedJar = Join-Path $alonBackend 'target-ready/alon-api-0.1.0-SNAPSHOT.jar'
+if ((Test-Path -LiteralPath $alonPreparedJar) -and !(Get-NetTCPConnection -State Listen -LocalPort 8080 -ErrorAction SilentlyContinue)) {
+    Copy-Item -LiteralPath $alonPreparedJar -Destination $alonJar -Force
+    Remove-Item -LiteralPath $alonPreparedJar
+}
+
 # Windows descifra la contraseña para este usuario; no se incluye en el comando de Java.
 if (!(Get-NetTCPConnection -State Listen -LocalPort 8080 -ErrorAction SilentlyContinue)) {
     $alonPreviousUrl = $env:SPRING_DATASOURCE_URL

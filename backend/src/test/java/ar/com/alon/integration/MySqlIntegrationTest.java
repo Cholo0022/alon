@@ -177,6 +177,369 @@ class MySqlIntegrationTest {
         auth = new UserService(jdbc, new PasswordHasher(), identity, 1, false);
     }
 
+    @Test
+    void purchaseVariantsStayWithinModelAndStoreAndMixedReceiptUpdatesEachStock() {
+        jdbc.update("INSERT INTO comercios(id,codigo,nombre) VALUES(2,'OTHER','Otro comercio')");
+        jdbc.update("INSERT INTO rubros(id,comercio_id,codigo,nombre) VALUES(2,2,'R2','Ropa')");
+        jdbc.update(
+                "INSERT INTO proveedores(id,comercio_id,codigo,nombre,especialidad,telefono,email) VALUES(2,2,'P2','Otro proveedor','','','')");
+        for (int id = 2; id <= 6; id++) {
+            int store = id == 5 ? 2 : 1;
+            jdbc.update(
+                    "INSERT INTO articulos(id,comercio_id,codigo,nombre,rubro_id,proveedor_principal_id,unidad,costo,precio_venta,tipo_producto,modelo,marca,talle,color,sistema_talle,publico,temporada,material,estado) VALUES(?,?,?,?,?,?,'UNIDAD',100,200,'INDUMENTARIA','Remera','Marca',?,'Negro','LETRAS','UNISEX',?,'Algodón',?)",
+                    id,
+                    store,
+                    "R" + id,
+                    "Remera " + id,
+                    store,
+                    store,
+                    id == 2 ? "M" : "L",
+                    id == 4 ? "INVIERNO" : "TODO EL AÑO",
+                    id == 6 ? "INACTIVO" : "ACTIVO");
+        }
+        var queries = new ar.com.alon.purchases.PurchaseQueries(jdbc, identity, clock);
+        assertThat(queries.variants(2))
+                .extracting(row -> ((Number) row.get("id")).longValue())
+                .containsExactlyInAnyOrder(2L, 3L);
+        assertThat(queries.variants(5)).isEmpty();
+        assertThat(queries.variants(1)).isEmpty();
+        long id =
+                buy(
+                        new PurchaseInput(
+                                1,
+                                "FACTURA",
+                                "MIXED",
+                                LocalDate.now(clock),
+                                List.of(
+                                        new PurchaseLineInput(1, d("1.5"), d("80")),
+                                        new PurchaseLineInput(2, d("2"), d("120")),
+                                        new PurchaseLineInput(3, d("3"), d("120"))),
+                                d("0"),
+                                d("0"),
+                                "CUENTA_CORRIENTE",
+                                "CUENTA_CORRIENTE",
+                                true,
+                                true));
+        assertThat(stock()).isEqualByComparingTo("1.5");
+        assertThat(jdbc.queryForObject("SELECT stock FROM articulos WHERE id=2", BigDecimal.class))
+                .isEqualByComparingTo("2");
+        assertThat(jdbc.queryForObject("SELECT stock FROM articulos WHERE id=3", BigDecimal.class))
+                .isEqualByComparingTo("3");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT precio_venta FROM articulos WHERE id=2", BigDecimal.class))
+                .isEqualByComparingTo("200");
+        assertThat(jdbc.queryForObject("SELECT costo FROM articulos WHERE id=2", BigDecimal.class))
+                .isEqualByComparingTo("120");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM compra_detalle WHERE compra_id=?",
+                                Integer.class,
+                                id))
+                .isEqualTo(3);
+    }
+
+    @Test
+    void apparelIsCreatedTogetherAndPublishedOnceWithAllSizesAndIndividualStock() {
+        var apparel =
+                new ar.com.alon.articles.dto.ApparelInput(
+                        "INDUMENTARIA",
+                        "REM-1",
+                        "Marca",
+                        "S",
+                        "LETRAS",
+                        "Negro",
+                        "Algodón",
+                        "UNISEX",
+                        "TODO EL AÑO",
+                        "Remera de algodón");
+        var product =
+                new ar.com.alon.articles.dto.ArticleInput(
+                        "REM-1", "Remera", 0, 0, "UNIDAD", d("100"), d("0"), d("0"), false, false,
+                        d("20"), false, d("0"), d("0"), null, null, true, apparel);
+        var sizes =
+                java.util.stream.IntStream.rangeClosed(1, 26)
+                        .mapToObj(
+                                i ->
+                                        new ar.com.alon.articles.dto.PurchaseApparelInput.Variant(
+                                                "REM-" + i, String.valueOf(i), "Negro", i))
+                        .toList();
+        var input = new ar.com.alon.articles.dto.PurchaseApparelInput(product, sizes);
+        var saved = transaction.execute(status -> catalog.createPurchaseApparel(input));
+        assertThat(saved).hasSize(26);
+        assertThat(saved.getFirst()).containsEntry("quantity", 1);
+        assertThat(saved.get(25)).containsEntry("quantity", 26);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT SUM(stock) FROM articulos WHERE tipo_producto='INDUMENTARIA'",
+                                BigDecimal.class))
+                .isEqualByComparingTo("0");
+        assertThat(shop().catalog("", "", 0).get("total")).isEqualTo(0L);
+        jdbc.update("UPDATE articulos SET stock=5 WHERE tipo_producto='INDUMENTARIA'");
+        long first = ((Number) saved.getFirst().get("id")).longValue();
+        long second = ((Number) saved.get(1).get("id")).longValue();
+        jdbc.update("UPDATE articulos SET stock=0 WHERE id=?", second);
+        var result = shop().catalog("", "", 0);
+        assertThat(result.get("total")).isEqualTo(1L);
+        var items = (List<Map<String, Object>>) result.get("items");
+        assertThat(items).hasSize(1);
+        assertThat(items.getFirst()).containsEntry("nombre", "Remera");
+        var variants = (List<Map<String, Object>>) items.getFirst().get("variants");
+        assertThat(variants).hasSize(26).allSatisfy(v -> assertThat(v).doesNotContainKey("costo"));
+        assertThat(
+                        variants.stream()
+                                .filter(v -> ((Number) v.get("id")).longValue() == second)
+                                .findFirst()
+                                .orElseThrow())
+                .containsEntry("stock", d("0.000"));
+        assertThat((List<?>) shop().catalog("REM-26", "", 0).get("items")).hasSize(1);
+        assertThat(
+                        (List<?>)
+                                ((Map<?, ?>)
+                                                ((List<?>)
+                                                                shop().catalog("REM-26", "", 0)
+                                                                        .get("items"))
+                                                        .getFirst())
+                                        .get("variants"))
+                .hasSize(26);
+        assertThat((List<?>) shop().catalog("", "", 1).get("items")).isEmpty();
+        jdbc.update("UPDATE articulos SET cargar_web=FALSE WHERE id=?", first);
+        assertThat(
+                        (List<?>)
+                                ((Map<?, ?>)
+                                                ((List<?>) shop().catalog("", "", 0).get("items"))
+                                                        .getFirst())
+                                        .get("variants"))
+                .hasSize(25);
+        long selectedId = ((Number) saved.get(2).get("id")).longValue();
+        var validCheckout =
+                new ar.com.alon.storefront.ShopService.Checkout(
+                        List.of(
+                                new ar.com.alon.storefront.ShopService.Line(
+                                        selectedId, d("2"), d("120"))),
+                        "EFECTIVO");
+        var orderResult =
+                transaction.execute(
+                        status ->
+                                shop().checkout(validCheckout, buyer(), "apparel-order-test-0001"));
+        long order = ((Number) orderResult.get("id")).longValue();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT articulo_id FROM pedido_tienda_detalle WHERE pedido_id=?",
+                                Long.class,
+                                order))
+                .isEqualTo(selectedId);
+        var soldOutCheckout =
+                new ar.com.alon.storefront.ShopService.Checkout(
+                        List.of(
+                                new ar.com.alon.storefront.ShopService.Line(
+                                        second, d("1"), d("120"))),
+                        "EFECTIVO");
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        status ->
+                                                shop().checkout(
+                                                                soldOutCheckout,
+                                                                buyer(),
+                                                                "apparel-order-test-0002")))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    }
+
+    @Test
+    void creatingApparelRollsBackAllSizesWhenOneCodeAlreadyExists() {
+        var apparel =
+                new ar.com.alon.articles.dto.ApparelInput(
+                        "INDUMENTARIA",
+                        "REM-1",
+                        "Marca",
+                        "S",
+                        "LETRAS",
+                        "Negro",
+                        "Algodón",
+                        "UNISEX",
+                        "TODO EL AÑO",
+                        "Remera");
+        var product =
+                new ar.com.alon.articles.dto.ArticleInput(
+                        "NEW", "Remera", 0, 0, "UNIDAD", d("100"), d("0"), d("0"), false, false,
+                        d("0"), false, d("0"), d("0"), null, null, true, apparel);
+        var input =
+                new ar.com.alon.articles.dto.PurchaseApparelInput(
+                        product,
+                        List.of(
+                                new ar.com.alon.articles.dto.PurchaseApparelInput.Variant(
+                                        "NEW", "S", "Negro", 2),
+                                new ar.com.alon.articles.dto.PurchaseApparelInput.Variant(
+                                        "A1", "M", "Negro", 3)));
+        assertThatThrownBy(
+                        () -> transaction.execute(status -> catalog.createPurchaseApparel(input)))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM articulos", Integer.class))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void catalogArticleEntryRecordsInitialStockPerSizeIncludingZero() {
+        var apparel =
+                new ar.com.alon.articles.dto.ApparelInput(
+                        "INDUMENTARIA",
+                        "REM-STOCK",
+                        "Marca",
+                        "S",
+                        "LETRAS",
+                        "Negro",
+                        "Algodón",
+                        "UNISEX",
+                        "TODO EL AÑO",
+                        "Remera");
+        var product =
+                new ar.com.alon.articles.dto.ArticleInput(
+                        "S1", "Remera", 0, 0, "UNIDAD", d("100"), d("0"), d("0"), false, false,
+                        d("0"), false, d("0"), d("0"), null, null, true, apparel);
+        var input =
+                new ar.com.alon.articles.dto.PurchaseApparelInput(
+                        product,
+                        List.of(
+                                new ar.com.alon.articles.dto.PurchaseApparelInput.Variant(
+                                        "ST-S", "S", "Negro", 5),
+                                new ar.com.alon.articles.dto.PurchaseApparelInput.Variant(
+                                        "ST-M", "M", "Negro", 3),
+                                new ar.com.alon.articles.dto.PurchaseApparelInput.Variant(
+                                        "ST-L", "L", "Negro", 0)));
+        var saved = transaction.execute(status -> catalog.createCatalogApparel(input));
+        assertThat(saved).hasSize(3);
+        for (int i = 0; i < saved.size(); i++) {
+            assertThat(
+                            jdbc.queryForObject(
+                                    "SELECT stock FROM articulos WHERE id=?",
+                                    BigDecimal.class,
+                                    saved.get(i).get("id")))
+                    .isEqualByComparingTo(i == 0 ? "5" : i == 1 ? "3" : "0");
+        }
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM movimientos_stock WHERE tipo='ALTA'",
+                                Integer.class))
+                .isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM compras", Integer.class)).isZero();
+        var items = (List<Map<String, Object>>) shop().catalog("", "", 0).get("items");
+        assertThat(items).hasSize(1);
+        assertThat((List<?>) items.getFirst().get("variants")).hasSize(3);
+        var zeroPurchase =
+                new ar.com.alon.articles.dto.PurchaseApparelInput(
+                        product,
+                        List.of(
+                                new ar.com.alon.articles.dto.PurchaseApparelInput.Variant(
+                                        "ZERO-PURCH", "XL", "Negro", 0)));
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        status -> catalog.createPurchaseApparel(zeroPurchase)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void addsSizesToAnExistingGarmentWithoutChangingExistingStockPriceOrPhotos() {
+        var apparel =
+                new ar.com.alon.articles.dto.ApparelInput(
+                        "INDUMENTARIA",
+                        "REM-ADD",
+                        "Marca",
+                        "S",
+                        "LETRAS",
+                        "Negro",
+                        "Algodón",
+                        "UNISEX",
+                        "TODO EL AÑO",
+                        "Remera");
+        var product =
+                new ar.com.alon.articles.dto.ArticleInput(
+                        "ADD-S", "Remera", 0, 0, "UNIDAD", d("100"), d("0"), d("0"), false, true,
+                        d("20"), false, d("0"), d("0"), null, null, true, apparel);
+        var created =
+                transaction.execute(
+                        status ->
+                                catalog.createCatalogApparel(
+                                        new ar.com.alon.articles.dto.PurchaseApparelInput(
+                                                product,
+                                                List.of(
+                                                        new ar.com.alon.articles.dto
+                                                                .PurchaseApparelInput.Variant(
+                                                                "ADD-S", "S", "Negro", 5)))));
+        long id = ((Number) created.getFirst().get("id")).longValue();
+        String photo = "11111111-1111-1111-1111-111111111111.png";
+        jdbc.update("UPDATE articulos SET precio_venta=155,imagen_clave=? WHERE id=?", photo, id);
+        jdbc.update(
+                "INSERT INTO articulo_imagenes(comercio_id,articulo_id,posicion,clave,ilustrativa) VALUES(1,?,1,?,FALSE)",
+                id,
+                photo);
+        var input =
+                new ar.com.alon.articles.dto.AddApparelVariantsInput(
+                        List.of(
+                                new ar.com.alon.articles.dto.PurchaseApparelInput.Variant(
+                                        "ADD-M", "M", "Negro", 3),
+                                new ar.com.alon.articles.dto.PurchaseApparelInput.Variant(
+                                        "ADD-L", "L", "Negro", 0)));
+        var added = transaction.execute(status -> catalog.addApparelVariants(id, input));
+        assertThat(added).hasSize(2);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT stock FROM articulos WHERE id=?", BigDecimal.class, id))
+                .isEqualByComparingTo("5");
+        for (int index = 0; index < added.size(); index++) {
+            var row =
+                    jdbc.queryForMap(
+                            "SELECT stock,precio_venta,modelo,marca,imagen_clave FROM articulos WHERE id=?",
+                            added.get(index).get("id"));
+            assertThat((BigDecimal) row.get("stock")).isEqualByComparingTo(index == 0 ? "3" : "0");
+            assertThat((BigDecimal) row.get("precio_venta")).isEqualByComparingTo("155");
+            assertThat(row)
+                    .containsEntry("modelo", "REM-ADD")
+                    .containsEntry("marca", "Marca")
+                    .containsEntry("imagen_clave", photo);
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM articulo_imagenes", Integer.class))
+                .isEqualTo(3);
+        assertThat((List<?>) shop().catalog("", "", 0).get("items")).hasSize(1);
+        assertThat(new ArticleQueries(jdbc, identity, clock).variants(id)).hasSize(3);
+        var duplicate =
+                new ar.com.alon.articles.dto.AddApparelVariantsInput(
+                        List.of(
+                                new ar.com.alon.articles.dto.PurchaseApparelInput.Variant(
+                                        "DUP-S", "S", "Negro", 9)));
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        status -> catalog.addApparelVariants(id, duplicate)))
+                .isInstanceOf(ar.com.alon.shared.web.FieldValidationException.class);
+        var collision =
+                new ar.com.alon.articles.dto.AddApparelVariantsInput(
+                        List.of(
+                                new ar.com.alon.articles.dto.PurchaseApparelInput.Variant(
+                                        "ADD-XL", "XL", "Negro", 2),
+                                new ar.com.alon.articles.dto.PurchaseApparelInput.Variant(
+                                        "A1", "XXL", "Negro", 2)));
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        status -> catalog.addApparelVariants(id, collision)))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM articulos WHERE codigo='ADD-XL'",
+                                Integer.class))
+                .isZero();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT stock FROM articulos WHERE id=?", BigDecimal.class, id))
+                .isEqualByComparingTo("5");
+        when(identity.storeId()).thenReturn(2L);
+        assertThatThrownBy(
+                        () -> transaction.execute(status -> catalog.addApparelVariants(id, input)))
+                .isInstanceOf(org.springframework.dao.EmptyResultDataAccessException.class);
+    }
+
     private ar.com.alon.storefront.ShopService shop() {
         var accounts =
                 new ar.com.alon.storefront.ShopAccountService(jdbc, mock(PasswordHasher.class), 1);
@@ -635,6 +998,186 @@ class MySqlIntegrationTest {
                                                         buyer,
                                                         "shop-request-123456")))
                 .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    }
+
+    @Test
+    void guestOrderReusesExistingCustomerByDniWithoutReplacingTheirData() {
+        jdbc.update(
+                "UPDATE clientes SET dni='30111222',nombre='Cliente original',telefono='3446111111' WHERE id=1");
+        jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
+        long order =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        shop().checkoutGuest(
+                                                                        guestInput(
+                                                                                "30111222",
+                                                                                "3446236311",
+                                                                                "Nombre web"),
+                                                                        "existing-dni-order-123456"))
+                                        .get("id"))
+                        .longValue();
+        transaction.execute(
+                s -> cash.openCash(new CashOpenInput(LocalDate.now(clock), BigDecimal.ZERO)));
+        var approved = transaction.execute(s -> storeOrders().approve(order, "EFECTIVO"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM clientes", Long.class)).isEqualTo(1);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT cliente_id FROM ventas WHERE id=?",
+                                Long.class,
+                                approved.get("venta_id")))
+                .isEqualTo(1L);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT cliente_id FROM compradores_tienda WHERE dni='30111222'",
+                                Long.class))
+                .isEqualTo(1L);
+        assertThat(
+                        jdbc.queryForMap(
+                                "SELECT nombre,telefono,saldo_cuenta_corriente FROM clientes WHERE id=1"))
+                .containsEntry("nombre", "Cliente original")
+                .containsEntry("telefono", "3446111111");
+        var customers =
+                new CustomerService(
+                        jdbc,
+                        identity,
+                        clock,
+                        new AuditLog(jdbc, identity, JsonMapper.builder().build()));
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s ->
+                                                customers.createCustomer(
+                                                        new CustomerInput(
+                                                                "Duplicado",
+                                                                "",
+                                                                "",
+                                                                BigDecimal.ZERO,
+                                                                "30111222"))))
+                .isInstanceOf(BusinessConflict.class);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM clientes", Long.class)).isEqualTo(1);
+    }
+
+    private ar.com.alon.storefront.dto.GuestCheckoutInput guestInput(
+            String dni, String phone, String name) {
+        return new ar.com.alon.storefront.dto.GuestCheckoutInput(
+                shopInput("1").lines(),
+                new ar.com.alon.storefront.dto.GuestCheckoutInput.Buyer(
+                        name, "Prueba", phone, dni, "Entre Ríos", "Larroque"));
+    }
+
+    @Test
+    void guestOrdersKeepContactSnapshotsReplayAndBecomeReturningOnlyAfterApproval() {
+        jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
+        var input = guestInput("30111222", "3446236311", "Ana");
+        var created =
+                transaction.execute(s -> shop().checkoutGuest(input, "guest-first-order-123456"));
+        long first = ((Number) created.get("id")).longValue();
+        assertThat(
+                        transaction
+                                .execute(
+                                        s ->
+                                                shop().checkoutGuest(
+                                                                input, "guest-first-order-123456"))
+                                .get("id"))
+                .isEqualTo(created.get("id"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM compradores_tienda", Long.class))
+                .isEqualTo(1);
+        assertThat(
+                        jdbc.queryForMap(
+                                "SELECT password_hash,telefono,provincia,ciudad FROM compradores_tienda WHERE dni='30111222'"))
+                .containsEntry("password_hash", null)
+                .containsEntry("telefono", "3446236311")
+                .containsEntry("provincia", "Entre Ríos")
+                .containsEntry("ciudad", "Larroque");
+        assertThat(storeOrders().detail(first))
+                .containsEntry("comentario_cliente", "Es cliente web nuevo")
+                .containsEntry("medio_pago", null);
+        assertThat(stock()).isEqualByComparingTo("10");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM clientes", Long.class)).isEqualTo(1);
+        var changed = guestInput("30111222", "3446000000", "Nombre enviado después");
+        long second =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        shop().checkoutGuest(
+                                                                        changed,
+                                                                        "guest-second-order-123456"))
+                                        .get("id"))
+                        .longValue();
+        assertThat(storeOrders().detail(second))
+                .containsEntry("comentario_cliente", "Es cliente web nuevo");
+        assertThat(storeOrders().detail(first))
+                .containsEntry("nombre_cliente", "Ana Prueba")
+                .containsEntry("contacto", "3446236311");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT nombre FROM compradores_tienda WHERE dni='30111222'",
+                                String.class))
+                .isEqualTo("Ana");
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s ->
+                                                shop().checkoutGuest(
+                                                                changed,
+                                                                "guest-first-order-123456")))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        transaction.execute(
+                s -> cash.openCash(new CashOpenInput(LocalDate.now(clock), BigDecimal.ZERO)));
+        transaction.execute(s -> storeOrders().approve(first, "EFECTIVO"));
+        assertThat(storeOrders().detail(second))
+                .containsEntry("comentario_cliente", "Este cliente ya ha comprado en la web");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM clientes", Long.class)).isEqualTo(2);
+        transaction.execute(s -> storeOrders().approve(second, "TRANSFERENCIA"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM clientes", Long.class)).isEqualTo(2);
+        assertThat(stock()).isEqualByComparingTo("8");
+    }
+
+    @Test
+    void rejectedGuestOrdersDoNotCountAsPurchasesAndSharedPhonesDoNotMergeDifferentDni() {
+        jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
+        long first =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        shop().checkoutGuest(
+                                                                        guestInput(
+                                                                                "30111222",
+                                                                                "3446236311",
+                                                                                "Ana"),
+                                                                        "guest-reject-order-123456"))
+                                        .get("id"))
+                        .longValue();
+        transaction.execute(s -> storeOrders().cancel(first));
+        long second =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        shop().checkoutGuest(
+                                                                        guestInput(
+                                                                                "30111222",
+                                                                                "3446236311",
+                                                                                "Ana"),
+                                                                        "guest-after-reject-123456"))
+                                        .get("id"))
+                        .longValue();
+        assertThat(storeOrders().detail(second))
+                .containsEntry("comentario_cliente", "Es cliente web nuevo");
+        transaction.execute(
+                s ->
+                        shop().checkoutGuest(
+                                        guestInput("40111222", "3446236311", "Otra persona"),
+                                        "guest-shared-phone-123456"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM compradores_tienda", Long.class))
+                .isEqualTo(2);
+        assertThat(stock()).isEqualByComparingTo("10");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimientos_caja", Long.class))
+                .isZero();
     }
 
     @Test

@@ -32,11 +32,15 @@ Prompts finales utilizados:
 
 Alon muestra un cartel con la cantidad total de ventas web pendientes de confirmar en todas las secciones de los usuarios que tienen acceso a Tienda online. El botón Ver pedidos abre ese módulo. El contador se actualiza cada 10 segundos mientras la pestaña está visible, al volver a la aplicación y después de confirmar o cancelar un pedido. Solo cuenta pedidos pendientes del comercio de la sesión, sin depender de las páginas del listado. El cartel desaparece cuando no queda ninguno.
 
-El registro pide nombre, apellido, DNI, domicilio, teléfono internacional y contraseña de 12 a 128 caracteres. Las cuentas de compradores son independientes de las de administración. Se utilizan sesiones, protección CSRF, contraseñas derivadas mediante PBKDF2 y limitación de intentos. La validación del teléfono por WhatsApp no está habilitada: requiere contratar/configurar un proveedor y una plantilla. El campo telefono_verificado queda en falso y no se simula una validación real.
+La tienda no utiliza usuario ni contraseña. Al pulsar Enviar pedido aparece un formulario de nombre, apellido, celular de exactamente diez dígitos, DNI numérico, provincia y ciudad. Provincia propone Entre Ríos y ciudad propone Larroque; ambas se pueden cambiar. No se solicita una forma de pago: el vendedor contacta al cliente para acordarla. Se mantiene la protección CSRF, la limitación de envíos y la clave de operación para no duplicar pedidos al reintentar.
+
+Los contactos se identifican por DNI dentro de cada comercio y se conservan en `compradores_tienda`, sin contraseña para los nuevos registros. Cada pedido guarda sus datos de contacto y ubicación de ese momento. Un nuevo envío con el mismo DNI no reemplaza automáticamente los datos del contacto o del cliente de gestión. No se publica un buscador de DNI ni el historial de compras: esos datos solo son visibles al personal autorizado.
+
+El vendedor ve “Es cliente web nuevo” cuando no hay otra compra web confirmada del mismo contacto, y “Este cliente ya ha comprado en la web” cuando existe otra venta web confirmada. Un pedido pendiente, rechazado o con venta anulada no acredita una compra. Confirmar el primer pedido crea el cliente de gestión; los siguientes pedidos reutilizan ese vínculo. Rechazar un pedido no genera cliente de gestión, venta, cobro ni salida de stock.
 
 El catálogo muestra artículos activos con stock mayor a cero. El carrito comprueba precios y stock al enviarse, y guarda el detalle del pedido con sus precios. Los pedidos pendientes no reservan ni descuentan stock. En Tienda online el dueño o vendedor con permiso tienda puede revisar el comprador, quitar artículos, cancelar o confirmar. Quitar un artículo recalcula el total y conserva la línea excluida para auditoría.
 
-El comprador debe elegir efectivo, transferencia o Mercado Pago antes de enviar el pedido. El vendedor revisa ese medio de pago antes de confirmar. La confirmación exige una caja abierta en la fecha actual y registra en una única transacción la venta, el cobro en esa caja y la salida de stock. Si falta stock o la caja está cerrada, el pedido queda pendiente y no se registra ningún cobro ni salida. Los precios son los que quedaron guardados al enviar el pedido, aunque cambie después el catálogo.
+El vendedor elige efectivo, transferencia o Mercado Pago después de contactar al cliente y comprobar el pago. La confirmación exige una caja abierta en la fecha actual y registra en una única transacción la venta, el cobro en esa caja y la salida de stock. Si falta stock o la caja está cerrada, el pedido queda pendiente y no se registra ningún cobro ni salida. Los precios son los que quedaron guardados al enviar el pedido, aunque cambie después el catálogo.
 
 Las ventas de la tienda tienen origen WEB, número con prefijo VW- y referencia al pedido; aparecen identificadas en Ventas y en la descripción del movimiento de caja. Los cierres y reportes incluyen estos cobros como ventas. Mercado Pago y transferencia son registros internos del cobro: no verifican ni capturan pagos en un proveedor externo. El vendedor debe comprobar el pago al confirmar.
 
@@ -50,4 +54,13 @@ Los pedidos anteriores de texto libre siguen visibles. Como no contienen IDs ni 
 
 La migración V3 agrega referencias a imágenes, compradores y líneas de pedidos. V4 agrega medio de pago, cliente vinculado y la relación entre pedido y venta de origen web. Ambas conservan los registros existentes. Antes de aplicarlas en una instalación con datos se debe respaldar la base y probar las migraciones en una base desechable.
 
+V18 incorpora pedidos sin cuenta: conserva compradores y pedidos previos, admite contactos nuevos sin contraseña, amplía DNI a doce dígitos y guarda provincia y ciudad por pedido. La identificación pasa a ser por DNI; distintos DNI pueden compartir un teléfono. Las rutas antiguas de registro, ingreso, cambio/recuperación de contraseña y consulta pública de pedidos devuelven 410, sin exponer datos. Los accesos del personal de gestión no cambian. Antes de actualizar, crear un respaldo completo; después, reiniciar servidor e interfaz juntos y recargar la tienda.
+
+La validación de migración, envío, reintentos, compras anteriores, confirmación y rechazo puede ejecutarse con `scripts/Probar-Pedidos-Web.ps1`. Utiliza y recrea exclusivamente la base de pruebas `alon_validation`; no la base del negocio ni las bases de rendimiento.
+
 El servidor se inicia con la configuración habitual de MySQL. La interfaz de gestión sigue en la raíz; la tienda se abre en /tienda. Ambos usan la misma API por el proxy local, sin exponer MySQL al navegador.
+# Vinculación con clientes por DNI
+
+Al confirmar un pedido, se busca el DNI en los clientes del mismo comercio y se reutiliza ese cliente, conservando sus datos, saldo e historial. Clientes permite cargar y modificar un DNI opcional, solo numérico, y buscarlo desde el listado. Si el cliente fue cargado manualmente sin DNI, primero hay que completarlo para poder reconocerlo.
+
+La migración V19 recupera el DNI de los contactos web ya vinculados cuando no es ambiguo. Los duplicados anteriores se conservan para no alterar ventas ni saldos. Si hay varios clientes con el mismo DNI, la confirmación pide revisarlos; no elige uno arbitrariamente.

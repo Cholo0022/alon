@@ -539,3 +539,8 @@
 .storefront-preview.preview-compact .shop-price {
   font-size: 7px;
 }
+
+.shop-app.shop-template-boutique .shop-header-brand {
+  width: 100%;
+  align-items: center;
+}

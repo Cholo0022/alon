@@ -9,7 +9,7 @@ it('shows an empty directory instead of inventing customers', async () => {
     vi.fn(async () => Response.json([])),
   )
   render(<CustomerList />)
-  await waitFor(() => expect(screen.getByText('Página 1 · 0 clientes')).toBeTruthy())
+  await waitFor(() => expect(screen.getByText('Página 1 · 0 clientes en esta página')).toBeTruthy())
   expect(screen.getByText('No hay clientes que coincidan con la búsqueda.')).toBeTruthy()
   expect(screen.queryByText(/Cliente de Prueba/)).toBeNull()
 })
@@ -31,7 +31,9 @@ it('requests a different page and performs search on the server', async () => {
   vi.stubGlobal('fetch', fetchMock)
   const user = userEvent.setup()
   render(<CustomerList />)
-  await waitFor(() => expect(screen.getByText('Página 1 · 100 clientes')).toBeTruthy())
+  await waitFor(() =>
+    expect(screen.getByText('Página 1 · 100 clientes en esta página')).toBeTruthy(),
+  )
   await user.click(screen.getByRole('button', { name: 'Siguiente' }))
   await waitFor(() =>
     expect(fetchMock.mock.calls.some(([url]) => url.includes('page=1'))).toBe(true),

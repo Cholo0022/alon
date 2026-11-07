@@ -54,6 +54,7 @@ export function Combobox({
     setRequested(false)
     setActiveKey('')
     input.current?.setCustomValidity('')
+    input.current?.removeAttribute('aria-invalid')
   }
   return (
     <div className="searchable-field">

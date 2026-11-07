@@ -64,6 +64,11 @@ public class PurchaseController {
      * Expone compras del comercio con proveedor, totales y condición de pago, desde el registro más
      * reciente mediante la API, delegando la consulta al repositorio.
      */
+    @GetMapping("/operations/purchases/variants")
+    public List<Map<String, Object>> variants(@RequestParam long articleId) {
+        return queries.variants(articleId);
+    }
+
     @GetMapping("/alon/purchases")
     public List<Map<String, Object>> purchases() {
         return queries.purchases();

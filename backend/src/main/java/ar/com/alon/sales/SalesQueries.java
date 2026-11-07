@@ -57,6 +57,10 @@ public class SalesQueries {
         int safePage = Math.max(0, page);
         int safeSize = Math.min(200, Math.max(1, size));
         LocalDate salesDate = date == null ? LocalDate.now(clock) : date;
+        pages.publishTotal(
+                "SELECT id FROM ventas WHERE comercio_id=? AND fecha=?",
+                identity.storeId(),
+                Date.valueOf(salesDate));
         return jdbc.queryForList(
                 """
                 SELECT v.id, v.numero, v.fecha, DATE_FORMAT(v.fecha_hora, '%Y-%m-%d %H:%i:%s') AS fecha_hora, c.nombre AS cliente, v.tipo_venta, v.medio_pago,

@@ -1,6 +1,15 @@
+import { apparelDraftKey } from '../lib/apparelDraft'
+import { PurchaseSupplierDialog } from '../components/PurchaseSupplierDialog'
+import { PurchaseVariantsDialog } from '../components/PurchaseVariantsDialog'
+import {
+  emptyPurchaseHeader,
+  purchaseDraftKey,
+  readPurchaseDraft,
+  validPurchaseLine,
+  type PurchaseLine,
+  type PurchaseDraft,
+} from '../lib/purchaseDraft'
 import { BarcodeEntry, NewPurchaseArticleDialog } from '../components/BarcodeEntry'
-import { ApparelEntry } from '../components/ApparelFields'
-import { CostConfirmation } from '../components/CostConfirmation'
 import { PaymentConfirmation, type PaymentSelection } from '../components/PaymentConfirmation'
 import { useTransactionEntry } from '../hooks/useTransactionEntry'
 // Permite cargar y corregir compras con sus artículos, cantidades, gastos y pagos.
@@ -12,7 +21,6 @@ import {
   textValue,
   numberValue,
   formatDateDisplay,
-  todayLocal,
   dateDisplayToIso,
 } from '../lib/format'
 import { type ApiRow } from '../hooks/useApiRows'
@@ -22,14 +30,18 @@ import { ArticlePicker } from '../components/ArticlePicker'
 import { ArticleEntryDialog, type ArticleEntryValues } from '../components/ArticleEntryDialog'
 
 /** Gestiona el ingreso de compras, el proveedor predeterminado, los artículos y las confirmaciones de pago y costo, además del historial. */
-export function PurchasesPage() {
+export function PurchasesPage({ draftScope }: { draftScope?: string }) {
+  const [recovered] = useState(() => readPurchaseDraft(draftScope))
+  const [header, setHeader] = useState(recovered?.header ?? emptyPurchaseHeader)
+  const [hasDraft, setHasDraft] = useState(!!recovered)
+  const [draftWarning, setDraftWarning] = useState('')
+  const [supplierCreateOpen, setSupplierCreateOpen] = useState(false)
+  const [variantsArticle, setVariantsArticle] = useState<ApiRow | null>(null)
   const [newArticleOpen, setNewArticleOpen] = useState(false)
-  const [updateCostChoice, setUpdateCostChoice] = useState<boolean | null>(null)
-  const [productKind, setProductKind] = useState<'ARTICULO' | 'VESTIMENTA'>('ARTICULO')
+  const [productKind, setProductKind] = useState<'' | 'ARTICULO' | 'VESTIMENTA'>('')
   const [supplierPickerOpen, setSupplierPickerOpen] = useState(false)
-  const [supplier, setSupplier] = useState<ApiRow | undefined>()
+  const [supplier, setSupplier] = useState<ApiRow | undefined>(recovered?.supplier)
   const [supplierVersion, setSupplierVersion] = useState(0)
-  const [costSelection, setCostSelection] = useState<PaymentSelection | null>(null)
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [paymentPartyName, setPaymentPartyName] = useState('')
   const [pendingArticle, setPendingArticle] = useState<ApiRow | null>(null)
@@ -40,14 +52,46 @@ export function PurchasesPage() {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
-  const [lines, setLines] = useState<
-    { articleId: number; label: string; quantity: number; unitCost: number }[]
-  >([])
+  const [lines, setLines] = useState<PurchaseLine[]>(recovered?.lines ?? [])
   const [searchVersion, setSearchVersion] = useState(0)
   const [quantity, setQuantity] = useState('1')
   const [unitCost, setUnitCost] = useState('0')
-  const [extraCosts, setExtraCosts] = useState('0')
+  const [extraCosts, setExtraCosts] = useState(recovered?.extraCosts ?? '0')
   const purchaseFormRef = useRef<HTMLFormElement>(null)
+  const draftCompleted = useRef(false)
+  useEffect(() => {
+    if (!draftScope || !open) return
+    const save = () => {
+      if (draftCompleted.current) return
+      try {
+        const draft: PurchaseDraft = { version: 1, header, supplier, lines, extraCosts }
+        localStorage.setItem(purchaseDraftKey(draftScope), JSON.stringify(draft))
+        setHasDraft(true)
+        setDraftWarning('')
+      } catch {
+        setDraftWarning(
+          'No se pudo guardar el borrador en este navegador. Mantené esta pantalla abierta hasta guardar el comprobante.',
+        )
+      }
+    }
+    // Sincroniza el almacenamiento después del cambio; al salir, conserva la última edición.
+    const timer = window.setTimeout(save, 0)
+    return () => {
+      window.clearTimeout(timer)
+      save()
+    }
+  }, [draftScope, open, header, supplier, lines, extraCosts])
+  const chooseSupplier = (row: ApiRow) => {
+    setSupplier(row)
+    setSupplierVersion((value) => value + 1)
+  }
+  const chooseArticle = (article: ApiRow) => {
+    setMessage('')
+    if (article.tipo_producto === 'INDUMENTARIA' || article.tipo_producto === 'CALZADO') {
+      setArticlePickerOpen(false)
+      setVariantsArticle(article)
+    } else setPendingArticle(article)
+  }
   useTransactionEntry(purchaseFormRef, open, searchVersion)
   useEffect(() => {
     if (open)
@@ -61,10 +105,12 @@ export function PurchasesPage() {
         event.preventDefault()
         if (
           !busy &&
+          !pendingArticle &&
           !articlePickerOpen &&
           !paymentOpen &&
           !supplierPickerOpen &&
-          !costSelection &&
+          !variantsArticle &&
+          !supplierCreateOpen &&
           !newArticleOpen
         )
           purchaseFormRef.current?.requestSubmit()
@@ -75,10 +121,12 @@ export function PurchasesPage() {
   }, [
     open,
     busy,
+    pendingArticle,
     articlePickerOpen,
     paymentOpen,
     supplierPickerOpen,
-    costSelection,
+    variantsArticle,
+    supplierCreateOpen,
     newArticleOpen,
   ])
   /** Valida artículo, cantidad y costo; agrega un renglón al borrador y prepara el buscador para cargar el siguiente. */
@@ -109,6 +157,10 @@ export function PurchasesPage() {
       setMessage('Ingresá una cantidad mayor a cero y un costo válido.')
       return false
     }
+    if (lines.length >= 500) {
+      setMessage('El comprobante admite hasta 500 renglones.')
+      return false
+    }
     setLines((current) => [
       ...current,
       {
@@ -116,6 +168,7 @@ export function PurchasesPage() {
         label: textValue(article.codigo) + ' · ' + textValue(article.nombre),
         quantity: quantityValue,
         unitCost: unitCostValue,
+        wholeUnits: article.tipo_producto === 'INDUMENTARIA' || article.tipo_producto === 'CALZADO',
       },
     ])
     setSelectedArticle(null)
@@ -132,15 +185,25 @@ export function PurchasesPage() {
     event.preventDefault()
     if (
       busy ||
+      pendingArticle ||
       articlePickerOpen ||
       paymentOpen ||
       supplierPickerOpen ||
-      costSelection ||
+      variantsArticle ||
+      supplierCreateOpen ||
       newArticleOpen
     )
       return
     if (!lines.length) {
       setMessage('Ingresá al menos un artículo antes de guardar.')
+      return
+    }
+    if (
+      lines.some((line) => !validPurchaseLine(line)) ||
+      !Number.isFinite(Number(extraCosts)) ||
+      Number(extraCosts) < 0
+    ) {
+      setMessage('Revisá las cantidades, costos y gastos adicionales.')
       return
     }
     const date = dateDisplayToIso(new FormData(event.currentTarget).get('date'))
@@ -168,6 +231,10 @@ export function PurchasesPage() {
     const parsedDate = dateDisplayToIso(values.get('date'))
     if (!parsedDate) {
       setMessage('Ingresá una fecha válida.')
+      return
+    }
+    if (lines.some((line) => !validPurchaseLine(line))) {
+      setMessage('Revisá las cantidades y costos.')
       return
     }
     const extraCosts = Number(values.get('extraCosts') ?? 0)
@@ -199,11 +266,27 @@ export function PurchasesPage() {
       const result = (await response.json().catch(() => ({}))) as { error?: string }
       if (!response.ok) throw new Error(result.error ?? 'No se pudo guardar la factura.')
       setPaymentOpen(false)
-      setCostSelection(null)
       window.dispatchEvent(new Event('alon:refresh'))
       setMessage('Factura guardada correctamente con ' + lines.length + ' artículos.')
       setLines([])
       setExtraCosts('0')
+      setHeader(emptyPurchaseHeader())
+      setSupplier(undefined)
+      setHasDraft(false)
+      draftCompleted.current = true
+      if (draftScope) {
+        try {
+          localStorage.removeItem(purchaseDraftKey(draftScope))
+        } catch {
+          setDraftWarning(
+            'La compra ya se guardó, pero no se pudo eliminar el borrador del navegador. No recuperes ese borrador para evitar repetir la carga.',
+          )
+        }
+      }
+      setSelectedArticle(null)
+      setQuantity('1')
+      setUnitCost('0')
+      setCostEdited(false)
       formElement.reset()
       setSearchVersion((current) => current + 1)
       setOpen(false)
@@ -214,19 +297,71 @@ export function PurchasesPage() {
     }
   }
   const invoiceTotal =
-    lines.reduce((sum, line) => sum + Math.round(line.quantity * line.unitCost * 100) / 100, 0) +
-    Number(extraCosts)
+    lines.reduce(
+      (sum, line) =>
+        sum +
+        (Number.isFinite(line.quantity * line.unitCost)
+          ? Math.round(line.quantity * line.unitCost * 100) / 100
+          : 0),
+      0,
+    ) + Number(extraCosts)
   if (selectedPurchase !== null)
     return (
       <PurchaseReceipt purchaseId={selectedPurchase} onBack={() => setSelectedPurchase(null)} />
     )
   return (
     <>
+      {supplierCreateOpen && (
+        <PurchaseSupplierDialog
+          onClose={() => setSupplierCreateOpen(false)}
+          onSaved={(row) => {
+            chooseSupplier(row)
+            setSupplierCreateOpen(false)
+          }}
+        />
+      )}
+      {variantsArticle && (
+        <PurchaseVariantsDialog
+          article={variantsArticle}
+          onClose={() => setVariantsArticle(null)}
+          onAdd={(added) => {
+            if (lines.length + added.length > 500) {
+              setMessage('El comprobante admite hasta 500 renglones.')
+              setVariantsArticle(null)
+              return
+            }
+            setLines((current) => [...current, ...added])
+            setVariantsArticle(null)
+            setSelectedArticle(null)
+            setSearchVersion((value) => value + 1)
+          }}
+        />
+      )}
       {newArticleOpen && (
         <NewPurchaseArticleDialog
+          multipleApparel
+          apparelDraftKey={draftScope ? apparelDraftKey(draftScope,'purchase-product') : undefined}
+          maxVariants={Math.max(1, Math.min(100, 500 - lines.length))}
           onClose={() => setNewArticleOpen(false)}
           onSaved={(saved) => {
             setNewArticleOpen(false)
+            if (Array.isArray(saved.items)) {
+              const added: PurchaseLine[] = (saved.items as ApiRow[]).map((item) => ({
+                articleId: Number(item.id),
+                label: textValue(item.codigo) + ' · ' + textValue(item.nombre),
+                quantity: Number(item.quantity),
+                unitCost: Number(item.unitCost),
+                wholeUnits: true,
+              }))
+              if (lines.length + added.length > 500) {
+                setMessage('Las variantes se crearon. El comprobante admite hasta 500 renglones.')
+                return
+              }
+              setLines((current) => [...current, ...added])
+              setSearchVersion((value) => value + 1)
+              setMessage('Prenda creada. Se agregaron las cantidades por talle al comprobante.')
+              return
+            }
             void apiFetch(
               '/api/v1/alon/articles?code=' + encodeURIComponent(textValue(saved.codigo)),
             )
@@ -238,7 +373,7 @@ export function PurchasesPage() {
                 )
                 if (article) {
                   setCostEdited(false)
-                  setPendingArticle(article)
+                  chooseArticle(article)
                 } else
                   setMessage('Artículo creado. Buscalo en el listado para ingresarlo a la factura.')
               })
@@ -259,8 +394,7 @@ export function PurchasesPage() {
               ?.focus()
           }}
           onChoose={(row) => {
-            setSupplier(row)
-            setSupplierVersion((value) => value + 1)
+            chooseSupplier(row)
             setSupplierPickerOpen(false)
             purchaseFormRef.current
               ?.querySelector<HTMLInputElement>('[aria-label="Artículo"]')
@@ -268,29 +402,11 @@ export function PurchasesPage() {
           }}
         />
       )}
-      {costSelection && (
-        <CostConfirmation
-          key={updateCostChoice === null ? 'cost' : 'stock'}
-          kind={updateCostChoice === null ? 'cost' : 'stock'}
-          busy={busy}
-          message={message}
-          onCancel={() => {
-            if (updateCostChoice !== null) setUpdateCostChoice(null)
-            else {
-              setCostSelection(null)
-              setPaymentOpen(true)
-            }
-            setMessage('')
-          }}
-          onConfirm={(choice) => {
-            if (updateCostChoice === null) setUpdateCostChoice(choice)
-            else void confirmPurchase(costSelection, updateCostChoice, choice)
-          }}
-        />
-      )}
       {paymentOpen && (
         <PaymentConfirmation
           mode="purchase"
+          purchaseOptions
+          documentSummary={`${header.documentType} ${header.documentNumber} · ${header.date} · ${lines.length} productos`}
           total={invoiceTotal}
           partyName={paymentPartyName}
           busy={busy}
@@ -305,11 +421,8 @@ export function PurchasesPage() {
                 ?.focus()
             }
           }}
-          onConfirm={(selection) => {
-            setPaymentOpen(false)
-            setUpdateCostChoice(null)
-            setCostSelection(selection)
-            setMessage('')
+          onConfirm={(selection, choices) => {
+            if (choices) void confirmPurchase(selection, choices.updateCost, choices.updateStock)
           }}
         />
       )}
@@ -332,7 +445,7 @@ export function PurchasesPage() {
           }}
           onChoose={(article) => {
             setMessage('')
-            setPendingArticle(article)
+            chooseArticle(article)
           }}
         />
       )}
@@ -360,7 +473,61 @@ export function PurchasesPage() {
           }}
         />
       )}
-      <ApparelEntry initialStock={false} />
+      {draftWarning && (
+        <p role="alert" className="entry-message">
+          {draftWarning}
+        </p>
+      )}
+      {hasDraft && (
+        <div className="notice">
+          <span>
+            {open
+              ? 'Borrador guardado en este navegador.'
+              : 'Tenés un comprobante sin terminar en este navegador.'}
+          </span>
+          {!open && (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                draftCompleted.current = false
+                setOpen(true)
+              }}
+            >
+              Continuar borrador
+            </button>
+          )}
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy}
+            onClick={() => {
+              if (!window.confirm('¿Descartar el comprobante sin guardar?')) return
+              try {
+                if (draftScope) localStorage.removeItem(purchaseDraftKey(draftScope))
+              } catch {
+                setDraftWarning('No se pudo descartar el borrador.')
+                return
+              }
+              draftCompleted.current = true
+              setOpen(false)
+              setLines([])
+              setSupplier(undefined)
+              setHeader(emptyPurchaseHeader())
+              setExtraCosts('0')
+              setHasDraft(false)
+              setSelectedArticle(null)
+              setQuantity('1')
+              setUnitCost('0')
+              setCostEdited(false)
+              setMessage('')
+              setDraftWarning('')
+            }}
+          >
+            Descartar borrador
+          </button>
+        </div>
+      )}
       <section className="entry-panel purchase-entry">
         <div className="entry-heading">
           <div>
@@ -375,6 +542,11 @@ export function PurchasesPage() {
               setMessage('')
               if (open) {
                 setOpen(false)
+                return
+              }
+              draftCompleted.current = false
+              if (hasDraft || supplier) {
+                setOpen(true)
                 return
               }
               setBusy(true)
@@ -408,14 +580,29 @@ export function PurchasesPage() {
                   initialRecord={supplier}
                   autoFocus={supplierVersion === 0}
                   onEnter={() => setSupplierPickerOpen(true)}
+                  onSelect={(row) => setSupplier(row ?? undefined)}
                   name="supplierId"
                   label="Proveedor"
                   endpoint="/api/v1/alon/lookups/suppliers"
                 />
               </label>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setSupplierCreateOpen(true)}
+              >
+                Crear proveedor
+              </button>
               <label>
                 Tipo de comprobante
-                <select name="documentType" required defaultValue="REMITO">
+                <select
+                  name="documentType"
+                  required
+                  value={header.documentType}
+                  onChange={(event) =>
+                    setHeader((current) => ({ ...current, documentType: event.target.value }))
+                  }
+                >
                   <option value="" disabled>
                     Seleccionar…
                   </option>
@@ -425,7 +612,15 @@ export function PurchasesPage() {
               </label>
               <label>
                 Número de comprobante
-                <input name="documentNumber" required />
+                <input
+                  name="documentNumber"
+                  required
+                  maxLength={50}
+                  value={header.documentNumber}
+                  onChange={(event) =>
+                    setHeader((current) => ({ ...current, documentNumber: event.target.value }))
+                  }
+                />
               </label>
               <label>
                 Fecha
@@ -438,47 +633,44 @@ export function PurchasesPage() {
                   maxLength={10}
                   title="Usá el formato dd/mm/aaaa"
                   required
-                  defaultValue={formatDateDisplay(todayLocal())}
+                  value={header.date}
+                  onChange={(event) =>
+                    setHeader((current) => ({ ...current, date: event.target.value }))
+                  }
                 />
               </label>
             </div>
-            <div className="entry-actions">
+            <div className="purchase-product-tools">
+              <label>
+                Mostrar productos
+                <select
+                  value={productKind}
+                  onChange={(event) => {
+                    setProductKind(event.target.value as typeof productKind)
+                    setSelectedArticle(null)
+                    setSearchVersion((value) => value + 1)
+                  }}
+                >
+                  <option value="">Todos</option>
+                  <option value="ARTICULO">Artículos</option>
+                  <option value="VESTIMENTA">Indumentaria y calzado</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setArticlePickerOpen(true)}
+              >
+                Buscar productos
+              </button>
               <button
                 type="button"
                 className="secondary-button"
                 onClick={() => setNewArticleOpen(true)}
               >
-                Crear artículo nuevo sin salir de la factura
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => {
-                  setProductKind('ARTICULO')
-                  setSelectedArticle(null)
-                  setSearchVersion((v) => v + 1)
-                  setArticlePickerOpen(true)
-                }}
-              >
-                Cargar artículo al comprobante
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => {
-                  setProductKind('VESTIMENTA')
-                  setSelectedArticle(null)
-                  setSearchVersion((v) => v + 1)
-                  setArticlePickerOpen(true)
-                }}
-              >
-                Cargar indumentaria o calzado al comprobante
+                Crear producto sin salir del comprobante
               </button>
             </div>
-            <p>
-              Elegí el talle y color exactos. Al guardar elegirás si las cantidades de la compra
-              ingresan al stock.
-            </p>
             <BarcodeEntry
               purchase
               onSelect={(article) => {
@@ -504,7 +696,16 @@ export function PurchasesPage() {
                   endpoint={'/api/v1/alon/articles?kind=' + productKind}
                   required={false}
                   autoFocus={searchVersion > 0}
-                  onSelect={setSelectedArticle}
+                  onSelect={(article) => {
+                    setSelectedArticle(article)
+                    if (article && !costEdited) setUnitCost(String(numberValue(article.costo)))
+                    if (
+                      article &&
+                      (article.tipo_producto === 'INDUMENTARIA' ||
+                        article.tipo_producto === 'CALZADO')
+                    )
+                      chooseArticle(article)
+                  }}
                 />
               </label>
               <label>
@@ -559,10 +760,58 @@ export function PurchasesPage() {
                       {lines.map((line, index) => (
                         <tr key={index}>
                           <td data-label="Artículo">{line.label}</td>
-                          <td data-label="Cantidad">{line.quantity}</td>
-                          <td data-label="Costo unitario">{currency.format(line.unitCost)}</td>
+                          <td data-label="Cantidad">
+                            <input
+                              aria-label={'Cantidad de ' + line.label}
+                              type="number"
+                              min={line.wholeUnits ? '1' : '0.001'}
+                              step={line.wholeUnits ? '1' : '0.001'}
+                              required
+                              value={line.quantityText ?? String(line.quantity)}
+                              onChange={(event) =>
+                                setLines((current) =>
+                                  current.map((item, i) =>
+                                    i === index
+                                      ? {
+                                          ...item,
+                                          quantity: Number(event.target.value),
+                                          quantityText: event.target.value,
+                                        }
+                                      : item,
+                                  ),
+                                )
+                              }
+                            />
+                          </td>
+                          <td data-label="Costo unitario">
+                            <input
+                              aria-label={'Costo de ' + line.label}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              required
+                              value={line.unitCostText ?? String(line.unitCost)}
+                              onChange={(event) =>
+                                setLines((current) =>
+                                  current.map((item, i) =>
+                                    i === index
+                                      ? {
+                                          ...item,
+                                          unitCost: Number(event.target.value),
+                                          unitCostText: event.target.value,
+                                        }
+                                      : item,
+                                  ),
+                                )
+                              }
+                            />
+                          </td>
                           <td data-label="Subtotal">
-                            {currency.format(line.quantity * line.unitCost)}
+                            {currency.format(
+                              Number.isFinite(line.quantity * line.unitCost)
+                                ? line.quantity * line.unitCost
+                                : 0,
+                            )}
                           </td>
                           <td data-label="Acción">
                             <button

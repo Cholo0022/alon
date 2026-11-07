@@ -40,35 +40,75 @@ public class ShopService {
     public Map<String, Object> catalog(String query, String category, int page) {
         if (query.length() > 100 || category.length() > 180 || page < 0 || page > 10000)
             throw new IllegalArgumentException("La búsqueda no es válida.");
-        String grouping =
-                "CASE WHEN a.tipo_producto IN ('INDUMENTARIA','CALZADO') THEN CASE WHEN RIGHT(a.nombre,CHAR_LENGTH(CONCAT(' · ',a.talle,' · ',a.color)))=CONCAT(' · ',a.talle,' · ',a.color) THEN LEFT(a.nombre,CHAR_LENGTH(a.nombre)-CHAR_LENGTH(CONCAT(' · ',a.talle,' · ',a.color))) ELSE a.nombre END ELSE r.nombre END";
-        String where =
-                " FROM articulos a JOIN rubros r ON r.id=a.rubro_id WHERE a.comercio_id=? AND a.estado='ACTIVO' AND a.cargar_web=TRUE AND a.stock>0 AND (?='' OR LOCATE(?,CONCAT(a.codigo,' ',a.nombre))>0) AND (?='' OR "
-                        + grouping
-                        + "=?)";
+        String displayName =
+                "CASE WHEN a.tipo_producto IN ('INDUMENTARIA','CALZADO') AND RIGHT(a.nombre,CHAR_LENGTH(CONCAT(' · ',a.talle,' · ',a.color)))=CONCAT(' · ',a.talle,' · ',a.color) THEN LEFT(a.nombre,CHAR_LENGTH(a.nombre)-CHAR_LENGTH(CONCAT(' · ',a.talle,' · ',a.color))) ELSE a.nombre END";
+        String productKey =
+                "CASE WHEN a.tipo_producto IN ('INDUMENTARIA','CALZADO') THEN CONCAT('v:',SHA2(CAST(JSON_ARRAY(a.tipo_producto,LOWER(TRIM(a.modelo)),LOWER(TRIM(a.marca)),LOWER(TRIM(a.sistema_talle)),LOWER(TRIM(a.material)),LOWER(TRIM(a.publico)),LOWER(TRIM(a.temporada))) AS CHAR),256)) ELSE CONCAT('a:',a.id) END";
+        String published =
+                "WITH published AS (SELECT a.id,a.tipo_producto,a.modelo,a.marca,a.talle,a.sistema_talle,a.color,a.material,a.publico,a.temporada,a.descripcion,a.codigo,a.nombre,a.unidad,a.precio_venta,a.stock,a.imagen_clave,a.imagen_ilustrativa,"
+                        + displayName
+                        + " AS nombre_publico,CASE WHEN a.tipo_producto IN ('INDUMENTARIA','CALZADO') THEN "
+                        + displayName
+                        + " ELSE r.nombre END AS rubro,"
+                        + productKey
+                        + " AS product_key FROM articulos a JOIN rubros r ON r.id=a.rubro_id AND r.comercio_id=a.comercio_id WHERE a.comercio_id=? AND a.estado='ACTIVO' AND a.cargar_web=TRUE) ";
+        String matching =
+                ", matched AS (SELECT product_key,MIN(id) AS id FROM published GROUP BY product_key HAVING MAX(stock)>0 AND (?='' OR MAX(LOCATE(?,CONCAT(codigo,' ',nombre,' ',modelo,' ',marca,' ',talle,' ',color))>0)>0) AND (?='' OR MAX(rubro=?)>0)) ";
+        // La paginación cuenta publicaciones completas, nunca talles individuales.
+        String grouped = published.trim() + matching;
         var args = new Object[] {accounts.storeId(), query, query, category, category};
         var rows =
                 jdbc.queryForList(
-                        "SELECT a.id,a.tipo_producto,a.modelo,a.marca,a.talle,a.sistema_talle,a.color,a.material,a.publico,a.temporada,a.descripcion,a.codigo,a.nombre,a.unidad,a.precio_venta,a.stock,a.imagen_clave,a.imagen_ilustrativa,"
-                                + grouping
-                                + " AS rubro"
-                                + where
-                                + " ORDER BY a.nombre,a.id LIMIT 24 OFFSET "
+                        grouped
+                                + "SELECT p.* FROM matched m JOIN published p ON p.id=m.id ORDER BY p.nombre_publico,p.id LIMIT 24 OFFSET "
                                 + (page * 24),
                         args);
         var categories =
                 jdbc.queryForList(
-                        "SELECT DISTINCT "
-                                + grouping
-                                + " AS nombre FROM rubros r JOIN articulos a ON a.rubro_id=r.id WHERE a.comercio_id=? AND a.estado='ACTIVO' AND a.cargar_web=TRUE AND a.stock>0 ORDER BY nombre",
+                        published
+                                + "SELECT DISTINCT rubro AS nombre FROM published WHERE stock>0 ORDER BY nombre",
                         accounts.storeId());
-        ar.com.alon.articles.ArticlePhotoQueries.attach(jdbc, accounts.storeId(), rows);
+        if (!rows.isEmpty()) {
+            var variantArgs = new ArrayList<Object>();
+            variantArgs.add(accounts.storeId());
+            rows.forEach(row -> variantArgs.add(row.get("product_key")));
+            var variants =
+                    jdbc.queryForList(
+                            published
+                                    + "SELECT * FROM published WHERE product_key IN ("
+                                    + String.join(",", Collections.nCopies(rows.size(), "?"))
+                                    + ") ORDER BY color,talle,id",
+                            variantArgs.toArray());
+            ar.com.alon.articles.ArticlePhotoQueries.attach(jdbc, accounts.storeId(), variants);
+            Map<String, List<Map<String, Object>>> byProduct = new HashMap<>();
+            for (var variant : variants)
+                byProduct
+                        .computeIfAbsent(
+                                variant.get("product_key").toString(), ignored -> new ArrayList<>())
+                        .add(variant);
+            for (var row : rows) {
+                var choices = byProduct.get(row.get("product_key").toString());
+                var cover =
+                        choices.stream()
+                                .filter(choice -> ((Number) choice.get("stock")).doubleValue() > 0)
+                                .findFirst()
+                                .orElse(choices.getFirst());
+                row.put("photos", cover.get("photos"));
+                row.put("imagen_clave", cover.get("imagen_clave"));
+                row.put("imagen_ilustrativa", cover.get("imagen_ilustrativa"));
+                if (!"ARTICULO".equals(row.get("tipo_producto"))) {
+                    row.put("nombre", row.get("nombre_publico"));
+                    row.put("variants", choices);
+                }
+            }
+        }
         return Map.of(
                 "items",
                 rows,
                 "total",
                 Objects.requireNonNull(
-                        jdbc.queryForObject("SELECT COUNT(*)" + where, Long.class, args)),
+                        jdbc.queryForObject(
+                                grouped + "SELECT COUNT(*) FROM matched", Long.class, args)),
                 "categories",
                 categories,
                 "store",
@@ -117,6 +157,77 @@ public class ShopService {
      */
     @Transactional
     public Map<String, Object> checkout(Checkout input, Map<String, Object> buyer, String key) {
+        return checkoutPrepared(input, buyer, key, false);
+    }
+
+    /**
+     * Conserva el contacto por DNI; cada pedido guarda los datos enviados sin alterar contactos
+     * previos.
+     */
+    @Transactional
+    public Map<String, Object> checkoutGuest(
+            ar.com.alon.storefront.dto.GuestCheckoutInput input, String key) {
+        if (key == null || !key.matches("[A-Za-z0-9_-]{16,80}"))
+            throw new IllegalArgumentException("Falta el identificador del pedido.");
+        var submitted = input.buyer();
+        if (submitted == null
+                || submitted.phone() == null
+                || !submitted.phone().matches("[0-9]{10}")
+                || submitted.dni() == null
+                || !submitted.dni().matches("[0-9]{1,12}"))
+            throw new IllegalArgumentException(
+                    "Ingresá un celular de diez dígitos y un DNI solo con números.");
+        for (String value :
+                Arrays.asList(
+                        submitted.firstName(),
+                        submitted.lastName(),
+                        submitted.province(),
+                        submitted.city()))
+            if (value == null || value.isBlank())
+                throw new IllegalArgumentException("Completá todos los datos de contacto.");
+        long store = accounts.storeId();
+        jdbc.queryForObject("SELECT id FROM comercios WHERE id=? FOR UPDATE", Long.class, store);
+        var existing =
+                jdbc.queryForList(
+                        "SELECT id FROM compradores_tienda WHERE comercio_id=? AND dni=? FOR UPDATE",
+                        store,
+                        submitted.dni());
+        long buyerId;
+        if (!existing.isEmpty()) buyerId = ((Number) existing.getFirst().get("id")).longValue();
+        else {
+            var holder = new GeneratedKeyHolder();
+            jdbc.update(
+                    connection -> {
+                        var statement =
+                                connection.prepareStatement(
+                                        "INSERT INTO compradores_tienda(comercio_id,nombre,apellido,dni,domicilio,telefono,password_hash,codigo_postal,ciudad,provincia,pais) VALUES(?,?,?,?,'',?,NULL,'',?,?,'Argentina')",
+                                        Statement.RETURN_GENERATED_KEYS);
+                        statement.setLong(1, store);
+                        statement.setString(2, submitted.firstName().trim());
+                        statement.setString(3, submitted.lastName().trim());
+                        statement.setString(4, submitted.dni());
+                        statement.setString(5, submitted.phone());
+                        statement.setString(6, submitted.city().trim());
+                        statement.setString(7, submitted.province().trim());
+                        return statement;
+                    },
+                    holder);
+            buyerId = Objects.requireNonNull(holder.getKey()).longValue();
+        }
+        var buyer = new LinkedHashMap<String, Object>();
+        buyer.put("id", buyerId);
+        buyer.put("nombre", submitted.firstName().trim());
+        buyer.put("apellido", submitted.lastName().trim());
+        buyer.put("dni", submitted.dni());
+        buyer.put("telefono", submitted.phone());
+        buyer.put("ciudad", submitted.city().trim());
+        buyer.put("provincia", submitted.province().trim());
+        buyer.put("pais", "Argentina");
+        return checkoutPrepared(new Checkout(input.lines(), null), buyer, key, true);
+    }
+
+    private Map<String, Object> checkoutPrepared(
+            Checkout input, Map<String, Object> buyer, String key, boolean guest) {
         // El catálogo sigue visible, pero una licencia vencida impide registrar nuevos pedidos.
         if (jdbc.queryForObject(
                         "SELECT COUNT(*) FROM comercios WHERE id=? AND licencia_controlada=TRUE AND (licencia_hasta IS NULL OR licencia_hasta<=?)",
@@ -129,9 +240,10 @@ public class ShopService {
                     HttpStatus.FORBIDDEN,
                     "La tienda temporalmente no recibe pedidos. Contactá al comercio.");
 
-        if (input.paymentMethod() == null
-                || !Set.of("EFECTIVO", "TRANSFERENCIA", "MERCADO_PAGO")
-                        .contains(input.paymentMethod()))
+        if (!guest
+                && (input.paymentMethod() == null
+                        || !Set.of("EFECTIVO", "TRANSFERENCIA", "MERCADO_PAGO")
+                                .contains(input.paymentMethod())))
             throw new IllegalArgumentException("Elegí un medio de pago válido para el pedido.");
         if (key == null || !key.matches("[A-Za-z0-9_-]{16,80}"))
             throw new IllegalArgumentException("Falta el identificador del pedido.");
@@ -157,7 +269,19 @@ public class ShopService {
                                                                         .toPlainString())
                                         .collect(java.util.stream.Collectors.joining(";"))
                                 + ":"
-                                + input.paymentMethod());
+                                + input.paymentMethod()
+                                + (guest
+                                        ? tools.jackson.databind.json.JsonMapper.builder()
+                                                .build()
+                                                .writeValueAsString(
+                                                        List.of(
+                                                                buyer.get("nombre"),
+                                                                buyer.get("apellido"),
+                                                                buyer.get("dni"),
+                                                                buyer.get("telefono"),
+                                                                buyer.get("ciudad"),
+                                                                buyer.get("provincia")))
+                                        : ""));
         var previous =
                 jdbc.queryForList(
                         "SELECT id,estado,total_estimado,solicitud_hash FROM pedidos_tienda WHERE comercio_id=? AND comprador_id=? AND clave_solicitud=?",
@@ -218,7 +342,7 @@ public class ShopService {
                 c -> {
                     var s =
                             c.prepareStatement(
-                                    "INSERT INTO pedidos_tienda(comercio_id,nombre_cliente,contacto,detalle,total_estimado,comprador_id,dni,domicilio,clave_solicitud,solicitud_hash,medio_pago) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                                    "INSERT INTO pedidos_tienda(comercio_id,nombre_cliente,contacto,detalle,total_estimado,comprador_id,dni,domicilio,clave_solicitud,solicitud_hash,medio_pago,provincia,ciudad) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                                     Statement.RETURN_GENERATED_KEYS);
                     s.setLong(1, store);
                     s.setString(2, buyer.get("nombre") + " " + buyer.get("apellido"));
@@ -241,6 +365,8 @@ public class ShopService {
                     s.setString(9, key);
                     s.setString(10, hash);
                     s.setString(11, input.paymentMethod());
+                    s.setString(12, Objects.toString(buyer.get("provincia"), ""));
+                    s.setString(13, Objects.toString(buyer.get("ciudad"), ""));
                     return s;
                 },
                 holder);

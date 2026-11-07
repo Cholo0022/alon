@@ -27,9 +27,9 @@ public class CustomerQueries {
     /** Consulta clientes del comercio filtrados por estado, con sus saldos y límites. */
     public List<Map<String, Object>> customers(boolean inactive) {
         return pages.query(
-                "codigo,nombre,telefono,email",
+                "codigo,nombre,telefono,email,dni",
                 """
-                SELECT id, codigo, nombre, telefono, email, saldo_cuenta_corriente, limite_credito, estado
+                SELECT id, codigo, nombre, dni, telefono, email, saldo_cuenta_corriente, limite_credito, estado
                 FROM clientes WHERE comercio_id = ? AND estado=? ORDER BY nombre,id
                 """,
                 identity.storeId(),
