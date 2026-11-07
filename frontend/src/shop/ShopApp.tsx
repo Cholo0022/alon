@@ -94,6 +94,11 @@ export default function ShopApp() {
   const [cartOutsideView, setCartOutsideView] = useState(false)
   const [cart, setCart] = useState<CartLine[]>(initialCart)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const catalogPanel = useRef<HTMLElement>(null)
+  const goToCatalog = () =>
+    requestAnimationFrame(() => {
+      catalogPanel.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' })
+    })
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
   const [page, setPage] = useState(0)
@@ -417,6 +422,7 @@ export default function ShopApp() {
             <button
               aria-pressed={category === ''}
               onClick={() => {
+                goToCatalog()
                 setCategory('')
                 setPage(0)
               }}
@@ -428,6 +434,7 @@ export default function ShopApp() {
                 key={sentenceCase(c.nombre)}
                 aria-pressed={category === c.nombre}
                 onClick={() => {
+                  goToCatalog()
                   setCategory(c.nombre)
                   setPage(0)
                 }}
@@ -437,7 +444,7 @@ export default function ShopApp() {
             ))}
           </nav>
           <div className="shop-layout">
-            <section aria-label="Catálogo de productos">
+            <section ref={catalogPanel} aria-label="Catálogo de productos">
               <div className="shop-results">
                 <span>{catalog.total} artículos disponibles</span>
                 <button

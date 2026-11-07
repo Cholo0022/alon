@@ -244,9 +244,44 @@ public class ArticleService extends StoreJdbcSupport {
         snapshot.rows().forEach(row -> ids.add(((Number) row.get("id")).longValue()));
         if (!ids.equals(requested.keySet()))
             throw new IllegalArgumentException("Revisá la lista de talles de esta prenda.");
+        var combinations = new java.util.HashSet<String>();
+        for (var row : snapshot.rows()) {
+            var line = requested.get(((Number) row.get("id")).longValue());
+            String size =
+                    line.size() == null
+                            ? String.valueOf(row.get("talle"))
+                            : required(line.size(), "Completá el talle.");
+            String color =
+                    line.color() == null
+                            ? String.valueOf(row.get("color"))
+                            : required(line.color(), "Completá el color.");
+            if (!combinations.add(
+                    size.toUpperCase(java.util.Locale.ROOT)
+                            + "\n"
+                            + color.toUpperCase(java.util.Locale.ROOT)))
+                throw new IllegalArgumentException("Este talle y color ya están cargados.");
+        }
         for (var row : snapshot.rows()) {
             long variantId = ((Number) row.get("id")).longValue();
             var line = requested.get(variantId);
+            if (line.size() != null || line.color() != null) {
+                String size =
+                        line.size() == null
+                                ? String.valueOf(row.get("talle"))
+                                : required(line.size(), "Completá el talle.");
+                String color =
+                        line.color() == null
+                                ? String.valueOf(row.get("color"))
+                                : required(line.color(), "Completá el color.");
+                String name = ApparelGroups.name(row) + " · " + size + " · " + color;
+                jdbc.update(
+                        "UPDATE articulos SET talle=?,color=?,nombre=? WHERE comercio_id=? AND id=?",
+                        size,
+                        color,
+                        name,
+                        identity.storeId(),
+                        variantId);
+            }
             BigDecimal quantity =
                     ar.com.alon.shared.validation.DecimalRules.quantity(
                             line.stock(), false, "El stock no puede ser negativo.");

@@ -14,7 +14,13 @@ public record ApparelGroupUpdateInput(
     public record Line(
             @Positive long id,
             @NotNull @DecimalMin("0") @Digits(integer = 12, fraction = 0) BigDecimal stock,
-            @Size(max = 30) String code) {}
+            @Size(max = 30) String code,
+            @Size(min = 1, max = 30) String size,
+            @Size(min = 1, max = 60) String color) {
+        public Line(long id, BigDecimal stock, String code) {
+            this(id, stock, code, null, null);
+        }
+    }
 
     public record Common(
             @Size(min = 1, max = 80) String name,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ApiRow } from '../hooks/useApiRows'
 import { apiFetch } from '../lib/http'
 import { textValue, numberValue } from '../lib/format'
@@ -89,6 +89,11 @@ function GarmentEditorForm({
   onSaved: () => void
   onReload: () => void
 }) {
+  const panel = useRef<HTMLElement>(null)
+  useEffect(() => {
+    panel.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' })
+    panel.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true })
+  }, [])
   const { product, variants } = data
   const [rows, setRows] = useState<StockRow[]>(() =>
     variants.map((row) => ({
@@ -181,6 +186,8 @@ function GarmentEditorForm({
       lines: rows.map((row, index) => ({
         id: row.id,
         stock: Number(row.stock),
+        size: row.size.trim(),
+        color: row.color.trim(),
         code: row.code === textValue(variants[index].codigo) ? null : row.code.trim(),
       })),
       common: changes,
@@ -191,10 +198,13 @@ function GarmentEditorForm({
         quantity: Number(row.stock),
       })),
     }
-    const seen = new Set(
-        rows.map((row) => row.size.trim().toUpperCase() + '\n' + row.color.trim().toUpperCase()),
-      ),
+    const seen = new Set<string>(),
       errors: Record<string, string> = {}
+    body.lines.forEach((row, index) => {
+      const key = row.size.toUpperCase() + '\n' + row.color.toUpperCase()
+      if (seen.has(key)) errors[`lines[${index}].size`] = 'Este talle y color ya están cargados.'
+      seen.add(key)
+    })
     body.newVariants.forEach((row, index) => {
       const key = row.size.toUpperCase() + '\n' + row.color.toUpperCase()
       if (seen.has(key)) errors[`variants[${index}].size`] = 'Este talle y color ya están cargados.'
@@ -231,12 +241,9 @@ function GarmentEditorForm({
       setBusy(false)
     }
   }
-  const colorVisible =
-    new Set([...rows.map((row) => row.color), ...added.map((row) => row.color)]).size > 1 ||
-    rows.some((row) => row.color !== 'Único') ||
-    added.length > 0
+  const colorVisible = true
   return (
-    <section className="entry-panel garment-editor">
+    <section ref={panel} className="entry-panel garment-editor">
       <div className="entry-heading">
         <strong>Modificar prenda · {textValue(product.nombre_publico)}</strong>
         <button type="button" className="secondary-button" disabled={busy} onClick={onBack}>
@@ -322,8 +329,40 @@ function GarmentEditorForm({
               <tbody>
                 {rows.map((row, index) => (
                   <tr key={row.id}>
-                    <td>{row.size}</td>
-                    {colorVisible && <td>{row.color === 'Único' ? '—' : row.color}</td>}
+                    <td>
+                      <input
+                        name={`lines[${index}].size`}
+                        aria-label={`Talle actual ${index + 1}`}
+                        required
+                        maxLength={30}
+                        value={row.size}
+                        onChange={(event) =>
+                          setRows((current) =>
+                            current.map((item) =>
+                              item.id === row.id ? { ...item, size: event.target.value } : item,
+                            ),
+                          )
+                        }
+                      />
+                    </td>
+                    {colorVisible && (
+                      <td>
+                        <input
+                          name={`lines[${index}].color`}
+                          aria-label={`Color actual ${index + 1}`}
+                          required
+                          maxLength={60}
+                          value={row.color}
+                          onChange={(event) =>
+                            setRows((current) =>
+                              current.map((item) =>
+                                item.id === row.id ? { ...item, color: event.target.value } : item,
+                              ),
+                            )
+                          }
+                        />
+                      </td>
+                    )}
                     <td>
                       <input
                         name={`lines[${index}].stock`}

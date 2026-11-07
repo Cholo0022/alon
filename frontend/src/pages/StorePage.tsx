@@ -158,7 +158,7 @@ export function StorePage() {
             render: (row) => (
               <button
                 type="button"
-                className="secondary-button"
+                className="secondary-button store-view-order"
                 onClick={() => {
                   scrollToOrder.current = true
                   setOrder(null)

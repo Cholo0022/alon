@@ -5,7 +5,7 @@ import { CatalogArticleEntry } from '../components/CatalogArticleEntry'
 import { apparelFields } from '../lib/apparelFields'
 import { DeleteRecordButton } from '../components/DeleteRecordButton'
 // Permite buscar artículos, editar sus datos y organizar el catálogo por rubro.
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { CategoryPricePanel } from '../components/CategoryPricePanel'
 
 import { currency, textValue, numberValue } from '../lib/format'
@@ -24,12 +24,16 @@ export function ArticleList({
   canEditCosts?: boolean
   draftScope?: string
 }) {
+  const destination = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('Todos los rubros')
   const [showInactive, setShowInactive] = useState(false)
   const [addingSizes, setAddingSizes] = useState(false)
   const [sizesMessage, setSizesMessage] = useState('')
   const [editing, setEditing] = useState<ApiRow | null>(null)
+  useLayoutEffect(() => {
+    destination.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' })
+  }, [editing])
   const [imageArticle, setImageArticle] = useState<{ id: number; name: string } | null>(null)
   const apiRows = useApiRows(
     '/api/v1/alon/articles/grouped?inactive=' +
@@ -193,6 +197,7 @@ export function ArticleList({
           onClose={() => setImageArticle(null)}
         />
       )}
+      <div ref={destination} className="catalog-destination" />
       {(canEditCosts || (editing && Array.isArray(editing.variants))) &&
         (editing && Array.isArray(editing.variants) ? (
           <GarmentEditor

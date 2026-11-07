@@ -3070,3 +3070,19 @@ td.article-actions {
 #root label:has([aria-invalid='true']) {
   color: #b91c1c;
 }
+
+#root .store-module .store-view-order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 9px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.entry-panel,
+.store-order-detail {
+  scroll-margin-top: 16px;
+}

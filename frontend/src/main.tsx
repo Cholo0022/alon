@@ -1,3 +1,4 @@
+import { installSentenceCase } from './lib/sentenceCase'
 import { installFormValidation } from './lib/formValidation'
 // Inicia la interfaz y elige entre el sistema de gestión y la tienda web según la dirección.
 import { StrictMode } from 'react'
@@ -7,6 +8,7 @@ import AppView from './views/AppView.tsx'
 import ShopApp from './shop/ShopApp.tsx'
 
 installFormValidation()
+installSentenceCase()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
