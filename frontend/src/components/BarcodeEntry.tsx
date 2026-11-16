@@ -136,7 +136,9 @@ export function NewPurchaseArticleDialog({
     }
   }, [])
   const [saving, setSaving] = useState(false)
-  const [kind, setKind] = useState(() => multipleApparel ? readApparelDraft(apparelDraftKey)?.kind ?? 'ARTICULO' : 'ARTICULO')
+  const [kind, setKind] = useState(() =>
+    multipleApparel ? (readApparelDraft(apparelDraftKey)?.kind ?? 'ARTICULO') : 'ARTICULO',
+  )
   const apparel = kind !== 'ARTICULO'
   return createPortal(
     <div className="article-picker-backdrop">
@@ -204,6 +206,12 @@ export function NewPurchaseArticleDialog({
             articlePhotos
             pricePreview
             fields={[
+              {
+                name: 'categoryId',
+                label: 'Rubro',
+                valueType: 'number',
+                lookupEndpoint: '/api/v1/alon/categories',
+              },
               { name: 'code', label: 'Código o código de barras', defaultValue: initialCode },
               { name: 'name', label: 'Nombre del artículo' },
               ...(apparel
@@ -218,14 +226,7 @@ export function NewPurchaseArticleDialog({
                         }
                       : field,
                   )
-                : [
-                    {
-                      name: 'categoryId',
-                      label: 'Rubro',
-                      valueType: 'number' as const,
-                      lookupEndpoint: '/api/v1/alon/categories',
-                    },
-                  ]),
+                : []),
               {
                 name: 'unit',
                 label: 'Unidad',

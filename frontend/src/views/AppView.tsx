@@ -36,7 +36,12 @@ import '../App.css'
 function userPermissions(user: SessionUser) {
   return user.rol === 'SUPER'
     ? [...navigation.map((item) => item.id), 'descuentos', 'costos']
-    : textValue(user.permisos).split(',').filter(Boolean)
+    : [
+        ...new Set([
+          ...textValue(user.permisos).split(',').filter(Boolean),
+          ...(user.rol === 'DUENO' ? ['seguridad'] : []),
+        ]),
+      ]
 }
 
 /** Construye la navegación de gestión según permisos, muestra el resumen y presenta la sección activa desde su inicio. */
@@ -374,7 +379,10 @@ export function MainApp({
           ) : activeSection === 'backup' ? (
             <BackupPage />
           ) : activeSection === 'usuarios' ? (
-            <UsersPage canDelegateBackup={permissions.includes('backup')} />
+            <UsersPage
+              canDelegateBackup={permissions.includes('backup')}
+              onOpenSecurity={() => setActiveSection('seguridad')}
+            />
           ) : (
             <section className="module-placeholder">
               <div className="placeholder-icon">{activeItem.icon}</div>
@@ -519,7 +527,7 @@ export function AuthScreen({
                   name="password"
                   type="password"
                   autoComplete={setup ? 'new-password' : 'current-password'}
-                  minLength={setup ? 12 : undefined}
+                  minLength={setup ? 4 : undefined}
                   maxLength={128}
                   required
                 />

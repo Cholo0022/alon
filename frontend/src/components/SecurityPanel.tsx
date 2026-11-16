@@ -200,7 +200,7 @@ export function SecurityPanel() {
                       disabled={busy}
                       onClick={() => void action(`browsers/${row.id}/approve`)}
                     >
-                      Aprobar
+                      Permitir
                     </button>
                     <button
                       className="select-button"

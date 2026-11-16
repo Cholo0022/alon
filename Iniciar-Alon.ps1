@@ -90,15 +90,18 @@ if (!(Get-NetTCPConnection -State Listen -LocalPort 8080 -ErrorAction SilentlyCo
     $alonPreviousUrl = $env:SPRING_DATASOURCE_URL
     $alonPreviousUser = $env:SPRING_DATASOURCE_USERNAME
     $alonPreviousPassword = $env:SPRING_DATASOURCE_PASSWORD
+    $alonPreviousProvisioning = $env:ALON_PROVISIONING_ENABLED
     try {
         $env:SPRING_DATASOURCE_URL = $alonConfig.databaseUrl
         $env:SPRING_DATASOURCE_USERNAME = $alonCredential.UserName
         $env:SPRING_DATASOURCE_PASSWORD = $alonCredential.GetNetworkCredential().Password
+        $env:ALON_PROVISIONING_ENABLED = 'true'
         Start-Process -FilePath (Get-Command java.exe).Source -ArgumentList '-jar',('"' + $alonJar + '"') -WorkingDirectory $alonBackend -WindowStyle Hidden -RedirectStandardOutput (Join-Path $alonRuntime 'servidor.log') -RedirectStandardError (Join-Path $alonRuntime 'servidor-error.log') | Out-Null
     } finally {
         $env:SPRING_DATASOURCE_URL = $alonPreviousUrl
         $env:SPRING_DATASOURCE_USERNAME = $alonPreviousUser
         $env:SPRING_DATASOURCE_PASSWORD = $alonPreviousPassword
+        $env:ALON_PROVISIONING_ENABLED = $alonPreviousProvisioning
     }
 }
 Write-Host 'Esperando al servidor de Alon...'
@@ -108,12 +111,25 @@ if (!(Get-NetTCPConnection -State Listen -LocalPort 5173 -ErrorAction SilentlyCo
     Start-Process -FilePath (Get-Command node.exe).Source -ArgumentList ('"' + $alonVite + '"'),'--host','127.0.0.1','--port','5173','--strictPort' -WorkingDirectory $alonFrontend -WindowStyle Hidden -RedirectStandardOutput (Join-Path $alonRuntime 'interfaz.log') -RedirectStandardError (Join-Path $alonRuntime 'interfaz-error.log') | Out-Null
 }
 Wait-AlonUrl 'http://127.0.0.1:5173/' 45
-Write-Host 'Alon está listo: http://127.0.0.1:5173'
+Write-Host 'Panel central disponible. Comprobando el inicio de los negocios...'
+$alonBusinessesDeadline = (Get-Date).AddSeconds(300)
+$alonBusinessesReady = $false
+while ((Get-Date) -lt $alonBusinessesDeadline) {
+    try {
+        $alonBusinessesStatus = Invoke-RestMethod -Uri 'http://127.0.0.1:8080/api/v1/health/businesses' -TimeoutSec 5
+        if ($alonBusinessesStatus.ready -eq $true) { $alonBusinessesReady = $true; break }
+        if ($alonBusinessesStatus.failures -gt 0 -and !$alonBusinessesStatus.starting) { break }
+    } catch { }
+    Start-Sleep -Milliseconds 1000
+}
+if ($alonBusinessesReady) { Write-Host 'Alon y sus negocios terminaron de iniciar.' }
+else { Write-Host 'El panel central está disponible, pero hay negocios sin confirmar. Revisá Habilitar sistema en el detalle de cada negocio.' }
+Write-Host 'Panel Alon: http://127.0.0.1:5173'
 Write-Host 'Tienda web: http://127.0.0.1:5173/tienda'
 
 # La tienda se inicia sin una ventana adicional y se limita a la red Wi-Fi local.
 try {
     & (Join-Path $alonProject 'Iniciar-Tienda-Wifi.ps1') -SegundoPlano
 } catch {
-    Write-Host 'Alon está listo. No se pudo iniciar la tienda Wi-Fi en este momento.'
+    Write-Host 'No se pudo iniciar la tienda Wi-Fi en este momento.'
 }

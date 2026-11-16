@@ -26,6 +26,7 @@ function editor(stock = '0') {
       endpoint="/api/v1/operations/articles"
       articlePhotos
       fields={[
+        { name: 'categoryId', label: 'Rubro', defaultValue: '3', valueType: 'number' },
         { name: 'name', label: 'Nombre', defaultValue: 'Urbano' },
         { name: 'code', label: 'Código', defaultValue: 'Z38N' },
         { name: 'unit', label: 'Unidad', defaultValue: 'UNIDAD' },
@@ -61,7 +62,7 @@ it('saves the shoe variant with its own stock, publication attributes and photos
     material: 'Cuero',
   })
   expect(body.initialStock).toBe(0)
-  expect(body.categoryId).toBe(0)
+  expect(body.categoryId).toBe(3)
   expect(body.supplierId).toBe(0)
   expect(body.freightByValue).toBe(false)
   expect(body.freightByPercent).toBe(true)
@@ -77,12 +78,13 @@ it('rejects fractional stock before sending a shoe variant', async () => {
   expect(apiFetch).not.toHaveBeenCalled()
 })
 
-it('does not ask for a garment category when creating apparel or footwear', () => {
+it('requires a category when creating apparel or footwear', () => {
   vi.mocked(apiFetch).mockReset().mockResolvedValue(Response.json([]))
   render(<ApparelEntry />)
   fireEvent.click(screen.getByRole('button', { name: /Cargar indumentaria/ }))
   expect(screen.getByLabelText('Nombre de publicación (sin talle ni color)')).toBeTruthy()
   expect(screen.queryByLabelText(/Tipo de prenda o calzado/)).toBeNull()
-  expect(document.querySelector('[name="categoryId"]')).toBeNull()
+  expect(screen.getByRole('combobox', { name: 'Rubro' })).toBeTruthy()
+  expect(document.querySelector('[name="categoryId"]')).not.toBeNull()
   expect(document.querySelector('[name="supplierId"]')).toBeNull()
 })

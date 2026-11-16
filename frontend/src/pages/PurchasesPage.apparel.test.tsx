@@ -7,6 +7,8 @@ beforeEach(() => {
   vi.mocked(apiFetch)
     .mockReset()
     .mockImplementation(async (path, options) => {
+      if (path.startsWith('/api/v1/alon/categories'))
+        return Response.json([{ id: 12, nombre: 'Remeras' }])
       if (path.endsWith('/default-supplier')) return Response.json({ id: 9, nombre: 'Proveedor' })
       if (path === '/api/v1/operations/purchases/apparel') {
         const input = JSON.parse(String(options?.body))
@@ -38,6 +40,10 @@ it('creates a garment once and adds its size quantities to the same purchase wit
   fireEvent.change(within(dialog).getByLabelText('Tipo de producto'), {
     target: { value: 'INDUMENTARIA' },
   })
+  fireEvent.change(within(dialog).getByRole('combobox', { name: 'Rubro' }), {
+    target: { value: 'Rem' },
+  })
+  fireEvent.click(await within(dialog).findByRole('option', { name: 'Remeras' }))
   fireEvent.change(within(dialog).getByLabelText('Nombre de la prenda'), {
     target: { value: 'Remera' },
   })
@@ -49,6 +55,7 @@ it('creates a garment once and adds its size quantities to the same purchase wit
   fireEvent.change(within(dialog).getByLabelText('Cantidad 1'), { target: { value: '2' } })
   fireEvent.click(within(dialog).getByRole('button', { name: 'Agregar otro talle' }))
   fireEvent.change(within(dialog).getByLabelText('Talle 2'), { target: { value: 'M' } })
+  fireEvent.change(within(dialog).getByLabelText('Color 2'), { target: { value: 'Negro' } })
   fireEvent.change(within(dialog).getByLabelText('Cantidad 2'), { target: { value: '3' } })
   fireEvent.click(
     within(dialog).getByRole('button', { name: 'Crear prenda y agregar talles al comprobante' }),

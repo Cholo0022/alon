@@ -53,6 +53,13 @@ export async function apiFetch(
     const send = () => fetch(url, { ...requestOptions, headers, credentials: 'same-origin' })
     const response = await send().catch((error: unknown) => {
       if (!retry || !mutation || options.signal?.aborted) throw error
+      if (!headers.has('Idempotency-Key')) {
+        window.dispatchEvent(new Event('alon:refresh'))
+        throw new Error(
+          'No se pudo confirmar el resultado. Consultá el listado actualizado antes de reintentar.',
+          { cause: error },
+        )
+      }
       return send()
     })
     if (response.ok || response.status < 500) pending.delete(signature)

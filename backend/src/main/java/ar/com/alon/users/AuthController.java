@@ -109,8 +109,17 @@ public class AuthController {
     /** Recibe los datos del usuario nuevo y delega la validación y creación en el servicio. */
     @PostMapping("/users")
     @ResponseStatus(HttpStatus.CREATED)
-    public Map<String, Object> createUser(@Valid @RequestBody UserService.UserInput input) {
-        return model.createUser(input);
+    @org.springframework.transaction.annotation.Transactional
+    public Map<String, Object> createUser(
+            @Valid @RequestBody UserService.UserInput input,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        var created = new java.util.HashMap<String, Object>(model.createUser(input));
+        created.put(
+                "browserAllowed",
+                security.allowCreatedUser(
+                        ((Number) created.get("id")).longValue(), request, response));
+        return created;
     }
 
     /**
@@ -134,6 +143,12 @@ public class AuthController {
             HttpServletRequest request) {
         Map<?, ?> current = (Map<?, ?>) request.getSession(false).getAttribute("alonUser");
         model.setActive(id, input.active(), ((Number) current.get("id")).longValue());
+        return Map.of("ok", true);
+    }
+
+    @DeleteMapping("/users/{id}")
+    public Map<String, Object> deleteUser(@PathVariable long id) {
+        model.deleteUser(id);
         return Map.of("ok", true);
     }
 

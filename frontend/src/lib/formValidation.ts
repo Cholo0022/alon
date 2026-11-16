@@ -205,3 +205,16 @@ export function validateForm(form: HTMLFormElement): string | null {
     first.name
   return `${label}: ${first.validationMessage}`
 }
+
+/** Talle y color forman una identidad; corregir cualquiera limpia el error del par. */
+export function clearApparelVariantValidation(event: { target: EventTarget | null }) {
+  clearFieldValidation(event)
+  const field = event.target
+  if (!(field instanceof HTMLInputElement)) return
+  const row = /^(lines|variants)\[(\d+)\]\.(size|color)$/.exec(field.name)
+  if (!row) return
+  for (const key of ['size', 'color']) {
+    const paired = field.form?.elements.namedItem(row[1] + '[' + row[2] + '].' + key)
+    if (paired instanceof HTMLInputElement) clearFieldValidation({ target: paired })
+  }
+}

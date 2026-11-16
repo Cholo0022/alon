@@ -95,6 +95,7 @@ class MySqlIntegrationTest {
                                                     "licencias",
                                                     "security_recovery_codes",
                                                     "security_browsers",
+                                                    "security_browser_blocks",
                                                     "security_events",
                                                     "security_mail_queue",
                                                     "comandos_procesados",
@@ -2797,6 +2798,46 @@ class MySqlIntegrationTest {
                     return null;
                 });
         assertThat(service.validSession(securityUser(2), staff)).isFalse();
+        // Revoking a device must also block a NEW pending request from automatic owner login.
+        var retried = new MockHttpServletRequest();
+        retried.setRemoteAddr("192.0.2.10");
+        retried.addHeader("User-Agent", "Navegador de prueba");
+        retried.setCookies(new jakarta.servlet.http.Cookie("ALON_BROWSER_2", token));
+        var retryResponse = new MockHttpServletResponse();
+        transaction.executeWithoutResult(
+                status -> service.begin(securityUser(2), retried, retryResponse));
+        String retryToken = retryResponse.getHeader("Set-Cookie").split(";", 2)[0].split("=", 2)[1];
+        retried.setCookies(new jakarta.servlet.http.Cookie("ALON_BROWSER_2", retryToken));
+        String retryId =
+                jdbc.queryForObject(
+                        "SELECT id FROM security_browsers WHERE usuario_id=2 AND estado='PENDIENTE'",
+                        String.class);
+        jdbc.update("UPDATE usuarios SET rol='DUENO' WHERE id=1");
+        var sameBrowserOwner = new MockHttpServletRequest();
+        sameBrowserOwner.setRemoteAddr("192.0.2.10");
+        sameBrowserOwner.addHeader("User-Agent", "Navegador de prueba");
+        sameBrowserOwner.setCookies(new jakarta.servlet.http.Cookie("ALON_BROWSER_2", retryToken));
+        transaction.executeWithoutResult(
+                status ->
+                        service.begin(
+                                securityUser(1), sameBrowserOwner, new MockHttpServletResponse()));
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT estado FROM security_browsers WHERE id=?",
+                                String.class,
+                                retryId))
+                .isEqualTo("PENDIENTE");
+        assertThat(service.pendingCount()).isEqualTo(1);
+        transaction.executeWithoutResult(
+                status -> service.decide(retryId, "approve", sameBrowserOwner));
+        transaction.executeWithoutResult(status -> service.advance(null, false, retried));
+        assertThat(service.validSession(securityUser(2), retried)).isTrue();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT estado FROM security_browsers WHERE id=?",
+                                String.class,
+                                id))
+                .isEqualTo("REVOCADO");
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT COUNT(*) FROM security_recovery_codes WHERE used_at IS NULL",

@@ -12,6 +12,7 @@ export function installSentenceCase(root: Document = document) {
   const normalize = (event: Event) => {
     const field = event.target
     if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return
+    if (field.dataset.preserveCase === 'true') return
     if (event instanceof InputEvent && event.isComposing) return
     if (field instanceof HTMLInputElement && !['text', 'search'].includes(field.type)) return
     const identifier = [

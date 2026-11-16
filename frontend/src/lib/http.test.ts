@@ -2,6 +2,25 @@ import { beforeEach, expect, it, vi } from 'vitest'
 
 beforeEach(() => vi.resetModules())
 
+it('never automatically resends an unprotected user creation after a lost response', async () => {
+  const writes = vi.fn(async () => {
+    throw new TypeError('response lost after commit')
+  })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string) =>
+      url.endsWith('/auth/status')
+        ? Promise.resolve(Response.json({ csrfToken: 'token' }))
+        : writes(),
+    ),
+  )
+  const { apiFetch } = await import('./http')
+  await expect(apiFetch('/api/v1/auth/users', { method: 'POST', body: '{}' })).rejects.toThrow(
+    'Consultá el listado actualizado',
+  )
+  expect(writes).toHaveBeenCalledOnce()
+})
+
 it('reuses one operation key if the response is lost and adds CSRF protection', async () => {
   const requests: RequestInit[] = []
   vi.stubGlobal(

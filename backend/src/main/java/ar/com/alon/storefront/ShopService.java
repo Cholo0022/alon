@@ -42,14 +42,11 @@ public class ShopService {
             throw new IllegalArgumentException("La búsqueda no es válida.");
         String displayName =
                 "CASE WHEN a.tipo_producto IN ('INDUMENTARIA','CALZADO') AND RIGHT(a.nombre,CHAR_LENGTH(CONCAT(' · ',a.talle,' · ',a.color)))=CONCAT(' · ',a.talle,' · ',a.color) THEN LEFT(a.nombre,CHAR_LENGTH(a.nombre)-CHAR_LENGTH(CONCAT(' · ',a.talle,' · ',a.color))) ELSE a.nombre END";
-        String productKey =
-                "CASE WHEN a.tipo_producto IN ('INDUMENTARIA','CALZADO') THEN CONCAT('v:',SHA2(CAST(JSON_ARRAY(a.tipo_producto,LOWER(TRIM(a.modelo)),LOWER(TRIM(a.marca)),LOWER(TRIM(a.sistema_talle)),LOWER(TRIM(a.material)),LOWER(TRIM(a.publico)),LOWER(TRIM(a.temporada))) AS CHAR),256)) ELSE CONCAT('a:',a.id) END";
+        String productKey = ar.com.alon.articles.ApparelGroups.keySql("a");
         String published =
                 "WITH published AS (SELECT a.id,a.tipo_producto,a.modelo,a.marca,a.talle,a.sistema_talle,a.color,a.material,a.publico,a.temporada,a.descripcion,a.codigo,a.nombre,a.unidad,a.precio_venta,a.stock,a.imagen_clave,a.imagen_ilustrativa,"
                         + displayName
-                        + " AS nombre_publico,CASE WHEN a.tipo_producto IN ('INDUMENTARIA','CALZADO') THEN "
-                        + displayName
-                        + " ELSE r.nombre END AS rubro,"
+                        + " AS nombre_publico,r.nombre AS rubro,"
                         + productKey
                         + " AS product_key FROM articulos a JOIN rubros r ON r.id=a.rubro_id AND r.comercio_id=a.comercio_id WHERE a.comercio_id=? AND a.estado='ACTIVO' AND a.cargar_web=TRUE) ";
         String matching =

@@ -9,9 +9,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 class ManagerPasswordTest {
-    /** Comprueba el límite de ocho caracteres en alta y edición sin reducir el de los empleados. */
+    /** Comprueba el mínimo de cuatro caracteres en alta y edición, incluidos empleados. */
     @Test
-    void managerAcceptsEightButRejectsSevenOnCreateAndUpdate() {
+    void managerAcceptsFourButRejectsThreeOnCreateAndUpdate() {
         var jdbc = mock(JdbcTemplate.class);
         var hashes = mock(PasswordHasher.class);
         var identity = mock(RequestIdentity.class);
@@ -49,7 +49,7 @@ class ManagerPasswordTest {
                                         new UserService.UserInput(
                                                 "gerente",
                                                 "Gerente",
-                                                "12345678",
+                                                "1234",
                                                 "DUENO",
                                                 List.of("ventas"))))
                 .doesNotThrowAnyException();
@@ -59,10 +59,10 @@ class ManagerPasswordTest {
                                         new UserService.UserInput(
                                                 "gerente",
                                                 "Gerente",
-                                                "1234567",
+                                                "123",
                                                 "DUENO",
                                                 List.of("ventas"))))
-                .hasMessageContaining("8 y 128");
+                .hasMessageContaining("4 y 128");
         assertThatCode(
                         () ->
                                 users.updateUser(
@@ -70,7 +70,7 @@ class ManagerPasswordTest {
                                         new UserService.UserUpdateInput(
                                                 "gerente",
                                                 "Gerente",
-                                                "abcdefgh",
+                                                "abcd",
                                                 "DUENO",
                                                 List.of("ventas"))))
                 .doesNotThrowAnyException();
@@ -81,28 +81,28 @@ class ManagerPasswordTest {
                                         new UserService.UserUpdateInput(
                                                 "gerente",
                                                 "Gerente",
-                                                "abcdefg",
+                                                "abc",
                                                 "DUENO",
                                                 List.of("ventas"))))
-                .hasMessageContaining("8 y 128");
+                .hasMessageContaining("4 y 128");
         assertThatThrownBy(
                         () ->
                                 users.createUser(
                                         new UserService.UserInput(
                                                 "empleado",
                                                 "Empleado",
-                                                "12345678",
+                                                "123",
                                                 "PERSONALIZADO",
                                                 List.of("ventas"))))
-                .hasMessageContaining("12 y 128");
-        verify(hashes).hash("12345678");
-        verify(hashes).hash("abcdefgh");
-        verify(hashes, never()).hash("1234567");
+                .hasMessageContaining("4 y 128");
+        verify(hashes).hash("1234");
+        verify(hashes).hash("abcd");
+        verify(hashes, never()).hash("123");
     }
 
-    /** El formulario HTTP de alta debe aceptar ocho caracteres y rechazar siete. */
+    /** El formulario HTTP de alta debe aceptar cuatro caracteres y rechazar tres. */
     @Test
-    void managerRequestValidationMatchesTheEightCharacterPolicy() {
+    void managerRequestValidationMatchesTheFourCharacterPolicy() {
         try (var factory = jakarta.validation.Validation.buildDefaultValidatorFactory()) {
             var validator = factory.getValidator();
             assertThat(
@@ -110,7 +110,7 @@ class ManagerPasswordTest {
                                     new PlatformAdministration.ManagerInput(
                                             "gerente",
                                             "Gerente",
-                                            "12345678",
+                                            "1234",
                                             "gerente@example.test",
                                             List.of("ventas"),
                                             1)))
@@ -120,7 +120,7 @@ class ManagerPasswordTest {
                                     new PlatformAdministration.ManagerInput(
                                             "gerente",
                                             "Gerente",
-                                            "1234567",
+                                            "123",
                                             "gerente@example.test",
                                             List.of("ventas"),
                                             1)))

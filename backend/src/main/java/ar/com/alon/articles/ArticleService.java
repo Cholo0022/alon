@@ -123,7 +123,7 @@ public class ArticleService extends StoreJdbcSupport {
             throw new IllegalArgumentException("Este artículo no usa talles.");
         var existing =
                 jdbc.queryForList(
-                        "SELECT a.talle,a.color FROM articulos a WHERE a.comercio_id=? AND a.tipo_producto=? AND a.modelo=? AND a.marca=? AND a.sistema_talle=? AND a.publico=? AND a.temporada=? AND a.material=?",
+                        "SELECT a.talle,a.color FROM articulos a WHERE a.comercio_id=? AND a.tipo_producto=? AND a.modelo=? AND a.marca=? AND a.sistema_talle=? AND a.publico=? AND a.temporada=? AND a.material=? AND a.rubro_id=?",
                         identity.storeId(),
                         kind,
                         base.get("modelo"),
@@ -131,7 +131,8 @@ public class ArticleService extends StoreJdbcSupport {
                         base.get("sistema_talle"),
                         base.get("publico"),
                         base.get("temporada"),
-                        base.get("material"));
+                        base.get("material"),
+                        base.get("rubro_id"));
         var seen = new java.util.HashSet<String>();
         for (var row : existing)
             seen.add(
@@ -185,7 +186,7 @@ public class ArticleService extends StoreJdbcSupport {
                 new ArticleInput(
                         first.code(),
                         name,
-                        0,
+                        ((Number) base.get("rubro_id")).longValue(),
                         0,
                         "UNIDAD",
                         (BigDecimal) base.get("costo"),
@@ -349,11 +350,12 @@ public class ArticleService extends StoreJdbcSupport {
                                     material,
                                     system,
                                     audience,
-                                    season));
+                                    season,
+                                    base.get("rubro_id")));
             args.addAll(allIds);
             Integer collisions =
                     jdbc.queryForObject(
-                            "SELECT COUNT(*) FROM articulos WHERE comercio_id=? AND tipo_producto=? AND modelo=? AND marca=? AND material=? AND sistema_talle=? AND publico=? AND temporada=? AND id NOT IN ("
+                            "SELECT COUNT(*) FROM articulos WHERE comercio_id=? AND tipo_producto=? AND modelo=? AND marca=? AND material=? AND sistema_talle=? AND publico=? AND temporada=? AND rubro_id=? AND id NOT IN ("
                                     + String.join(
                                             ",", java.util.Collections.nCopies(allIds.size(), "?"))
                                     + ")",
@@ -502,7 +504,7 @@ public class ArticleService extends StoreJdbcSupport {
                     new ArticleInput(
                             variant.code(),
                             name,
-                            0,
+                            base.categoryId(),
                             0,
                             "UNIDAD",
                             base.cost(),
@@ -643,26 +645,12 @@ public class ArticleService extends StoreJdbcSupport {
         return Map.of("id", id, "codigo", code, "nombre", name);
     }
 
-    /** La clasificación interna no requiere un rubro en el formulario de indumentaria. */
+    /** Artículos e indumentaria usan los mismos rubros del comercio. */
     private long categoryFor(ArticleInput input, Map<String, Object> current) {
-        if (input.apparel() == null) {
-            assertBelongs("rubros", input.categoryId());
-            return input.categoryId();
-        }
-        if (current != null) return ((Number) current.get("rubro_id")).longValue();
-        jdbc.queryForObject(
-                "SELECT id FROM comercios WHERE id=? FOR UPDATE", Long.class, identity.storeId());
-        var existing =
-                jdbc.queryForList(
-                        "SELECT id FROM rubros WHERE comercio_id=? AND nombre=? ORDER BY id LIMIT 1",
-                        identity.storeId(),
-                        "Indumentaria y calzado");
-        if (!existing.isEmpty()) return ((Number) existing.getFirst().get("id")).longValue();
-        return insert(
-                "INSERT INTO rubros (comercio_id,codigo,nombre) VALUES (?,?,?)",
-                identity.storeId(),
-                "RUB-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
-                "Indumentaria y calzado");
+        if (input.apparel() != null && current != null && input.categoryId() == 0)
+            return ((Number) current.get("rubro_id")).longValue();
+        assertBelongs("rubros", input.categoryId());
+        return input.categoryId();
     }
 
     private void validateApparel(ArticleInput input) {

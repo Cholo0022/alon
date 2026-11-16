@@ -67,6 +67,7 @@ it('keeps employees waiting until the server approves their bound browser', asyn
   expect(screen.getByRole('heading', { name: 'Esperando autorización del gerente' })).toBeTruthy()
   expect(onState).not.toHaveBeenCalled()
   await act(() => vi.advanceTimersByTimeAsync(3000))
+  expect(JSON.parse(String(request.mock.calls[0][1]?.body))).toEqual({ saved: false })
   expect(onState).toHaveBeenCalledWith({ user: { id: 2 }, challenge: {} })
 })
 it('stops polling a rejected browser and allows returning to login', async () => {

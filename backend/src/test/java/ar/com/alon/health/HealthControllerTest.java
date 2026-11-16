@@ -11,7 +11,9 @@ class HealthControllerTest {
 
     @Test
     void returnsServiceStatusAndTimestamp() {
-        Map<String, String> response = controller.health();
+        var http = new org.springframework.mock.web.MockHttpServletResponse();
+        Map<String, String> response = controller.health(http);
+        assertThat(http.getHeader("X-Alon-Instance")).isEqualTo("central");
 
         assertThat(response).containsEntry("status", "ok").containsEntry("service", "alon-api");
         assertThat(Instant.parse(response.get("time"))).isNotNull();

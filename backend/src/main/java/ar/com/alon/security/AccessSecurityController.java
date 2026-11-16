@@ -25,7 +25,7 @@ public class AccessSecurityController {
         this.throttle = throttle;
     }
 
-    public record Verify(@Size(max = 80) String code, boolean saved) {}
+    public record Verify(@Size(max = 80) String code, Boolean saved) {}
 
     public record Enrollment(
             @NotBlank @Pattern(regexp = "[0-9]{6}") String code,
@@ -62,7 +62,9 @@ public class AccessSecurityController {
     public AuthController.AuthStatus advance(
             @Valid @RequestBody(required = false) Verify input, HttpServletRequest request) {
         security.advance(
-                input == null ? null : input.code(), input != null && input.saved(), request);
+                input == null ? null : input.code(),
+                input != null && Boolean.TRUE.equals(input.saved()),
+                request);
         return auth.status(request);
     }
 

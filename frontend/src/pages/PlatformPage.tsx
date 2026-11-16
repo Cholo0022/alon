@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import { navigation } from '../lib/navigation'
 import { formatDateTimeDisplay as date } from '../lib/format'
+import { PlatformBusinesses } from './PlatformBusinesses'
 
 type Manager = {
   id: number
@@ -226,6 +227,7 @@ export function PlatformPage() {
   }
   return (
     <>
+      <PlatformBusinesses />
       <section className="entry-panel platform-panel">
         <span className="alon-tag">SUPERUSUARIO · ALON</span>
         <h2>{editing ? 'Modificar gerente' : 'Crear gerente'}</h2>
@@ -267,7 +269,7 @@ export function PlatformPage() {
               type="text"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              minLength={8}
+              minLength={4}
               maxLength={128}
               autoComplete="new-password"
               required={!editing}

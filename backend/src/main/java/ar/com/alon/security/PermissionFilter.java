@@ -57,6 +57,7 @@ public class PermissionFilter extends OncePerRequestFilter {
         String path = req.getRequestURI();
         if (!path.startsWith("/api/v1/")
                 || path.equals("/api/v1/health")
+                || path.equals("/api/v1/health/businesses")
                 || path.startsWith("/api/v1/shop/")
                 || AUTH_PUBLIC.contains(path)) {
             chain.doFilter(req, res);
@@ -95,9 +96,7 @@ public class PermissionFilter extends OncePerRequestFilter {
             return;
         }
         if (path.startsWith("/api/v1/auth/security/")) {
-            if (!"DUENO".equals(role)
-                    || !Arrays.asList(String.valueOf(current.get("permisos")).split(","))
-                            .contains("seguridad")) {
+            if (!"DUENO".equals(role)) {
                 reject(res, 403, "No tenés habilitada la sección Seguridad.");
                 return;
             }

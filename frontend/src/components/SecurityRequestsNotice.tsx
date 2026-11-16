@@ -27,13 +27,12 @@ export function SecurityRequestsNotice({ onOpen }: { onOpen: () => void }) {
       window.removeEventListener('alon:refresh', load)
     }
   }, [])
-  if (!count) return null
   return (
     <div className="security-access-notice">
       <button className="select-button" type="button" onClick={onOpen}>
         {count
-          ? `${count} solicitud${count === 1 ? '' : 'es'} de ingreso pendiente${count === 1 ? '' : 's'}`
-          : 'Seguridad de ingreso y cuenta del gerente'}
+          ? `Permitir accesos (${count} pendiente${count === 1 ? '' : 's'})`
+          : 'Permitir accesos · Seguridad'}
       </button>
     </div>
   )

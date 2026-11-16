@@ -10,7 +10,7 @@ import {
 } from '../lib/articlePhotos'
 import { ArticlePhotosField } from './ArticlePhotosField'
 import { DeleteRecordButton } from './DeleteRecordButton'
-import { clearFieldValidation, showFieldErrors, validateForm } from '../lib/formValidation'
+import { clearApparelVariantValidation, showFieldErrors, validateForm } from '../lib/formValidation'
 import { preventImplicitArticleSubmit } from '../lib/articleKeyboard'
 import './article-picker.css'
 
@@ -135,25 +135,13 @@ function GarmentEditorForm({
   const update = (key: keyof typeof common, value: string) =>
     setCommon((current) => ({ ...current, [key]: value }))
   const addSize = (size = '') => {
-    const exists = rows.findIndex((row) => row.size === size)
-    if (size && exists >= 0) {
-      document.getElementsByName(`lines[${exists}].stock`)[0]?.focus()
-      return
-    }
-    const pending = added.findIndex(
-      (row) => row.size === size && row.color === (rows[0]?.color ?? 'Unico'),
-    )
-    if (size && pending >= 0) {
-      document.getElementsByName(`variants[${pending}].quantity`)[0]?.focus()
-      return
-    }
     if (added.length >= 100) return
     setAdded((current) => [
       ...current,
       {
         key: 'VAR-' + crypto.randomUUID().slice(0, 12).toUpperCase(),
         size,
-        color: rows[0]?.color ?? 'Único',
+        color: '',
         stock: '0',
         code: '',
       },
@@ -256,10 +244,10 @@ function GarmentEditorForm({
         onSubmit={submit}
         onKeyDown={preventImplicitArticleSubmit}
         onInputCapture={(event) => {
-          clearFieldValidation(event)
+          clearApparelVariantValidation(event)
           setError('')
         }}
-        onChangeCapture={clearFieldValidation}
+        onChangeCapture={clearApparelVariantValidation}
       >
         <fieldset disabled={busy || !canEdit}>
           <label>

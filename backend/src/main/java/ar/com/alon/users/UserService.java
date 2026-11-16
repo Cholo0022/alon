@@ -126,7 +126,7 @@ public class UserService {
         if (!"alon".equals(input.username()))
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "La cuenta del superusuario debe llamarse alon.");
-        validate(input, 12);
+        validate(input, 4);
         return userById(
                 insert(
                         bootstrapStoreId,
@@ -201,11 +201,87 @@ public class UserService {
      * paginación.
      */
     public List<Map<String, Object>> users() {
-        return new ar.com.alon.shared.persistence.ReadPage(jdbc)
-                .query(
-                        "usuario,nombre",
-                        "SELECT id,usuario,nombre,rol,permisos,activo FROM usuarios WHERE comercio_id=? AND rol NOT IN ('SUPER','DUENO') ORDER BY nombre,id",
-                        identity.storeId());
+        var rows =
+                new ar.com.alon.shared.persistence.ReadPage(jdbc)
+                        .query(
+                                "usuario,nombre",
+                                "SELECT id,usuario,nombre,rol,permisos,activo FROM usuarios WHERE comercio_id=? AND rol NOT IN ('SUPER','DUENO') ORDER BY nombre,id",
+                                identity.storeId());
+        var references = userHistoryReferences();
+        return rows.stream()
+                .map(
+                        row -> {
+                            var result = new java.util.HashMap<String, Object>(row);
+                            result.put(
+                                    "can_delete",
+                                    !hasHistory(((Number) row.get("id")).longValue(), references));
+                            return (Map<String, Object>) result;
+                        })
+                .toList();
+    }
+
+    /** Incluye referencias nuevas de futuras migraciones y auditoría sin claves foráneas. */
+    private List<Map<String, Object>> userHistoryReferences() {
+        return jdbc.queryForList(
+                "SELECT DISTINCT TABLE_NAME AS table_name,COLUMN_NAME AS column_name FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND REFERENCED_TABLE_SCHEMA=DATABASE() AND REFERENCED_TABLE_NAME='usuarios' AND REFERENCED_COLUMN_NAME='id' UNION SELECT TABLE_NAME AS table_name,COLUMN_NAME AS column_name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='usuario_id' AND TABLE_NAME<>'usuarios'");
+    }
+
+    private boolean hasHistory(long id, List<Map<String, Object>> references) {
+        for (var reference : references) {
+            String table = String.valueOf(reference.get("table_name"));
+            String column = String.valueOf(reference.get("column_name"));
+            if (Set.of(
+                                    "security_browsers",
+                                    "security_events",
+                                    "security_recovery_codes",
+                                    "security_browser_blocks")
+                            .contains(table)
+                    && column.equals("usuario_id")) continue;
+            if (!table.matches("[a-zA-Z0-9_]+") || !column.matches("[a-zA-Z0-9_]+"))
+                throw new IllegalStateException("Referencia de usuario inválida.");
+            if (Boolean.TRUE.equals(
+                    jdbc.queryForObject(
+                            "SELECT EXISTS(SELECT 1 FROM `" + table + "` WHERE `" + column + "`=?)",
+                            Boolean.class,
+                            id))) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Solo elimina cuentas sin historial; la comprobación se repite dentro del bloqueo comercial.
+     */
+    @Transactional
+    public void deleteUser(long id) {
+        lockStore(identity.storeId());
+        var target = userById(id, identity.storeId());
+        validateDelegation(String.valueOf(target.get("rol")), Set.of(), target);
+        if (id == identity.userId())
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "No podés eliminar tu propio usuario.");
+        preserveOwner(id);
+        // El bloqueo de fila también protege contra referencias concurrentes con FK.
+        jdbc.queryForObject(
+                "SELECT id FROM usuarios WHERE id=? AND comercio_id=? FOR UPDATE",
+                Long.class,
+                id,
+                identity.storeId());
+        if (hasHistory(id, userHistoryReferences()))
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Este usuario ya tiene movimientos o registros asociados. Desactivá su acceso para conservar el historial.");
+        jdbc.update(
+                "DELETE FROM security_browser_blocks WHERE comercio_id=? AND usuario_id=?",
+                identity.storeId(),
+                id);
+        try {
+            jdbc.update(
+                    "DELETE FROM usuarios WHERE id=? AND comercio_id=?", id, identity.storeId());
+        } catch (org.springframework.dao.DataIntegrityViolationException conflict) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "El usuario tiene registros asociados y no se puede eliminar. Desactivá su acceso.");
+        }
     }
 
     /**
@@ -241,9 +317,7 @@ public class UserService {
         String name =
                 input.name() == null || input.name().isBlank() ? input.username() : input.name();
         validateDelegation(role, permissions, null);
-        validate(
-                new Credentials(input.username(), name, input.password(), null),
-                "DUENO".equals(role) ? 8 : 12);
+        validate(new Credentials(input.username(), name, input.password(), null), 4);
         return userById(
                 insert(
                         identity.storeId(),
@@ -311,7 +385,7 @@ public class UserService {
                 && isActive(existing.get("activo"))
                 && !"DUENO".equals(role)) preserveOwner(id);
         String password = input.password() == null ? "" : input.password();
-        if (!password.isBlank()) validatePassword(password, "DUENO".equals(role) ? 8 : 12);
+        if (!password.isBlank()) validatePassword(password, 4);
         if (name.isBlank() || name.length() > 160)
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "El nombre es demasiado largo.");
@@ -448,10 +522,7 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Hay permisos no válidos.");
     }
 
-    /**
-     * Aplica el mínimo del perfil: ocho caracteres para Gerentes y doce para los otros usuarios;
-     * admite hasta 128.
-     */
+    /** Aplica un mínimo de cuatro caracteres para todos los usuarios; admite hasta 128. */
     private void validatePassword(String password, int minimum) {
         if (password == null || password.length() < minimum || password.length() > 128)
             throw new ResponseStatusException(

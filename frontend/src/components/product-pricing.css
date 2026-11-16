@@ -1,0 +1,29 @@
+.entry-form > .product-pricing,
+.purchase-new-apparel .product-pricing {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid #bdccd7;
+  border-radius: 10px;
+  background: #f5f9fb;
+}
+.product-pricing legend {
+  padding: 0 6px;
+  color: #17324b;
+  font-weight: 700;
+}
+.product-pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.product-pricing > button,
+.product-pricing > label {
+  margin-top: 14px;
+}
+@media (max-width: 680px) {
+  .product-pricing-grid {
+    grid-template-columns: 1fr;
+  }
+}

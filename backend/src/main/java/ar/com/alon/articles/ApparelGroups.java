@@ -12,6 +12,8 @@ public final class ApparelGroups {
                 + a
                 + ".tipo_producto IN ('INDUMENTARIA','CALZADO') THEN CONCAT('v:',SHA2(CAST(JSON_ARRAY("
                 + a
+                + ".rubro_id,"
+                + a
                 + ".tipo_producto,LOWER(TRIM("
                 + a
                 + ".modelo)),LOWER(TRIM("
@@ -49,7 +51,7 @@ public final class ApparelGroups {
             throw new IllegalArgumentException("Este artículo no tiene talles.");
         var rows =
                 jdbc.queryForList(
-                        "SELECT a.* FROM articulos a WHERE a.comercio_id=? AND a.tipo_producto=? AND a.modelo=? AND a.marca=? AND a.sistema_talle=? AND a.material=? AND a.publico=? AND a.temporada=? AND a.estado=? ORDER BY a.id"
+                        "SELECT a.* FROM articulos a WHERE a.comercio_id=? AND a.tipo_producto=? AND a.modelo=? AND a.marca=? AND a.sistema_talle=? AND a.material=? AND a.publico=? AND a.temporada=? AND a.estado=? AND a.rubro_id=? ORDER BY a.id"
                                 + (lock ? " FOR UPDATE" : ""),
                         store,
                         base.get("tipo_producto"),
@@ -59,7 +61,8 @@ public final class ApparelGroups {
                         base.get("material"),
                         base.get("publico"),
                         base.get("temporada"),
-                        base.get("estado"));
+                        base.get("estado"),
+                        base.get("rubro_id"));
         ArticlePhotoQueries.attach(jdbc, store, rows);
         var stable = new ArrayList<Map<String, String>>();
         for (var row : rows) {
@@ -67,6 +70,7 @@ public final class ApparelGroups {
             for (var key :
                     List.of(
                             "id",
+                            "rubro_id",
                             "codigo",
                             "nombre",
                             "tipo_producto",

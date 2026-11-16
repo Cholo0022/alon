@@ -3,10 +3,16 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ArticleList } from '../pages/CatalogPage'
 import { apiFetch } from '../lib/http'
 vi.mock('../lib/http', () => ({ apiFetch: vi.fn() }))
+const category = () => Response.json([{ id: 12, nombre: 'Remeras' }])
+async function selectCategory() {
+  fireEvent.change(screen.getByRole('combobox', { name: 'Rubro' }), { target: { value: 'Rem' } })
+  fireEvent.click(await screen.findByRole('option', { name: 'Remeras' }))
+}
 beforeEach(() => {
   vi.mocked(apiFetch)
     .mockReset()
     .mockImplementation(async (url, options) => {
+      if (url.startsWith('/api/v1/alon/categories')) return category()
       if (url === '/api/v1/operations/articles/apparel' && options?.method === 'POST')
         return Response.json({ items: [{ id: 1 }, { id: 2 }, { id: 3 }] })
       return Response.json([])
@@ -17,16 +23,19 @@ it('offers stock per size in the same article entry and sends S5 M3 L0 without c
   fireEvent.click(screen.getByRole('button', { name: /Cargar artículo/ }))
   expect((screen.getByLabelText('Tipo de producto') as HTMLSelectElement).value).toBe('ARTICULO')
   fireEvent.change(screen.getByLabelText('Tipo de producto'), { target: { value: 'INDUMENTARIA' } })
+  await selectCategory()
   expect(document.querySelectorAll('form')).toHaveLength(1)
   fireEvent.change(screen.getByLabelText('Nombre del artículo'), { target: { value: 'Remera' } })
   fireEvent.change(screen.getByLabelText('Talle 1'), { target: { value: 'S' } })
-  fireEvent.change(screen.getByLabelText('Color único (opcional)'), { target: { value: 'Negro' } })
+  fireEvent.change(screen.getByLabelText('Color 1'), { target: { value: 'Negro' } })
   fireEvent.change(screen.getByLabelText('Stock talle 1'), { target: { value: '5' } })
   fireEvent.click(screen.getByRole('button', { name: 'Agregar otro talle' }))
   fireEvent.change(screen.getByLabelText('Talle 2'), { target: { value: 'M' } })
+  fireEvent.change(screen.getByLabelText('Color 2'), { target: { value: 'Negro' } })
   fireEvent.change(screen.getByLabelText('Stock talle 2'), { target: { value: '3' } })
   fireEvent.click(screen.getByRole('button', { name: 'Agregar otro talle' }))
   fireEvent.change(screen.getByLabelText('Talle 3'), { target: { value: 'L' } })
+  fireEvent.change(screen.getByLabelText('Color 3'), { target: { value: 'Negro' } })
   expect((screen.getByLabelText('Stock talle 3') as HTMLInputElement).value).toBe('0')
   fireEvent.click(screen.getByRole('button', { name: 'Guardar artículo con stock por talle' }))
   await screen.findByText('Prenda guardada con 3 talles.')
@@ -50,16 +59,19 @@ it('offers stock per size in the same article entry and sends S5 M3 L0 without c
 })
 it('keeps the per-size stock form after a failed save and allows footwear selection', async () => {
   vi.mocked(apiFetch).mockImplementation(async (url) =>
-    url === '/api/v1/operations/articles/apparel'
-      ? Response.json({ error: 'No se pudo guardar.' }, { status: 400 })
-      : Response.json([]),
+    url.startsWith('/api/v1/alon/categories')
+      ? category()
+      : url === '/api/v1/operations/articles/apparel'
+        ? Response.json({ error: 'No se pudo guardar.' }, { status: 400 })
+        : Response.json([]),
   )
   render(<ArticleList canEditCosts />)
   fireEvent.click(screen.getByRole('button', { name: /Cargar artículo/ }))
   fireEvent.change(screen.getByLabelText('Tipo de producto'), { target: { value: 'CALZADO' } })
+  await selectCategory()
   fireEvent.change(screen.getByLabelText('Nombre del artículo'), { target: { value: 'Zapato' } })
   fireEvent.change(screen.getByLabelText('Talle 1'), { target: { value: '38' } })
-  fireEvent.change(screen.getByLabelText('Color único (opcional)'), { target: { value: 'Negro' } })
+  fireEvent.change(screen.getByLabelText('Color 1'), { target: { value: 'Negro' } })
   fireEvent.change(screen.getByLabelText('Stock talle 1'), { target: { value: '2' } })
   fireEvent.click(screen.getByRole('button', { name: 'Guardar artículo con stock por talle' }))
   await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('No se pudo guardar.'))
@@ -73,6 +85,7 @@ it('marks missing fields red and goes to the next field without clearing the art
   render(<ArticleList canEditCosts />)
   fireEvent.click(screen.getByRole('button', { name: /Cargar artículo/ }))
   fireEvent.change(screen.getByLabelText('Tipo de producto'), { target: { value: 'INDUMENTARIA' } })
+  await selectCategory()
   fireEvent.click(screen.getByRole('button', { name: 'Guardar artículo con stock por talle' }))
   const name = screen.getByLabelText('Nombre del artículo')
   const size = screen.getByLabelText('Talle 1')
@@ -89,25 +102,28 @@ it('marks missing fields red and goes to the next field without clearing the art
 })
 it('marks every server field and opens folded details when correcting the next error', async () => {
   vi.mocked(apiFetch).mockImplementation(async (url) =>
-    url === '/api/v1/operations/articles/apparel'
-      ? Response.json(
-          {
-            error: 'Revisá los campos señalados.',
-            fields: {
-              'variants[0].quantity': 'Revisá el stock.',
-              'product.apparel.model': 'Revisá el modelo.',
+    url.startsWith('/api/v1/alon/categories')
+      ? category()
+      : url === '/api/v1/operations/articles/apparel'
+        ? Response.json(
+            {
+              error: 'Revisá los campos señalados.',
+              fields: {
+                'variants[0].quantity': 'Revisá el stock.',
+                'product.apparel.model': 'Revisá el modelo.',
+              },
             },
-          },
-          { status: 400 },
-        )
-      : Response.json([]),
+            { status: 400 },
+          )
+        : Response.json([]),
   )
   render(<ArticleList canEditCosts />)
   fireEvent.click(screen.getByRole('button', { name: /Cargar artículo/ }))
   fireEvent.change(screen.getByLabelText('Tipo de producto'), { target: { value: 'INDUMENTARIA' } })
+  await selectCategory()
   fireEvent.change(screen.getByLabelText('Nombre del artículo'), { target: { value: 'Remera' } })
   fireEvent.change(screen.getByLabelText('Talle 1'), { target: { value: 'S' } })
-  fireEvent.change(screen.getByLabelText('Color único (opcional)'), { target: { value: 'Negro' } })
+  fireEvent.change(screen.getByLabelText('Color 1'), { target: { value: 'Negro' } })
   fireEvent.click(screen.getByRole('button', { name: 'Guardar artículo con stock por talle' }))
   const stock = screen.getByLabelText('Stock talle 1')
   const model = screen.getByLabelText('Modelo / referencia')
@@ -127,9 +143,10 @@ it('does not save when a scanner finishes the size barcode with Enter', async ()
   render(<ArticleList canEditCosts />)
   fireEvent.click(screen.getByRole('button', { name: /Cargar artículo/ }))
   fireEvent.change(screen.getByLabelText('Tipo de producto'), { target: { value: 'INDUMENTARIA' } })
+  await selectCategory()
   fireEvent.change(screen.getByLabelText('Nombre del artículo'), { target: { value: 'Remera' } })
   fireEvent.change(screen.getByLabelText('Talle 1'), { target: { value: 'S' } })
-  fireEvent.change(screen.getByLabelText('Color único (opcional)'), { target: { value: 'Negro' } })
+  fireEvent.change(screen.getByLabelText('Color 1'), { target: { value: 'Negro' } })
   fireEvent.change(screen.getByLabelText('Stock talle 1'), { target: { value: '5' } })
   screen.getByLabelText('Código 1').closest('details')!.open = true
   await user.type(screen.getByLabelText('Código 1'), '789123{Enter}')
@@ -139,6 +156,7 @@ it('does not save when a scanner finishes the size barcode with Enter', async ()
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Agregar otro talle' }))
   fireEvent.click(screen.getByRole('button', { name: 'Agregar otro talle' }))
   fireEvent.change(screen.getByLabelText('Talle 2'), { target: { value: 'M' } })
+  fireEvent.change(screen.getByLabelText('Color 2'), { target: { value: 'Negro' } })
   fireEvent.click(screen.getByRole('button', { name: 'Guardar artículo con stock por talle' }))
   await screen.findByText(/Prenda guardada con/)
   const call = vi

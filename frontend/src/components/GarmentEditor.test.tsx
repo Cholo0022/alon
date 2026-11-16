@@ -35,13 +35,16 @@ it('shows sizes without deletion controls when the garment is read only', async 
   expect(screen.queryByRole('button', { name: 'Guardar prenda y talles' })).toBeNull()
 })
 
-it('focuses the pending size instead of adding it twice', async () => {
+it('allows repeating a pending size to add different colors', async () => {
   render(<GarmentEditor articleId={1} canEdit onBack={() => {}} onSaved={() => {}} />)
   const medium = await screen.findByRole('button', { name: 'M' })
   fireEvent.click(medium)
   fireEvent.click(medium)
-  expect(screen.getAllByLabelText(/Talle nuevo/)).toHaveLength(1)
-  expect(document.activeElement).toBe(screen.getByLabelText('Stock nuevo 1'))
+  expect(screen.getAllByLabelText(/Talle nuevo/)).toHaveLength(2)
+  expect((screen.getByLabelText('Talle nuevo 1') as HTMLInputElement).value).toBe('M')
+  expect((screen.getByLabelText('Talle nuevo 2') as HTMLInputElement).value).toBe('M')
+  fireEvent.change(screen.getByLabelText('Color nuevo 1'), { target: { value: 'Azul' } })
+  fireEvent.change(screen.getByLabelText('Color nuevo 2'), { target: { value: 'Negro' } })
 })
 
 it('allows changing existing size and color and sends them to the server', async () => {

@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { LocalEntryPanel, type EntryField } from './Forms'
 import { apiFetch } from '../lib/http'
@@ -33,6 +33,10 @@ it('calculates and saves freight only as a percentage', async () => {
     />,
   )
   expect(screen.queryByRole('checkbox', { name: 'Aplicar flete porcentual' })).toBeNull()
+  const pricing = screen.getByRole('group', { name: 'Costo, flete y ganancia' })
+  expect(within(pricing).getByLabelText('Costo')).toBeTruthy()
+  expect(within(pricing).getByLabelText('Flete (% del costo)')).toBeTruthy()
+  expect(within(pricing).getByLabelText('Margen')).toBeTruthy()
   await user.clear(screen.getByRole('spinbutton', { name: 'Flete (% del costo)' }))
   await user.type(screen.getByRole('spinbutton', { name: 'Flete (% del costo)' }), '10')
   expect(screen.getByText(/275,00/)).toBeTruthy()

@@ -24,7 +24,9 @@ public class AccessSecurityService {
     private final SecurityNotifications mail;
     private final boolean secureCookie;
     private final boolean requireIp;
-    private static final String COOKIE = "ALON_BROWSER";
+
+    @Value("${alon.browser-cookie-name:ALON_BROWSER}")
+    private String browserCookieName = "ALON_BROWSER";
 
     private record Pending(
             long user,
@@ -166,10 +168,15 @@ public class AccessSecurityService {
     }
 
     /** Obtiene la cookie opaca sin aceptar valores arbitrarios o excesivamente largos. */
-    private String browserToken(HttpServletRequest request) {
+    private String browserToken(HttpServletRequest request, long userId) {
         if (request.getCookies() != null)
             for (var cookie : request.getCookies())
-                if (COOKIE.equals(cookie.getName())
+                if ((browserCookieName + "_" + userId).equals(cookie.getName()))
+                    return cookie.getValue().matches("[A-Za-z0-9_-]{43}") ? cookie.getValue() : "";
+        // Conservar las autorizaciones emitidas antes de separar las cookies por usuario.
+        if (request.getCookies() != null)
+            for (var cookie : request.getCookies())
+                if (browserCookieName.equals(cookie.getName())
                         && cookie.getValue().matches("[A-Za-z0-9_-]{43}")) return cookie.getValue();
         return "";
     }
@@ -178,10 +185,11 @@ public class AccessSecurityService {
      * Emite una cookie de navegador inaccesible para JavaScript, con SameSite estricto y Secure en
      * HTTPS.
      */
-    private void cookie(HttpServletRequest request, HttpServletResponse response, String token) {
+    private void cookie(
+            HttpServletRequest request, HttpServletResponse response, String token, long userId) {
         response.addHeader(
                 "Set-Cookie",
-                ResponseCookie.from(COOKIE, token)
+                ResponseCookie.from(browserCookieName + "_" + userId, token)
                         .httpOnly(true)
                         .secure(secureCookie || request.isSecure())
                         .sameSite("Strict")
@@ -260,11 +268,11 @@ public class AccessSecurityService {
             return false;
         if ("SUPER".equals(user.get("rol"))) return enabled(user.get("mfa_enabled"));
         if ("DUENO".equals(user.get("rol"))) return true;
-        String token = browserToken(request);
+        String token = browserToken(request, number(user, "id"));
         Object id = session.getAttribute("alonBrowserId");
         if (token.isEmpty() || !(id instanceof String)) return false;
         return jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM security_browsers WHERE id=? AND comercio_id=? AND usuario_id=? AND token_hash=? AND auth_version=? AND estado='APROBADO' AND vence_en>? AND (?=FALSE OR ip=?)",
+                        "SELECT COUNT(*) FROM security_browsers WHERE id=? AND comercio_id=? AND usuario_id=? AND token_hash=? AND auth_version=? AND estado='APROBADO' AND vence_en>? AND (?=FALSE OR ip=?) AND navegador=? AND NOT EXISTS (SELECT 1 FROM security_browser_blocks d WHERE d.comercio_id=security_browsers.comercio_id AND d.usuario_id=security_browsers.usuario_id AND d.ip=security_browsers.ip AND d.navegador=security_browsers.navegador)",
                         Integer.class,
                         id,
                         number(user, "comercio_id"),
@@ -273,7 +281,8 @@ public class AccessSecurityService {
                         number(user, "auth_version"),
                         now(),
                         requireIp,
-                        text(request.getRemoteAddr(), 64))
+                        text(request.getRemoteAddr(), 64),
+                        text(request.getHeader("User-Agent"), 255))
                 == 1;
     }
 
@@ -352,10 +361,36 @@ public class AccessSecurityService {
         return result;
     }
 
-    /**
-     * Inicia el autenticador de alon, concede acceso al gerente con su contraseña o solicita
-     * autorización de navegador para empleados.
-     */
+    /** Autoriza solo el navegador de alta; otro equipo necesita su propia aprobación. */
+    public boolean allowCreatedUser(
+            long userId, HttpServletRequest request, HttpServletResponse response) {
+        var manager = owner();
+        var user = locked(number(manager, "comercio_id"), userId);
+        if (UserRoles.administrator(user.get("rol"))) return false;
+        String ip = text(request.getRemoteAddr(), 64);
+        String agent = text(request.getHeader("User-Agent"), 255);
+        if (ip.isBlank() || agent.isBlank()) return false;
+        String token = crypto.token();
+        jdbc.update(
+                "INSERT INTO security_browsers(id,comercio_id,usuario_id,token_hash,auth_version,estado,referencia,ip,navegador,creado_en,vence_en,aprobado_por,aprobado_en) VALUES(?,?,?,?,?,'APROBADO',?,?,?,?,?,?,?)",
+                UUID.randomUUID().toString(),
+                number(user, "comercio_id"),
+                userId,
+                crypto.hash(token),
+                number(user, "auth_version"),
+                UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT),
+                ip,
+                agent,
+                now(),
+                Timestamp.from(clock.instant().plusSeconds(90L * 86400)),
+                number(manager, "id"),
+                now());
+        cookie(request, response, token, userId);
+        event(user, "NAVEGADOR_AUTORIZADO_ALTA", request);
+        return true;
+    }
+
+    /** Inicia el autenticador de Alon o comprueba el contexto autorizado del empleado. */
     public void begin(
             Map<String, Object> authenticated,
             HttpServletRequest request,
@@ -368,6 +403,7 @@ public class AccessSecurityService {
         session.removeAttribute("alonSecurityVerified");
         session.removeAttribute("alonRecoveryDisplay");
         if ("DUENO".equals(user.get("rol"))) {
+            allowRequestsFromManagersBrowser(user, request);
             complete(user, request, "");
             event(user, "INGRESO_GERENTE", request);
             return;
@@ -379,21 +415,23 @@ public class AccessSecurityService {
                 secret = crypto.newSecret();
             }
         } else {
-            String token = browserToken(request);
+            String token = browserToken(request, number(user, "id"));
             var found =
                     token.isEmpty()
                             ? List.<Map<String, Object>>of()
                             : jdbc.queryForList(
-                                    "SELECT * FROM security_browsers WHERE token_hash=? AND comercio_id=? AND usuario_id=? AND auth_version=? AND vence_en>? AND estado IN ('PENDIENTE','APROBADO')",
+                                    "SELECT * FROM security_browsers WHERE token_hash=? AND comercio_id=? AND usuario_id=? AND auth_version=? AND vence_en>? AND estado IN ('PENDIENTE','APROBADO') AND (estado='PENDIENTE' OR NOT EXISTS (SELECT 1 FROM security_browser_blocks d WHERE d.comercio_id=security_browsers.comercio_id AND d.usuario_id=security_browsers.usuario_id AND d.ip=security_browsers.ip AND d.navegador=security_browsers.navegador))",
                                     crypto.hash(token),
                                     number(user, "comercio_id"),
                                     number(user, "id"),
                                     number(user, "auth_version"),
                                     now());
-            if (requireIp
-                    && !found.isEmpty()
-                    && !text(request.getRemoteAddr(), 64).equals(found.getFirst().get("ip")))
-                found = List.of();
+            if (!found.isEmpty()
+                    && ((requireIp
+                                    && !text(request.getRemoteAddr(), 64)
+                                            .equals(found.getFirst().get("ip")))
+                            || !text(request.getHeader("User-Agent"), 255)
+                                    .equals(found.getFirst().get("navegador")))) found = List.of();
             if (!found.isEmpty() && "APROBADO".equals(found.getFirst().get("estado"))) {
                 browser = found.getFirst().get("id").toString();
                 complete(user, request, browser);
@@ -430,7 +468,7 @@ public class AccessSecurityService {
                         text(request.getHeader("User-Agent"), 255),
                         now(),
                         Timestamp.from(clock.instant().plusSeconds(1800)));
-                cookie(request, response, token);
+                cookie(request, response, token, number(user, "id"));
                 event(user, "SOLICITUD_NAVEGADOR", request);
                 mail.owners(
                         number(user, "comercio_id"),
@@ -661,10 +699,10 @@ public class AccessSecurityService {
                         "Confirmá que guardaste tus códigos de recuperación.");
             complete(user, request, "");
         } else if (p.stage().equals("DEVICE")) {
-            String token = browserToken(request);
+            String token = browserToken(request, p.user());
             if (!token.isEmpty()
                     && jdbc.queryForObject(
-                                    "SELECT COUNT(*) FROM security_browsers WHERE id=? AND token_hash=? AND comercio_id=? AND usuario_id=? AND auth_version=? AND estado='APROBADO' AND vence_en>? AND (?=FALSE OR ip=?)",
+                                    "SELECT COUNT(*) FROM security_browsers WHERE id=? AND token_hash=? AND comercio_id=? AND usuario_id=? AND auth_version=? AND estado='APROBADO' AND vence_en>? AND (?=FALSE OR ip=?) AND navegador=? AND NOT EXISTS (SELECT 1 FROM security_browser_blocks d WHERE d.comercio_id=security_browsers.comercio_id AND d.usuario_id=security_browsers.usuario_id AND d.ip=security_browsers.ip AND d.navegador=security_browsers.navegador)",
                                     Integer.class,
                                     p.browser(),
                                     crypto.hash(token),
@@ -673,7 +711,8 @@ public class AccessSecurityService {
                                     p.version(),
                                     now(),
                                     requireIp,
-                                    text(request.getRemoteAddr(), 64))
+                                    text(request.getRemoteAddr(), 64),
+                                    text(request.getHeader("User-Agent"), 255))
                             == 1) {
                 complete(user, request, p.browser());
                 jdbc.update(
@@ -685,18 +724,53 @@ public class AccessSecurityService {
                     HttpStatus.CONFLICT, "Completá primero la activación del autenticador.");
     }
 
-    /** Cancela una verificación y retira solicitudes aún pendientes sin conceder ningún acceso. */
+    /** Volver al ingreso conserva la solicitud para que el gerente pueda atenderla. */
     public void cancel(HttpServletRequest request) {
         var session = request.getSession(false);
         if (session == null) return;
-        if (session.getAttribute("alonPending") instanceof Pending p && p.stage().equals("DEVICE"))
-            jdbc.update(
-                    "UPDATE security_browsers SET estado='CANCELADO' WHERE id=? AND comercio_id=? AND usuario_id=? AND estado='PENDIENTE'",
-                    p.browser(),
-                    p.store(),
-                    p.user());
         session.removeAttribute("alonPending");
         session.removeAttribute("alonRecoveryDisplay");
+    }
+
+    /**
+     * La contraseña válida del gerente confirma solo solicitudes que prueban este mismo navegador.
+     */
+    private void allowRequestsFromManagersBrowser(
+            Map<String, Object> manager, HttpServletRequest request) {
+        if (request.getCookies() == null) return;
+        String ip = text(request.getRemoteAddr(), 64),
+                agent = text(request.getHeader("User-Agent"), 255);
+        if (ip.isBlank() || agent.isBlank()) return;
+        int allowed = 0;
+        var seen = new HashSet<String>();
+        for (var candidate : request.getCookies()) {
+            long userId = 0;
+            if (!candidate.getName().equals(browserCookieName)) {
+                String prefix = browserCookieName + "_";
+                if (!candidate.getName().startsWith(prefix)) continue;
+                String suffix = candidate.getName().substring(prefix.length());
+                if (!suffix.matches("[1-9][0-9]{0,17}")) continue;
+                userId = Long.parseLong(suffix);
+            }
+            String token = candidate.getValue();
+            if (!token.matches("[A-Za-z0-9_-]{43}") || !seen.add(token)) continue;
+            // CANCELADO mantiene compatibilidad con el antiguo botón Volver al ingreso.
+            // Nunca se rehabilitan accesos rechazados, revocados, vencidos o de otro origen.
+            allowed +=
+                    jdbc.update(
+                            "UPDATE security_browsers b JOIN usuarios u ON u.comercio_id=b.comercio_id AND u.id=b.usuario_id LEFT JOIN security_browser_blocks d ON d.comercio_id=b.comercio_id AND d.usuario_id=b.usuario_id AND d.ip=b.ip AND d.navegador=b.navegador SET b.estado='APROBADO',b.aprobado_por=?,b.aprobado_en=?,b.vence_en=? WHERE d.usuario_id IS NULL AND b.comercio_id=? AND b.token_hash=? AND b.ip=? AND b.navegador=? AND b.estado IN ('PENDIENTE','CANCELADO') AND b.vence_en>? AND u.activo=TRUE AND u.auth_version=b.auth_version AND u.rol NOT IN ('DUENO','SUPER') AND (?=0 OR b.usuario_id=?)",
+                            number(manager, "id"),
+                            now(),
+                            Timestamp.from(clock.instant().plusSeconds(90L * 86400)),
+                            number(manager, "comercio_id"),
+                            crypto.hash(token),
+                            ip,
+                            agent,
+                            now(),
+                            userId,
+                            userId);
+        }
+        if (allowed > 0) event(manager, "ACCESOS_AUTORIZADOS_MISMO_NAVEGADOR", request);
     }
 
     /** Exige una cuenta administradora activa antes de acceder a administración de seguridad. */
@@ -815,6 +889,16 @@ public class AccessSecurityService {
         if (changed != 1)
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "La solicitud venció o ya fue atendida.");
+        if (action.equals("approve"))
+            jdbc.update(
+                    "DELETE d FROM security_browser_blocks d JOIN security_browsers b ON b.comercio_id=d.comercio_id AND b.usuario_id=d.usuario_id AND b.ip=d.ip AND b.navegador=d.navegador WHERE b.id=? AND b.comercio_id=?",
+                    id,
+                    number(user, "comercio_id"));
+        else
+            jdbc.update(
+                    "INSERT IGNORE INTO security_browser_blocks(comercio_id,usuario_id,ip,navegador) SELECT comercio_id,usuario_id,ip,navegador FROM security_browsers WHERE id=? AND comercio_id=?",
+                    id,
+                    number(user, "comercio_id"));
         event(user, "NAVEGADOR_" + state, request);
     }
 

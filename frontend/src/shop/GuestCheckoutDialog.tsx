@@ -10,7 +10,7 @@ export type GuestBuyer = {
   province: string
   city: string
 }
-export const defaultGuestBuyer: GuestBuyer = {
+const defaultGuestBuyer: GuestBuyer = {
   firstName: '',
   lastName: '',
   phone: '',

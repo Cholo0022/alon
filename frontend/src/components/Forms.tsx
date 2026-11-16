@@ -1,4 +1,6 @@
+import { suggestedSalePrice } from '../lib/articlePricing'
 import { preventImplicitArticleSubmit } from '../lib/articleKeyboard'
+import './product-pricing.css'
 import { clearFieldValidation, showFieldErrors, validateForm } from '../lib/formValidation'
 import { sentenceCase } from '../lib/sentenceCase'
 // Construye formularios reutilizables y convierte sus campos en los datos que espera el servidor.
@@ -214,10 +216,12 @@ export function LocalEntryPanel({
     const values = new FormData(event.currentTarget)
     const baseCost = Number(values.get('cost') ?? 0)
     const amount = Number(values.get('freightPercent') ?? values.get('freightAmount') ?? 0)
-    const freight = (baseCost * amount) / 100
-    const margin = Number(values.get('marginPercent') ?? 0)
-    let price = Math.round((baseCost + freight) * (1 + margin / 100) * 100) / 100
-    if (values.get('roundPrice') === 'on' && price > 0) price = Math.ceil(price / 10) * 10
+    const price = suggestedSalePrice(
+      baseCost,
+      amount,
+      Number(values.get('marginPercent') ?? 0),
+      values.get('roundPrice') === 'on',
+    )
     const changed = event.target as HTMLInputElement
     if (
       ['cost', 'freightPercent', 'freightAmount', 'marginPercent', 'roundPrice'].includes(
@@ -364,7 +368,11 @@ export function LocalEntryPanel({
                   ? { supplierId: 0, initialStock: payload.initialStock ?? 0 }
                   : {}),
                 ...(apparel
-                  ? { apparel, categoryId: 0, initialStock: payload.initialStock ?? 0 }
+                  ? {
+                      apparel,
+                      categoryId: payload.categoryId ?? 0,
+                      initialStock: payload.initialStock ?? 0,
+                    }
                   : {}),
                 ...(articlePhotos ? { photos: photoPayload(photos) } : {}),
               },
@@ -393,6 +401,158 @@ export function LocalEntryPanel({
       setBusy(false)
     }
   }
+
+  const renderField = (field: EntryField) =>
+    field.checkboxName ? (
+      <div className="entry-freight-field" key={field.name}>
+        <label htmlFor={(panelId ?? title) + '-' + field.name}>{field.label}</label>
+        <input
+          id={(panelId ?? title) + '-' + field.name}
+          name={field.name}
+          type="number"
+          min="0"
+          step="0.01"
+          defaultValue={
+            articlePhotos && field.name !== 'code' && field.defaultValue
+              ? sentenceCase(field.defaultValue)
+              : field.defaultValue
+          }
+        />
+        <label className="entry-inline-checkbox">
+          <input
+            name={field.checkboxName}
+            type="checkbox"
+            defaultChecked={field.checkedByDefault}
+          />
+          <span>{field.checkboxLabel}</span>
+        </label>
+      </div>
+    ) : (
+      <label
+        key={field.name}
+        className={field.type === 'checkbox' ? 'entry-checkbox-label' : undefined}
+      >
+        {field.type === 'checkbox' ? (
+          <>
+            <input
+              name={field.name}
+              type="checkbox"
+              defaultChecked={field.defaultValue === 'true'}
+              data-exclusive-group={field.exclusiveGroup}
+              onChange={(event) => {
+                if (event.currentTarget.checked && field.exclusiveGroup)
+                  event.currentTarget.form
+                    ?.querySelectorAll<HTMLInputElement>(
+                      '[data-exclusive-group="' + field.exclusiveGroup + '"]',
+                    )
+                    .forEach((other) => {
+                      if (other !== event.currentTarget) other.checked = false
+                    })
+              }}
+            />
+            <span>{field.label}</span>
+          </>
+        ) : (
+          <>
+            {field.label}
+            {field.lookupEndpoint ? (
+              <LookupField
+                name={field.name}
+                label={field.label}
+                endpoint={field.lookupEndpoint}
+                initialRecord={
+                  field.defaultValue
+                    ? {
+                        id: Number(field.defaultValue),
+                        nombre: field.defaultLabel ?? field.defaultValue,
+                      }
+                    : undefined
+                }
+              />
+            ) : field.searchable ? (
+              <SearchableEntryField field={field} />
+            ) : field.suggestions ? (
+              <ArticleNameSearch field={field} />
+            ) : field.options ? (
+              <select name={field.name} required defaultValue={field.defaultValue ?? ''}>
+                <option value="" disabled>
+                  Seleccionar…
+                </option>
+                {field.options.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            ) : ['initialStock', 'minimumStock'].includes(field.name) ? (
+              <QuantityInput
+                name={field.name}
+                label={field.label}
+                min="0"
+                required
+                defaultValue={
+                  articlePhotos && field.name !== 'code' && field.defaultValue
+                    ? sentenceCase(field.defaultValue)
+                    : field.defaultValue
+                }
+              />
+            ) : field.type === 'textarea' ? (
+              <textarea
+                name={field.name}
+                required
+                maxLength={4000}
+                defaultValue={
+                  articlePhotos && field.name !== 'code' && field.defaultValue
+                    ? sentenceCase(field.defaultValue)
+                    : field.defaultValue
+                }
+                autoCapitalize="sentences"
+                rows={4}
+              />
+            ) : field.type === 'date' ? (
+              <DateTextInput
+                name={field.name}
+                defaultValue={
+                  articlePhotos && field.name !== 'code' && field.defaultValue
+                    ? sentenceCase(field.defaultValue)
+                    : field.defaultValue
+                }
+              />
+            ) : (
+              <input
+                name={field.name}
+                type={field.type ?? 'text'}
+                autoCapitalize={articlePhotos && field.name !== 'code' ? 'sentences' : 'off'}
+                required={
+                  field.name !== 'dni' &&
+                  !(pricePreview && ['freightPerUnit', 'freightPercent'].includes(field.name))
+                }
+                min={field.type === 'number' ? '0' : undefined}
+                step={field.type === 'number' ? '0.01' : undefined}
+                defaultValue={
+                  articlePhotos && field.name !== 'code' && field.defaultValue
+                    ? sentenceCase(field.defaultValue)
+                    : field.defaultValue
+                }
+              />
+            )}
+          </>
+        )}
+      </label>
+    )
+  const pricingNames = [
+    'cost',
+    'freightPercent',
+    'freightPerUnit',
+    'marginPercent',
+    'roundPrice',
+    'salePrice',
+  ]
+  const groupPricing =
+    (pricePreview || articlePhotos) && fields.some((field) => field.name === 'cost')
+  const pricingFields = pricingNames
+    .map((name) => fields.find((field) => field.name === name))
+    .filter((field): field is EntryField => !!field)
 
   return (
     <section ref={panel} className="entry-panel" id={panelId}>
@@ -472,148 +632,14 @@ export function LocalEntryPanel({
             </p>
           )}
           {fields.map((field) =>
-            field.checkboxName ? (
-              <div className="entry-freight-field" key={field.name}>
-                <label htmlFor={(panelId ?? title) + '-' + field.name}>{field.label}</label>
-                <input
-                  id={(panelId ?? title) + '-' + field.name}
-                  name={field.name}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  defaultValue={
-                    articlePhotos && field.name !== 'code' && field.defaultValue
-                      ? sentenceCase(field.defaultValue)
-                      : field.defaultValue
-                  }
-                />
-                <label className="entry-inline-checkbox">
-                  <input
-                    name={field.checkboxName}
-                    type="checkbox"
-                    defaultChecked={field.checkedByDefault}
-                  />
-                  <span>{field.checkboxLabel}</span>
-                </label>
-              </div>
-            ) : (
-              <label
-                key={field.name}
-                className={field.type === 'checkbox' ? 'entry-checkbox-label' : undefined}
-              >
-                {field.type === 'checkbox' ? (
-                  <>
-                    <input
-                      name={field.name}
-                      type="checkbox"
-                      defaultChecked={field.defaultValue === 'true'}
-                      data-exclusive-group={field.exclusiveGroup}
-                      onChange={(event) => {
-                        if (event.currentTarget.checked && field.exclusiveGroup)
-                          event.currentTarget.form
-                            ?.querySelectorAll<HTMLInputElement>(
-                              '[data-exclusive-group="' + field.exclusiveGroup + '"]',
-                            )
-                            .forEach((other) => {
-                              if (other !== event.currentTarget) other.checked = false
-                            })
-                      }}
-                    />
-                    <span>{field.label}</span>
-                  </>
-                ) : (
-                  <>
-                    {field.label}
-                    {field.lookupEndpoint ? (
-                      <LookupField
-                        name={field.name}
-                        label={field.label}
-                        endpoint={field.lookupEndpoint}
-                        initialRecord={
-                          field.defaultValue
-                            ? {
-                                id: Number(field.defaultValue),
-                                nombre: field.defaultLabel ?? field.defaultValue,
-                              }
-                            : undefined
-                        }
-                      />
-                    ) : field.searchable ? (
-                      <SearchableEntryField field={field} />
-                    ) : field.suggestions ? (
-                      <ArticleNameSearch field={field} />
-                    ) : field.options ? (
-                      <select name={field.name} required defaultValue={field.defaultValue ?? ''}>
-                        <option value="" disabled>
-                          Seleccionar…
-                        </option>
-                        {field.options.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : ['initialStock', 'minimumStock'].includes(field.name) ? (
-                      <QuantityInput
-                        name={field.name}
-                        label={field.label}
-                        min="0"
-                        required
-                        defaultValue={
-                          articlePhotos && field.name !== 'code' && field.defaultValue
-                            ? sentenceCase(field.defaultValue)
-                            : field.defaultValue
-                        }
-                      />
-                    ) : field.type === 'textarea' ? (
-                      <textarea
-                        name={field.name}
-                        required
-                        maxLength={4000}
-                        defaultValue={
-                          articlePhotos && field.name !== 'code' && field.defaultValue
-                            ? sentenceCase(field.defaultValue)
-                            : field.defaultValue
-                        }
-                        autoCapitalize="sentences"
-                        rows={4}
-                      />
-                    ) : field.type === 'date' ? (
-                      <DateTextInput
-                        name={field.name}
-                        defaultValue={
-                          articlePhotos && field.name !== 'code' && field.defaultValue
-                            ? sentenceCase(field.defaultValue)
-                            : field.defaultValue
-                        }
-                      />
-                    ) : (
-                      <input
-                        name={field.name}
-                        type={field.type ?? 'text'}
-                        autoCapitalize={
-                          articlePhotos && field.name !== 'code' ? 'sentences' : 'off'
-                        }
-                        required={
-                          field.name !== 'dni' &&
-                          !(
-                            pricePreview &&
-                            ['freightPerUnit', 'freightPercent'].includes(field.name)
-                          )
-                        }
-                        min={field.type === 'number' ? '0' : undefined}
-                        step={field.type === 'number' ? '0.01' : undefined}
-                        defaultValue={
-                          articlePhotos && field.name !== 'code' && field.defaultValue
-                            ? sentenceCase(field.defaultValue)
-                            : field.defaultValue
-                        }
-                      />
-                    )}
-                  </>
-                )}
-              </label>
-            ),
+            !groupPricing || !pricingNames.includes(field.name) ? (
+              renderField(field)
+            ) : field.name === 'cost' ? (
+              <fieldset className="product-pricing" key="pricing">
+                <legend>Costo, flete y ganancia</legend>
+                <div className="product-pricing-grid">{pricingFields.map(renderField)}</div>
+              </fieldset>
+            ) : null,
           )}
           {articlePhotos && (
             <ArticlePhotosField

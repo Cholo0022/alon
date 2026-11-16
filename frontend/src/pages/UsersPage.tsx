@@ -1,5 +1,5 @@
 // Permite al gerente administrar los usuarios y sus permisos.
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import { textValue } from '../lib/format'
 import { navigation } from '../lib/navigation'
@@ -8,9 +8,49 @@ import { Pagination } from '../components/Pagination'
 import { ApiTable } from '../components/ApiTable'
 
 /** Permite administrar usuarios, roles, permisos y estados de acceso del comercio. */
-export function UsersPage({ canDelegateBackup = false }: { canDelegateBackup?: boolean }) {
+export function UsersPage({
+  canDelegateBackup = false,
+  onOpenSecurity,
+}: {
+  canDelegateBackup?: boolean
+  onOpenSecurity?: () => void
+}) {
   const users = useApiRows('/api/v1/auth/users')
   const [message, setMessage] = useState('')
+  const [deleting, setDeleting] = useState<ApiRow | null>(null)
+  const deletionDialog = useRef<HTMLDialogElement>(null)
+  const cancelDeletion = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (deleting) {
+      deletionDialog.current?.showModal()
+      cancelDeletion.current?.focus()
+    } else deletionDialog.current?.close()
+  }, [deleting])
+  const deleteUser = async () => {
+    if (!deleting || busy) return
+    setBusy(true)
+    setMessage('')
+    try {
+      const response = await apiFetch('/api/v1/auth/users/' + deleting.id, {
+        method: 'DELETE',
+        retry: false,
+      })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error ?? 'No se pudo eliminar el usuario.')
+      if (editing?.id === deleting.id) setEditing(null)
+      setMessage('Usuario sin movimientos eliminado definitivamente.')
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo confirmar la baja. Revisá el listado antes de reintentar.',
+      )
+    } finally {
+      setDeleting(null)
+      setBusy(false)
+      window.dispatchEvent(new Event('alon:refresh'))
+    }
+  }
   const [busy, setBusy] = useState(false)
   const [role, setRole] = useState('VENDEDOR')
   const [permissions, setPermissions] = useState<string[]>(['ventas', 'clientes', 'caja'])
@@ -52,7 +92,11 @@ export function UsersPage({ canDelegateBackup = false }: { canDelegateBackup?: b
         throw new Error(String(body.message ?? body.error ?? 'No se pudo crear el usuario.'))
       formElement.reset()
       window.dispatchEvent(new Event('alon:refresh'))
-      setMessage('Usuario creado correctamente.')
+      setMessage(
+        body.browserAllowed
+          ? 'Usuario creado. Acceso permitido desde este navegador y esta IP. Si cambia de navegador o IP, necesitará permiso en Seguridad.'
+          : 'Usuario creado correctamente.',
+      )
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No se pudo conectar con el servidor.')
     } finally {
@@ -61,13 +105,30 @@ export function UsersPage({ canDelegateBackup = false }: { canDelegateBackup?: b
   }
   /** Invierte el estado de acceso del usuario en el servidor y actualiza el listado si se confirma. */
   const toggleActive = async (id: unknown, active: boolean) => {
-    const response = await apiFetch(`/api/v1/auth/users/${id}/active`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active: !active }),
-    })
-    if (response.ok) window.dispatchEvent(new Event('alon:refresh'))
+    if (busy) return
+    setBusy(true)
+    setMessage('')
+    try {
+      const response = await apiFetch(`/api/v1/auth/users/${id}/active`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !active }),
+      })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error ?? 'No se pudo cambiar el acceso.')
+      setMessage(
+        active
+          ? 'Usuario desactivado. Su historial se conserva.'
+          : 'Usuario activado. Debe autorizar nuevamente su navegador en Seguridad.',
+      )
+      window.dispatchEvent(new Event('alon:refresh'))
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No se pudo confirmar el cambio.')
+    } finally {
+      setBusy(false)
+    }
   }
+
   /** Carga los datos y permisos correspondientes al rol del usuario elegido para preparar su edición. */
   const startEditing = (user: ApiRow) => {
     const currentRole = textValue(user.rol)
@@ -113,6 +174,38 @@ export function UsersPage({ canDelegateBackup = false }: { canDelegateBackup?: b
   }
   return (
     <>
+      {deleting && (
+        <dialog
+          ref={deletionDialog}
+          aria-label="Confirmar baja de usuario"
+          onCancel={(event) => {
+            event.preventDefault()
+            if (!busy) setDeleting(null)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              if (!busy) setDeleting(null)
+            }
+          }}
+        >
+          <p>
+            ¿Eliminar definitivamente a {textValue(deleting.usuario)}? Solo se permite si no tiene
+            movimientos ni registros asociados.
+          </p>
+          <button
+            ref={cancelDeletion}
+            type="button"
+            disabled={busy}
+            onClick={() => setDeleting(null)}
+          >
+            No eliminar
+          </button>
+          <button type="button" disabled={busy} onClick={() => void deleteUser()}>
+            Eliminar usuario
+          </button>
+        </dialog>
+      )}
       <section className="entry-panel">
         <div className="entry-heading">
           <div>
@@ -120,6 +213,15 @@ export function UsersPage({ canDelegateBackup = false }: { canDelegateBackup?: b
             <strong>Crear usuario</strong>
           </div>
         </div>
+        <p>
+          El usuario podrá ingresar directamente desde el navegador y la IP donde lo creás. Desde
+          otro navegador o una IP diferente, el gerente deberá permitir su solicitud en Seguridad.
+        </p>
+        {onOpenSecurity && (
+          <button className="select-button" type="button" onClick={onOpenSecurity}>
+            Permitir accesos en Seguridad
+          </button>
+        )}
         <form className="entry-form" onSubmit={submit}>
           <label>
             Usuario
@@ -130,7 +232,7 @@ export function UsersPage({ canDelegateBackup = false }: { canDelegateBackup?: b
             <input
               name="password"
               type="password"
-              minLength={12}
+              minLength={4}
               maxLength={128}
               autoComplete="new-password"
               required
@@ -179,7 +281,7 @@ export function UsersPage({ canDelegateBackup = false }: { canDelegateBackup?: b
             </fieldset>
           )}
           <div className="entry-actions">
-            <span>La contraseña debe tener entre 12 y 128 caracteres.</span>
+            <span>La contraseña debe tener entre 4 y 128 caracteres.</span>
             <button
               className="primary-button"
               type="submit"
@@ -232,7 +334,7 @@ export function UsersPage({ canDelegateBackup = false }: { canDelegateBackup?: b
               <input
                 name="password"
                 type="password"
-                minLength={12}
+                minLength={4}
                 maxLength={128}
                 autoComplete="new-password"
                 placeholder="Dejar vacía para mantenerla"
@@ -297,7 +399,10 @@ export function UsersPage({ canDelegateBackup = false }: { canDelegateBackup?: b
         <div className="panel-heading">
           <div>
             <h2>Administrar accesos</h2>
-            <p>Editá usuario, contraseña o permisos. También podés desactivar el acceso.</p>
+            <p>
+              Podés eliminar usuarios sin movimientos. Quienes tienen historial se desactivan para
+              conservar sus operaciones.
+            </p>
           </div>
         </div>
         {users.map((user) => (
@@ -312,12 +417,18 @@ export function UsersPage({ canDelegateBackup = false }: { canDelegateBackup?: b
               </small>
             </span>
             <div className="user-row-actions">
-              <button className="select-button" type="button" onClick={() => startEditing(user)}>
+              <button
+                className="select-button"
+                type="button"
+                disabled={busy}
+                onClick={() => startEditing(user)}
+              >
                 Editar
               </button>
               <button
                 className="select-button"
                 type="button"
+                disabled={busy}
                 onClick={() =>
                   void toggleActive(
                     user.id,
@@ -329,6 +440,19 @@ export function UsersPage({ canDelegateBackup = false }: { canDelegateBackup?: b
                   ? 'Desactivar'
                   : 'Activar'}
               </button>
+              {user.can_delete === true && (
+                <button
+                  className="select-button"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setDeleting(user)}
+                >
+                  Dar de baja
+                </button>
+              )}
+              {user.can_delete === false && (
+                <small>Con movimientos o historial: solo desactivación.</small>
+              )}
             </div>
           </div>
         ))}

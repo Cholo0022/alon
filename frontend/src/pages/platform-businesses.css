@@ -1,0 +1,100 @@
+.platform-businesses {
+  margin-bottom: 24px;
+}
+.platform-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.platform-metrics > div {
+  padding: 16px;
+  border: 1px solid #d7e0e6;
+  border-radius: 12px;
+  background: #f4f8fb;
+  color: #263b4b;
+}
+.platform-metrics strong {
+  display: block;
+  font-size: 1.4rem;
+  margin-top: 8px;
+}
+.platform-table {
+  overflow-x: auto;
+  margin: 20px 0;
+}
+.platform-table table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.platform-table th,
+.platform-table td {
+  padding: 12px;
+  border-bottom: 1px solid #d7e0e6;
+  vertical-align: top;
+}
+.platform-table button {
+  display: block;
+  margin-bottom: 8px;
+}
+.platform-alert {
+  display: block;
+  color: #ad2424;
+}
+.business-state-actions {
+  min-width: 190px;
+  margin-bottom: 12px;
+}
+.business-state-actions label {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.business-state-actions select,
+.business-state-actions input {
+  width: 100%;
+  max-width: 260px;
+}
+.business-state-actions p {
+  max-width: 260px;
+  font-size: 0.85rem;
+}
+.business-delete-dialog {
+  width: min(540px, calc(100vw - 40px));
+  border: 1px solid #d7e0e6;
+  border-radius: 12px;
+  padding: 24px;
+}
+.business-delete-dialog::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+.business-delete-dialog p,
+.business-delete-dialog input {
+  max-width: 100%;
+}
+.business-delete-dialog button {
+  margin-top: 14px;
+}
+.business-delete-dialog label {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+.business-delete-dialog input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #758795;
+  border-radius: 6px;
+  background: #fff;
+  color: #162d3e;
+}
+.business-detail {
+  scroll-margin-top: 20px;
+}
+.business-detail .business-state-actions p {
+  max-width: 640px;
+}

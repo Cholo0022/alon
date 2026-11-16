@@ -11,6 +11,12 @@ export function ApparelEntry({ initialStock = true }: { initialStock?: boolean }
       pricePreview
       articlePhotos
       fields={[
+        {
+          name: 'categoryId',
+          label: 'Rubro',
+          valueType: 'number',
+          lookupEndpoint: '/api/v1/alon/categories',
+        },
         { name: 'name', label: 'Nombre de publicación (sin talle ni color)' },
         { name: 'code', label: 'Código único / código de barras de la variante' },
         ...apparelFields(),

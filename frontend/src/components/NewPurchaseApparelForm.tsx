@@ -1,9 +1,12 @@
-import { clearFieldValidation, showFieldErrors, validateForm } from '../lib/formValidation'
+import { clearApparelVariantValidation, showFieldErrors, validateForm } from '../lib/formValidation'
+import { suggestedSalePrice } from '../lib/articlePricing'
+import './product-pricing.css'
 import { preventImplicitArticleSubmit } from '../lib/articleKeyboard'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import { currency } from '../lib/format'
 import { ArticlePhotosField } from './ArticlePhotosField'
+import { LookupField } from './LookupField'
 import { photoPayload, type ArticlePhoto } from '../lib/articlePhotos'
 import {
   readApparelDraft,
@@ -21,6 +24,8 @@ const newVariant = (stockMode: boolean, color = 'Único', size = ''): ApparelDra
   quantity: stockMode ? '0' : '1',
 })
 const defaults = (kind: string): ApparelCommon => ({
+  categoryId: '',
+  categoryName: '',
   name: '',
   cost: '0',
   price: '0',
@@ -39,12 +44,8 @@ const defaults = (kind: string): ApparelCommon => ({
   singleColor: '',
 })
 const suggestedPrice = (common: ApparelCommon) => {
-  const price =
-    Number(common.cost) *
-    (1 + Number(common.freightPercent) / 100) *
-    (1 + Number(common.marginPercent) / 100)
   return String(
-    common.roundPrice && price > 0 ? Math.ceil(price / 10) * 10 : Math.round(price * 100) / 100,
+    suggestedSalePrice(common.cost, common.freightPercent, common.marginPercent, common.roundPrice),
   )
 }
 
@@ -78,10 +79,11 @@ export function NewPurchaseApparelForm({
     () => recovered?.rows ?? [newVariant(stockMode)],
   )
   const [photos, setPhotos] = useState<ArticlePhoto[]>(recovered?.photos ?? [])
-  const [multipleColors, setMultipleColors] = useState(recovered?.multipleColors ?? false)
+  const [multipleColors, setMultipleColors] = useState(recovered?.multipleColors ?? true)
   const [priceEdited, setPriceEdited] = useState(recovered?.priceEdited ?? false)
   const [readingPhotos, setReadingPhotos] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [categoryVersion, setCategoryVersion] = useState(0)
   const [error, setError] = useState('')
   const [draftWarning, setDraftWarning] = useState(
     recovered?.photosOmitted
@@ -91,6 +93,7 @@ export function NewPurchaseApparelForm({
   const formRef = useRef<HTMLFormElement>(null)
   const completed = useRef(false)
   const meaningful =
+    !!common.categoryId ||
     !!common.name.trim() ||
     common.cost !== '0' ||
     common.price !== '0' ||
@@ -152,7 +155,7 @@ export function NewPurchaseApparelForm({
     const current = variants.findIndex(
       (row) => row.size.trim().toLocaleUpperCase('es-AR') === size.toLocaleUpperCase('es-AR'),
     )
-    if (current >= 0) {
+    if (current >= 0 && !multipleColors) {
       ;(
         formRef.current?.elements.namedItem(
           `variants[${current}].quantity`,
@@ -163,7 +166,7 @@ export function NewPurchaseApparelForm({
     if (variants.length >= Math.min(maxVariants, 100)) return
     setVariants((rows) => {
       const empty = rows.findIndex((row) => !row.size.trim())
-      const row = newVariant(stockMode, multipleColors ? (rows.at(-1)?.color ?? '') : 'Único', size)
+      const row = newVariant(stockMode, multipleColors ? '' : 'Único', size)
       return empty >= 0
         ? rows.map((item, index) => (index === empty ? { ...item, size } : item))
         : [...rows, row]
@@ -209,7 +212,7 @@ export function NewPurchaseApparelForm({
     const product = {
       code: chosen[0].code,
       name,
-      categoryId: 0,
+      categoryId: Number(common.categoryId),
       supplierId: 0,
       unit: 'UNIDAD',
       freightByValue: false,
@@ -252,6 +255,7 @@ export function NewPurchaseApparelForm({
       const result = await response.json()
       if (!response.ok || !Array.isArray(result.items)) {
         const aliases: Record<string, string> = {
+          'product.categoryId': 'categoryId',
           'product.name': 'name',
           'product.code': 'variants[0].code',
           'product.cost': 'cost',
@@ -303,20 +307,46 @@ export function NewPurchaseApparelForm({
       onSubmit={submit}
       onKeyDown={preventImplicitArticleSubmit}
       onInputCapture={(event) => {
-        clearFieldValidation(event)
+        clearApparelVariantValidation(event)
         setError('')
       }}
-      onChangeCapture={clearFieldValidation}
+      onChangeCapture={clearApparelVariantValidation}
     >
       <fieldset disabled={busy}>
         <h2>{stockMode ? 'Nueva prenda' : 'Prenda para el comprobante'}</h2>
+        <LookupField
+          key={categoryVersion}
+          name="categoryId"
+          label="Rubro"
+          endpoint="/api/v1/alon/categories"
+          autoFocus
+          initialRecord={
+            common.categoryId
+              ? { id: Number(common.categoryId), nombre: common.categoryName }
+              : undefined
+          }
+          onSelect={(row) =>
+            setCommon((current) => ({
+              ...current,
+              categoryId: row ? String(row.id) : '',
+              categoryName: row ? String(row.nombre) : '',
+            }))
+          }
+        />
+        {!common.categoryId && (
+          <p>
+            Primero elegí el rubro de la prenda. Si todavía no existe, crealo en Rubros, igual que
+            para los artículos.
+          </p>
+        )}
+      </fieldset>
+      <fieldset disabled={busy || !common.categoryId}>
         <label>
           {stockMode ? 'Nombre del artículo' : 'Nombre de la prenda'}
           <input
             name="name"
             required
             maxLength={80}
-            autoFocus
             value={common.name}
             onChange={(event) => updateCommon('name', event.target.value)}
           />
@@ -327,35 +357,70 @@ export function NewPurchaseApparelForm({
           disabled={busy}
           onReading={setReadingPhotos}
         />
-        <div className="apparel-price-fields">
-          <label>
-            Costo unitario común
+        <fieldset className="product-pricing">
+          <legend>Costo, flete y ganancia</legend>
+          <div className="product-pricing-grid">
+            <label>
+              Costo unitario común
+              <input
+                name="cost"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={common.cost}
+                onChange={(event) => updateCommon('cost', event.target.value)}
+              />
+            </label>
+            {(['freightPercent', 'marginPercent'] as const).map((key) => (
+              <label key={key}>
+                {key === 'freightPercent' ? 'Flete %' : 'Ganancia %'}
+                <input
+                  name={key}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={common[key]}
+                  onChange={(event) => updateCommon(key, event.target.value)}
+                />
+              </label>
+            ))}
+            <label>
+              Precio de venta
+              <input
+                name="price"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={common.price}
+                onChange={(event) => {
+                  setPriceEdited(true)
+                  updateCommon('price', event.target.value)
+                }}
+              />
+            </label>
+          </div>
+          <label className="apparel-inline-check">
             <input
-              name="cost"
-              type="number"
-              min="0"
-              step="0.01"
-              required
-              value={common.cost}
-              onChange={(event) => updateCommon('cost', event.target.value)}
-            />
+              name="roundPrice"
+              type="checkbox"
+              checked={common.roundPrice}
+              onChange={(event) => updateCommon('roundPrice', event.target.checked)}
+            />{' '}
+            Redondear precio al próximo $10
           </label>
-          <label>
-            Precio de venta
-            <input
-              name="price"
-              type="number"
-              min="0"
-              step="0.01"
-              required
-              value={common.price}
-              onChange={(event) => {
-                setPriceEdited(true)
-                updateCommon('price', event.target.value)
-              }}
-            />
-          </label>
-        </div>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => {
+              setPriceEdited(false)
+              setCommon((current) => ({ ...current, price: suggestedPrice(current) }))
+            }}
+          >
+            Calcular precio con costo y ganancia
+          </button>
+        </fieldset>
         <h3>Elegí los talles</h3>
         <div className="apparel-size-buttons">
           {quickSizes.map((size) => (
@@ -394,6 +459,12 @@ export function NewPurchaseApparelForm({
           />{' '}
           Esta prenda tiene distintos colores
         </label>
+        {multipleColors && (
+          <p>
+            Podés repetir el talle en otro color. Cada fila tiene su stock; solo se impide repetir
+            el mismo talle y color.
+          </p>
+        )}
         <p>
           {stockMode
             ? 'Stock actual de cada talle. Cargá cero si todavía no tenés unidades.'
@@ -488,10 +559,7 @@ export function NewPurchaseApparelForm({
           data-add-variant
           disabled={variants.length >= Math.min(maxVariants, 100)}
           onClick={() =>
-            setVariants((rows) => [
-              ...rows,
-              newVariant(stockMode, multipleColors ? (rows.at(-1)?.color ?? '') : 'Único'),
-            ])
+            setVariants((rows) => [...rows, newVariant(stockMode, multipleColors ? '' : 'Único')])
           }
         >
           Agregar otro talle
@@ -586,7 +654,7 @@ export function NewPurchaseApparelForm({
                 ))}
               </select>
             </label>
-            {(['minimumStock', 'freightPercent', 'marginPercent'] as const).map((key) => (
+            {(['minimumStock'] as const).map((key) => (
               <label key={key}>
                 {
                   {
@@ -605,25 +673,6 @@ export function NewPurchaseApparelForm({
                 />
               </label>
             ))}
-            <label className="apparel-inline-check">
-              <input
-                name="roundPrice"
-                type="checkbox"
-                checked={common.roundPrice}
-                onChange={(event) => updateCommon('roundPrice', event.target.checked)}
-              />{' '}
-              Redondear precio al próximo $10
-            </label>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => {
-                setPriceEdited(false)
-                setCommon((current) => ({ ...current, price: suggestedPrice(current) }))
-              }}
-            >
-              Calcular precio con costo y ganancia
-            </button>
           </div>
         </details>
         <label className="apparel-inline-check">
@@ -658,9 +707,10 @@ export function NewPurchaseApparelForm({
             onClick={() => {
               if (!window.confirm('¿Descartar esta carga sin guardar?')) return
               setCommon(defaults(kind))
+              setCategoryVersion((current) => current + 1)
               setVariants([newVariant(stockMode)])
               setPhotos([])
-              setMultipleColors(false)
+              setMultipleColors(true)
               setPriceEdited(false)
               setError('')
               setDraftWarning('')

@@ -1,7 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { StorePage, orderWhatsAppUrl } from './StorePage'
+import { StorePage } from './StorePage'
+import { orderWhatsAppUrl } from '../lib/orderWhatsApp'
 import { apiFetch } from '../lib/http'
 
 vi.mock('../lib/http', () => ({ apiFetch: vi.fn() }))

@@ -49,6 +49,8 @@ it('shows the notice in the app and removes accounting navigation and fiscal req
   expect(screen.getByRole('status', { name: 'Vencimiento de licencia' })).toBeTruthy()
   expect(navigation.some((item) => item.id === 'contabilidad')).toBe(false)
   expect(screen.queryByRole('button', { name: 'Contabilidad' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Permitir accesos · Seguridad' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: /^Seguridad$/ })).toBeTruthy()
   await waitFor(() => expect(fetch).toHaveBeenCalled())
   expect(fetch.mock.calls.some((args) => String(args[0]).includes('/accounting/'))).toBe(false)
 })

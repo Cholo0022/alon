@@ -111,7 +111,7 @@ class BusinessPermissionTest {
             filter.doFilter(request, response, new MockFilterChain());
             assertThat(response.getStatus())
                     .as(path)
-                    .isEqualTo(path.endsWith("/sales") ? 200 : 403);
+                    .isEqualTo(path.endsWith("/sales") || path.endsWith("/dashboard") ? 200 : 403);
         }
         when(security.license(anyMap())).thenReturn(Map.of("active", false));
         var request = new MockHttpServletRequest("GET", "/api/v1/alon/sales");
@@ -120,5 +120,30 @@ class BusinessPermissionTest {
         filter.doFilter(request, response, new MockFilterChain());
         assertThat(response.getStatus()).isEqualTo(403);
         assertThat(response.getContentAsString()).contains("licencia");
+    }
+
+    @Test
+    void employeesCannotApproveBrowsersEvenWithSecurityPermission() throws Exception {
+        var user =
+                Map.<String, Object>of(
+                        "id",
+                        3L,
+                        "comercio_id",
+                        1L,
+                        "rol",
+                        "PERSONALIZADO",
+                        "permisos",
+                        "seguridad");
+        var auth = mock(UserService.class);
+        when(auth.sessionUser(anyMap())).thenReturn(user);
+        var security = mock(AccessSecurityService.class);
+        when(security.validSession(anyMap(), any())).thenReturn(true);
+        var request =
+                new MockHttpServletRequest(
+                        "POST", "/api/v1/auth/security/browsers/example/approve");
+        request.getSession().setAttribute("alonUser", user);
+        var response = new MockHttpServletResponse();
+        new PermissionFilter(auth, security).doFilter(request, response, new MockFilterChain());
+        assertThat(response.getStatus()).isEqualTo(403);
     }
 }

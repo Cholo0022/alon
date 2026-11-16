@@ -38,7 +38,7 @@ export function LoginSecurityFlow({
       void apiFetch('/api/v1/auth/security/continue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: '{}',
+        body: JSON.stringify({ saved: false }),
         signal: controller.signal,
       })
         .then(async (response) => {
@@ -77,7 +77,7 @@ export function LoginSecurityFlow({
       setBusy(false)
     }
   }
-  /** Retira la solicitud pendiente y vuelve al ingreso sin conservar códigos ni secretos del formulario. */
+  /** Vuelve al ingreso sin retirar la solicitud que debe atender el gerente. */
   const cancel = async () => {
     if (busy) return
     setBusy(true)
@@ -185,6 +185,12 @@ export function LoginSecurityFlow({
               La aprobación se comprueba automáticamente. Todavía no tenés acceso a datos ni
               operaciones.
             </p>
+            {waiting && (
+              <p>
+                Podés volver al ingreso y entrar como gerente. La solicitud se conserva; desde otro
+                equipo se atiende en Seguridad → Permitir.
+              </p>
+            )}
           </>
         )}
         {challenge.stage !== 'DEVICE' && (
