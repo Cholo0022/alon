@@ -1,6 +1,7 @@
 ﻿# Detiene solo el servidor y la interfaz de este proyecto. No detiene MySQL.
 param([switch]$Comprobar)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'scripts/Alon-Paquete-Servidor.ps1')
 $alonTargets = @(
     @{Port=8080; Executable='java.exe'; Path=(Join-Path $PSScriptRoot 'backend/target/alon-api-0.1.0-SNAPSHOT.jar')},
     @{Port=5174; Executable='node.exe'; Path=(Join-Path $PSScriptRoot 'frontend/storefront-lan.mjs')},
@@ -13,7 +14,8 @@ foreach ($alonTarget in $alonTargets) {
     if (!$alonListener) { continue }
     $alonProcess = Get-CimInstance Win32_Process -Filter ("ProcessId=" + $alonListener.OwningProcess)
     $alonExpectedPath = $alonTarget.Path.Replace('\','/')
-    if ($alonProcess.Name -ne $alonTarget.Executable -or !$alonProcess.CommandLine -or $alonProcess.CommandLine.Replace('\','/').IndexOf($alonExpectedPath, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+    $alonOwnServer = $alonTarget.Port -eq 8080 -and (Test-AlonServerCommand $alonProcess.CommandLine $PSScriptRoot)
+    if ($alonProcess.Name -ne $alonTarget.Executable -or !$alonProcess.CommandLine -or (!$alonOwnServer -and $alonProcess.CommandLine.Replace('\','/').IndexOf($alonExpectedPath, [StringComparison]::OrdinalIgnoreCase) -lt 0)) {
         throw "El puerto $($alonTarget.Port) pertenece a otro programa. No se detuvo ningún proceso."
     }
     $alonProcesses += $alonListener.OwningProcess

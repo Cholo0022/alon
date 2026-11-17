@@ -80,3 +80,16 @@ test('keeps operations hidden when the initial check or a manual retry fails', a
   await screen.findByRole('heading', { name: 'Negocio no disponible' })
   expect(screen.queryByText('Tienda pública')).toBeNull()
 })
+
+test('shows the expired trial until the service is activated', async () => {
+  request.mockResolvedValueOnce(response('PRUEBA_VENCIDA')).mockResolvedValue(response('ACTIVO'))
+  render(
+    <InstanceAvailability>
+      <p>Zona de ventas</p>
+    </InstanceAvailability>,
+  )
+  await screen.findByRole('heading', { name: 'Período de prueba vencido' })
+  expect(screen.queryByText('Zona de ventas')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Comprobar estado' }))
+  expect(await screen.findByText('Zona de ventas')).toBeTruthy()
+})

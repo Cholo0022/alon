@@ -217,11 +217,18 @@ public class OperationsExceptionHandler {
     })
     public ResponseEntity<Map<String, String>> protocolError(Exception exception) {
         var error = (org.springframework.web.ErrorResponse) exception;
-        return ResponseEntity.status(error.getStatusCode())
-                .body(
-                        Map.of(
-                                "error",
-                                "Revisá la dirección, el método y el formato de la solicitud."));
+        String message =
+                exception
+                                instanceof
+                                org.springframework.web.servlet.resource.NoResourceFoundException
+                        ? "Esta función no está disponible en el servidor. Si actualizaste Alon, reiniciá el servidor y recargá la página."
+                        : exception
+                                        instanceof
+                                        org.springframework.web
+                                                .HttpRequestMethodNotSupportedException
+                                ? "No se pudo ejecutar esta acción. Recargá la página; si actualizaste Alon, reiniciá también el servidor."
+                                : "Revisá los datos y el formato de la solicitud.";
+        return ResponseEntity.status(error.getStatusCode()).body(Map.of("error", message));
     }
 
     /**

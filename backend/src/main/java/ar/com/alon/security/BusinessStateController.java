@@ -18,11 +18,16 @@ public class BusinessStateController {
     public Map<String, Object> change(@PathVariable long id, @Valid @RequestBody StateInput input) {
         if ("BAJA".equals(input.state()))
             return provisioning.deleteBusiness(id, input.reason(), input.confirmation());
-        return provisioning.changeState(id, input.state(), input.reason());
+        return provisioning.changeState(id, input.state(), input.reason(), input.trialMonths());
     }
 
     public record StateInput(
             @NotNull @Pattern(regexp = "PREPARACION|PRUEBA|ACTIVO|SUSPENDIDO|BAJA") String state,
             @NotNull @Size(max = 300) String reason,
-            @Size(max = 160) String confirmation) {}
+            @Size(max = 160) String confirmation,
+            @Min(1) @Max(120) Integer trialMonths) {
+        public StateInput(String state, String reason, String confirmation) {
+            this(state, reason, confirmation, null);
+        }
+    }
 }

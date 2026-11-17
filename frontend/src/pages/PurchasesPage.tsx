@@ -340,7 +340,7 @@ export function PurchasesPage({ draftScope }: { draftScope?: string }) {
       {newArticleOpen && (
         <NewPurchaseArticleDialog
           multipleApparel
-          apparelDraftKey={draftScope ? apparelDraftKey(draftScope,'purchase-product') : undefined}
+          apparelDraftKey={draftScope ? apparelDraftKey(draftScope, 'purchase-product') : undefined}
           maxVariants={Math.max(1, Math.min(100, 500 - lines.length))}
           onClose={() => setNewArticleOpen(false)}
           onSaved={(saved) => {

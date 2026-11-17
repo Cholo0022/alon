@@ -33,27 +33,35 @@ export function InstanceAvailability({ children }: { children: ReactNode }) {
       if (timer) clearTimeout(timer)
     }
   }, [revision])
-  if (!state || ['ACTIVO', 'PRUEBA'].includes(state)) return children
   if (state === 'CHECKING')
     return (
       <main className="instance-unavailable" role="status">
         Comprobando disponibilidad…
       </main>
     )
+  if (!state || ['ACTIVO', 'PRUEBA'].includes(state)) return children
   const title =
-    state === 'BAJA'
-      ? 'Negocio dado de baja'
-      : state === 'SUSPENDIDO'
-        ? 'Negocio inhabilitado'
-        : state === 'PREPARACION'
-          ? 'Negocio en preparación'
-          : 'Negocio no disponible'
+    state === 'PRUEBA_VENCIDA'
+      ? 'Período de prueba vencido'
+      : state === 'BAJA'
+        ? 'Negocio dado de baja'
+        : state === 'SUSPENDIDO'
+          ? 'Negocio inhabilitado'
+          : state === 'PREPARACION'
+            ? 'Negocio en preparación'
+            : 'Negocio no disponible'
   return (
     <main className="instance-unavailable" aria-live="polite">
       <section>
         <h1>{title}</h1>
         <p>El sistema y la tienda no están disponibles. Comunicate con el administrador de Alon.</p>
-        <button type="button" onClick={() => setRevision((n) => n + 1)}>
+        <button
+          type="button"
+          onClick={() => {
+            setState('CHECKING')
+            setRevision((n) => n + 1)
+          }}
+        >
           Comprobar estado
         </button>
       </section>

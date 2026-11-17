@@ -10,6 +10,20 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 class OperationsExceptionHandlerTest {
+    @Test
+    void missingRouteExplainsTheServerUpdateWithoutChangingItsHttpStatus() {
+        var result =
+                new OperationsExceptionHandler()
+                        .protocolError(
+                                new org.springframework.web.servlet.resource
+                                        .NoResourceFoundException(
+                                        org.springframework.http.HttpMethod.GET,
+                                        "api/v1/super/businesses/7/account",
+                                        "api/v1/super/businesses/7/account"));
+        assertThat(result.getStatusCode().value()).isEqualTo(404);
+        assertThat(result.getBody().get("error")).contains("reiniciá el servidor");
+    }
+
     @RestController
     static class Probe {
         @GetMapping("/probe")

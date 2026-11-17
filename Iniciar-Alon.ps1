@@ -6,6 +6,7 @@ $alonSettings = Join-Path $alonProject '.validation/connection'
 $alonRuntime = Join-Path $alonProject '.validation/runtime'
 $alonBackend = Join-Path $alonProject 'backend'
 $alonFrontend = Join-Path $alonProject 'frontend'
+. (Join-Path $alonProject 'scripts/Alon-Paquete-Servidor.ps1')
 $alonJar = Join-Path $alonBackend 'target/alon-api-0.1.0-SNAPSHOT.jar'
 if (!(Test-Path -LiteralPath $alonJar)) { throw 'Primero compilá el servidor desde la carpeta backend con mvn package.' }
 New-Item -ItemType Directory -Path $alonRuntime, $alonSettings -Force | Out-Null
@@ -66,7 +67,8 @@ function Restart-AlonPort([int]$Port, [string]$Executable, [string]$ExpectedPath
     $alonListener = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
     if (!$alonListener) { return }
     $alonProcess = Get-CimInstance Win32_Process -Filter ("ProcessId=" + $alonListener.OwningProcess)
-    if ($alonProcess.Name -ne $Executable -or !$alonProcess.CommandLine -or $alonProcess.CommandLine.IndexOf($ExpectedPath, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+    $alonOwnServer = $Port -eq 8080 -and (Test-AlonServerCommand $alonProcess.CommandLine $alonProject)
+    if ($alonProcess.Name -ne $Executable -or !$alonProcess.CommandLine -or (!$alonOwnServer -and $alonProcess.CommandLine.IndexOf($ExpectedPath, [StringComparison]::OrdinalIgnoreCase) -lt 0)) {
         throw "El puerto $Port pertenece a otro programa; no se cerró ese proceso."
     }
     Stop-Process -Id $alonListener.OwningProcess -Force
@@ -87,21 +89,26 @@ if ((Test-Path -LiteralPath $alonPreparedJar) -and !(Get-NetTCPConnection -State
 
 # Windows descifra la contraseña para este usuario; no se incluye en el comando de Java.
 if (!(Get-NetTCPConnection -State Listen -LocalPort 8080 -ErrorAction SilentlyContinue)) {
+    # Java usa una copia inmutable: compilar de nuevo no reemplaza el JAR que está ejecutándose.
+    $alonRunJar = Get-AlonServerSnapshot $alonJar $alonRuntime
     $alonPreviousUrl = $env:SPRING_DATASOURCE_URL
     $alonPreviousUser = $env:SPRING_DATASOURCE_USERNAME
     $alonPreviousPassword = $env:SPRING_DATASOURCE_PASSWORD
     $alonPreviousProvisioning = $env:ALON_PROVISIONING_ENABLED
+    $alonPreviousProvisioningJar = $env:ALON_PROVISIONING_JAR
     try {
         $env:SPRING_DATASOURCE_URL = $alonConfig.databaseUrl
         $env:SPRING_DATASOURCE_USERNAME = $alonCredential.UserName
         $env:SPRING_DATASOURCE_PASSWORD = $alonCredential.GetNetworkCredential().Password
         $env:ALON_PROVISIONING_ENABLED = 'true'
-        Start-Process -FilePath (Get-Command java.exe).Source -ArgumentList '-jar',('"' + $alonJar + '"') -WorkingDirectory $alonBackend -WindowStyle Hidden -RedirectStandardOutput (Join-Path $alonRuntime 'servidor.log') -RedirectStandardError (Join-Path $alonRuntime 'servidor-error.log') | Out-Null
+        $env:ALON_PROVISIONING_JAR = $alonRunJar
+        Start-Process -FilePath (Get-Command java.exe).Source -ArgumentList '-jar',('"' + $alonRunJar + '"') -WorkingDirectory $alonBackend -WindowStyle Hidden -RedirectStandardOutput (Join-Path $alonRuntime 'servidor.log') -RedirectStandardError (Join-Path $alonRuntime 'servidor-error.log') | Out-Null
     } finally {
         $env:SPRING_DATASOURCE_URL = $alonPreviousUrl
         $env:SPRING_DATASOURCE_USERNAME = $alonPreviousUser
         $env:SPRING_DATASOURCE_PASSWORD = $alonPreviousPassword
         $env:ALON_PROVISIONING_ENABLED = $alonPreviousProvisioning
+        $env:ALON_PROVISIONING_JAR = $alonPreviousProvisioningJar
     }
 }
 Write-Host 'Esperando al servidor de Alon...'

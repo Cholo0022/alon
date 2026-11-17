@@ -96,8 +96,9 @@ export function PurchaseVariantsDialog({
           · Sistema de talles: {textValue(article.sistema_talle)}
         </p>
         <p>
-          Indicá las cantidades recibidas, no el stock total que ya tenés. Cargá solo las combinaciones que recibiste. Cada código mantiene su stock
-          propio. Las variantes nuevas se crean desde «Crear producto».
+          Indicá las cantidades recibidas, no el stock total que ya tenés. Cargá solo las
+          combinaciones que recibiste. Cada código mantiene su stock propio. Las variantes nuevas se
+          crean desde «Crear producto».
         </p>
         <label>
           Costo unitario común
