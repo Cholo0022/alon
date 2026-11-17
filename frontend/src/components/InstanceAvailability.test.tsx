@@ -48,3 +48,45 @@ test('keeps the central administration available', async () => {
   expect(await screen.findByText('Administración de Alon')).toBeTruthy()
   expect(screen.queryByRole('heading')).toBeNull()
 })
+
+test('waits for the first availability check before showing operative screens', async () => {
+  let resolve!: (value: Response) => void
+  request.mockImplementation(
+    () =>
+      new Promise<Response>((done) => {
+        resolve = done
+      }),
+  )
+  render(
+    <InstanceAvailability>
+      <p>Zona de ventas</p>
+    </InstanceAvailability>,
+  )
+  expect(screen.queryByText('Zona de ventas')).toBeNull()
+  resolve(response('ACTIVO'))
+  expect(await screen.findByText('Zona de ventas')).toBeTruthy()
+})
+
+test('does not reveal the application when the first availability request fails', async () => {
+  request.mockRejectedValue(new Error('Sin conexión'))
+  render(
+    <InstanceAvailability>
+      <p>Zona de ventas</p>
+    </InstanceAvailability>,
+  )
+  expect(await screen.findByRole('heading', { name: 'Negocio no disponible' })).toBeTruthy()
+  expect(screen.queryByText('Zona de ventas')).toBeNull()
+})
+
+test('shows the expired trial until the service is activated', async () => {
+  request.mockResolvedValueOnce(response('PRUEBA_VENCIDA')).mockResolvedValue(response('ACTIVO'))
+  render(
+    <InstanceAvailability>
+      <p>Zona de ventas</p>
+    </InstanceAvailability>,
+  )
+  await screen.findByRole('heading', { name: 'Período de prueba vencido' })
+  expect(screen.queryByText('Zona de ventas')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Comprobar estado' }))
+  expect(await screen.findByText('Zona de ventas')).toBeTruthy()
+})

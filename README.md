@@ -84,7 +84,7 @@ Alon queda disponible en `http://127.0.0.1:5173` y su tienda en `/tienda`. Los r
 
 El primer ingreso del dueño exige vincular una aplicación autenticadora y guardar diez códigos de recuperación. En **Usuarios → Seguridad de ingreso** se configura el correo del dueño y se autorizan o revocan navegadores de empleados. No se permite entrar a gestión con una verificación pendiente. La configuración de avisos por correo, los respaldos de la clave de cifrado y los detalles de actualización están en [la guía de actualización](docs/actualizacion-y-validacion.md#seguridad-de-ingreso-v10).
 
-Desde V11, **alon** es el superusuario: ingresa con Google Authenticator y administra **Gerentes y licencias**. El Gerente recibe los accesos que alon seleccione. El menú **Seguridad** contiene el autenticador y los controles de ingreso. Solo el superusuario activa las licencias del negocio; el Gerente y los empleados no pueden renovarlas desde sus cuentas. Ver el apartado V11 de la guía de actualización.
+**alon** es el superusuario: ingresa con Google Authenticator y administra **Clientes Alon**, sus fichas, estados y cobros del servicio. Activo no vence por abonos; En prueba exige un plazo por meses y bloquea gestión y tienda al finalizar si no se activa. El menú **Seguridad** conserva el autenticador y los controles de ingreso. Ya no se emiten claves de licencia. Ver [clientes, pruebas y recibos](docs/clientes-y-cobros.md).
 
 Al iniciar Alon se prepara también la tienda para celulares del mismo Wi-Fi, en segundo plano y sin mantener una ventana abierta. La notebook debe estar encendida y conectada. Se puede iniciar por separado con Iniciar-Tienda-Wifi.ps1 -SegundoPlano; sin ese parámetro conserva el modo de ventana manual. Si cambia la dirección de Wi-Fi, el iniciador reemplaza únicamente el puente identificado de este proyecto.
 
@@ -92,7 +92,7 @@ En esta instalación, el acceso Alon.lnk de Inicio de Windows ejecuta Inicio-Aut
 
 ## Backup del sistema de gestión
 
-Ingresar como superusuario **alon** y abrir **Backup → Crear backup completo**. Al finalizar aparece en el historial y puede descargarse como ZIP. Las copias se guardan, por defecto, en `backend/data/backups/`; no se borran automáticamente. Conservar otra copia fuera de la PC. Este respaldo incluye toda la instalación y todos sus comercios. El superusuario puede habilitar Backup al gerente desde Gerentes y licencias; el gerente con ese permiso puede delegarlo a usuarios de rol Personalizado desde Usuarios y accesos. Sin el permiso no se puede crear, listar ni descargar copias.
+Ingresar como superusuario **alon** y abrir **Backup → Crear backup completo**. Al finalizar aparece en el historial y puede descargarse como ZIP. Las copias se guardan, por defecto, en `backend/data/backups/`; no se borran automáticamente. Conservar otra copia fuera de la PC. Este respaldo incluye toda la instalación y todos sus comercios. El gerente con permiso de Backup puede delegarlo a usuarios de rol Personalizado desde Usuarios y accesos. Sin el permiso no se puede crear, listar ni descargar copias.
 
 El ZIP contiene `database.sql` (base completa, usuarios e historial de migraciones), `article-images/`, la clave `security/mfa.key` si existe y las instrucciones de restauración. Contiene datos privados y secretos sin cifrado: guardar en un medio protegido. Crear las copias sin altas ni cambios de fotos en curso; MySQL se vuelca con una transacción consistente y las imágenes se copian después. No realizar cambios de estructura mientras se crea un backup.
 

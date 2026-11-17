@@ -2950,7 +2950,7 @@ class MySqlIntegrationTest {
     }
 
     @Test
-    void superuserControlsManagerPermissionsAndSingleUseCalendarLicenses(
+    void superuserControlsManagerPermissionsWithoutIssuingLicenses(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) {
         jdbc.update("UPDATE usuarios SET usuario='alon',rol='SUPER' WHERE id=1");
         var crypto = new ar.com.alon.security.TotpSecurity(directory.resolve("mfa.key").toString());
@@ -3019,8 +3019,9 @@ class MySqlIntegrationTest {
                                                 List.of("ventas", "clientes"),
                                                 1)));
         long manager = ((Number) created.get("managerId")).longValue();
-        String key = ((Map<?, ?>) created.get("license")).get("key").toString();
-        assertThat(security.license(securityUser(manager))).containsEntry("active", false);
+        assertThat(created).doesNotContainKey("license");
+        assertThat(security.license(securityUser(manager))).containsEntry("active", true);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM licencias", Long.class)).isZero();
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT security_email FROM usuarios WHERE id=?",
@@ -3045,43 +3046,6 @@ class MySqlIntegrationTest {
                                                 "DUENO",
                                                 List.of("ventas"))))
                 .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
-        assertThatThrownBy(() -> platform.activate(key))
-                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
-        when(identity.user()).thenReturn(Map.of("rol", "SUPER", "id", 1L, "comercio_id", 1L));
-        when(identity.userId()).thenReturn(1L);
-        jdbc.update("INSERT INTO comercios(id,codigo,nombre) VALUES(2,'OTRO','Otro negocio')");
-        when(identity.storeId()).thenReturn(2L);
-        assertThatThrownBy(() -> transaction.execute(status -> platform.activate(key)))
-                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
-        when(identity.storeId()).thenReturn(1L);
-        var active = transaction.execute(status -> platform.activate(key));
-        assertThat(active.get("expiresAt")).isEqualTo("2026-11-28T12:00");
-        assertThat(security.license(securityUser(manager))).containsEntry("active", true);
-        assertThatThrownBy(() -> transaction.execute(status -> platform.activate(key)))
-                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
-        when(identity.user()).thenReturn(Map.of("rol", "SUPER", "id", 1L, "comercio_id", 1L));
-        when(identity.userId()).thenReturn(1L);
-        var next = transaction.execute(status -> platform.issue(2));
-        when(identity.user()).thenReturn(Map.of("rol", "DUENO", "id", manager, "comercio_id", 1L));
-        when(identity.userId()).thenReturn(manager);
-        assertThatThrownBy(() -> platform.activate(next.get("key").toString()))
-                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
-        when(identity.user()).thenReturn(Map.of("rol", "SUPER", "id", 1L, "comercio_id", 1L));
-        when(identity.userId()).thenReturn(1L);
-        var renewed = transaction.execute(status -> platform.activate(next.get("key").toString()));
-        assertThat(renewed.get("expiresAt")).isEqualTo("2027-01-28T12:00");
-        var future =
-                new ar.com.alon.security.AccessSecurityService(
-                        jdbc,
-                        auth,
-                        identity,
-                        crypto,
-                        Clock.offset(clock, Duration.ofDays(120)),
-                        mock(ar.com.alon.security.SecurityNotifications.class),
-                        false,
-                        true);
-        assertThat(future.license(securityUser(manager))).containsEntry("active", false);
-        assertThat(future.license(securityUser(1))).containsEntry("active", true);
     }
 
     @Test
