@@ -62,6 +62,19 @@ class UserDeletionTest {
     }
 
     @Test
+    void deactivationPreservesHistoryAndRevokesExistingSessions() {
+        when(jdbc.update(anyString(), eq(false), eq(2L), eq(1L))).thenReturn(1);
+        service.setActive(2L, false, 1L);
+        verify(jdbc)
+                .update(
+                        "UPDATE usuarios SET activo=?,auth_version=auth_version+1 WHERE id=? AND comercio_id=?",
+                        false,
+                        2L,
+                        1L);
+        verify(jdbc, never()).update(startsWith("DELETE"), any(Object[].class));
+    }
+
+    @Test
     void aManagerCannotRemoveAnAdministrator() {
         when(jdbc.queryForMap(anyString(), eq(2L), eq(1L)))
                 .thenReturn(Map.of("id", 2L, "rol", "SUPER", "activo", true));

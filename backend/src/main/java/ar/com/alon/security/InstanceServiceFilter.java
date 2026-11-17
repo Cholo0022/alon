@@ -33,6 +33,7 @@ public class InstanceServiceFilter extends OncePerRequestFilter {
             return;
         }
         response.setHeader("X-Alon-Service-Control", "enabled");
+        response.setHeader("Cache-Control", "no-store");
         if (request.getRequestURI().equals("/api/v1/health")) {
             try {
                 response.setHeader("X-Alon-Service-State", Files.readString(Path.of(file)).trim());

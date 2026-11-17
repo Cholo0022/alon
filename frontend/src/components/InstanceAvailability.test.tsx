@@ -48,3 +48,35 @@ test('keeps the central administration available', async () => {
   expect(await screen.findByText('Administración de Alon')).toBeTruthy()
   expect(screen.queryByRole('heading')).toBeNull()
 })
+
+test('waits for the first availability check before mounting operative screens', async () => {
+  let resolve!: (value: Response) => void
+  request.mockImplementation(
+    () =>
+      new Promise<Response>((done) => {
+        resolve = done
+      }),
+  )
+  render(
+    <InstanceAvailability>
+      <p>Zona de ventas</p>
+    </InstanceAvailability>,
+  )
+  expect(screen.queryByText('Zona de ventas')).toBeNull()
+  resolve(response('PRUEBA'))
+  expect(await screen.findByText('Zona de ventas')).toBeTruthy()
+})
+
+test('keeps operations hidden when the initial check or a manual retry fails', async () => {
+  request.mockRejectedValue(new TypeError('Network error'))
+  render(
+    <InstanceAvailability>
+      <p>Tienda pública</p>
+    </InstanceAvailability>,
+  )
+  await screen.findByRole('heading', { name: 'Negocio no disponible' })
+  expect(screen.queryByText('Tienda pública')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Comprobar estado' }))
+  await screen.findByRole('heading', { name: 'Negocio no disponible' })
+  expect(screen.queryByText('Tienda pública')).toBeNull()
+})

@@ -3,7 +3,7 @@ import './instance-availability.css'
 
 /** Retira las pantallas operativas cuando el administrador bloquea una instancia. */
 export function InstanceAvailability({ children }: { children: ReactNode }) {
-  const [state, setState] = useState('')
+  const [state, setState] = useState('CHECKING')
   const [revision, setRevision] = useState(0)
   useEffect(() => {
     const controller = new AbortController()
@@ -21,7 +21,7 @@ export function InstanceAvailability({ children }: { children: ReactNode }) {
         managed = response.headers.get('X-Alon-Service-Control') === 'enabled'
         setState(managed ? (response.headers.get('X-Alon-Service-State') ?? 'UNAVAILABLE') : '')
       } catch {
-        if (!controller.signal.aborted && managed) setState('UNAVAILABLE')
+        if (!controller.signal.aborted && managed !== false) setState('UNAVAILABLE')
       } finally {
         if (!controller.signal.aborted && managed !== false)
           timer = setTimeout(() => void check(), 5000)
@@ -34,6 +34,12 @@ export function InstanceAvailability({ children }: { children: ReactNode }) {
     }
   }, [revision])
   if (!state || ['ACTIVO', 'PRUEBA'].includes(state)) return children
+  if (state === 'CHECKING')
+    return (
+      <main className="instance-unavailable" role="status">
+        Comprobando disponibilidad…
+      </main>
+    )
   const title =
     state === 'BAJA'
       ? 'Negocio dado de baja'
