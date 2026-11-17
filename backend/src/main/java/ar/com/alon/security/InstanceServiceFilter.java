@@ -33,9 +33,10 @@ public class InstanceServiceFilter extends OncePerRequestFilter {
             return;
         }
         response.setHeader("X-Alon-Service-Control", "enabled");
+        response.setHeader("Cache-Control", "no-store");
         if (request.getRequestURI().equals("/api/v1/health")) {
             try {
-                response.setHeader("X-Alon-Service-State", Files.readString(Path.of(file)).trim());
+                response.setHeader("X-Alon-Service-State", InstanceTerms.state(file, java.time.Clock.system(java.time.ZoneId.of("America/Argentina/Buenos_Aires"))));
             } catch (IOException exception) {
                 response.setHeader("X-Alon-Service-State", "UNAVAILABLE");
             }
@@ -44,7 +45,7 @@ public class InstanceServiceFilter extends OncePerRequestFilter {
         }
         String state;
         try {
-            state = Files.readString(Path.of(file)).trim();
+            state = InstanceTerms.state(file, java.time.Clock.system(java.time.ZoneId.of("America/Argentina/Buenos_Aires")));
             response.setHeader("X-Alon-Service-State", state);
         } catch (IOException exception) {
             reject(response, 503, "No se pudo verificar la habilitación de este negocio.");
@@ -55,6 +56,7 @@ public class InstanceServiceFilter extends OncePerRequestFilter {
                     response,
                     403,
                     switch (state) {
+                        case "PRUEBA_VENCIDA" -> "El período de prueba venció. Contactá a Alon para activar el servicio.";
                         case "BAJA" -> "Este negocio fue dado de baja. Contactá a Alon.";
                         case "SUSPENDIDO" ->
                                 "Este negocio está inhabilitado temporalmente. Contactá a Alon.";

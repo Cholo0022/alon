@@ -35,7 +35,7 @@ public class PlatformBusinesses {
         return Map.of(
                 "businesses",
                 jdbc.queryForList(
-                        "SELECT n.*, COALESCE((SELECT SUM(CASE WHEN m.tipo='CARGO' THEN m.importe ELSE -m.importe END) FROM plataforma_movimientos m WHERE m.negocio_id=n.id),0) saldo FROM plataforma_negocios n ORDER BY n.nombre,n.id"),
+                        "SELECT n.*, COALESCE((SELECT SUM(CASE WHEN m.tipo='CARGO' THEN m.importe ELSE -m.importe END) FROM plataforma_movimientos m WHERE m.negocio_id=n.id AND m.anulado=FALSE),0) saldo FROM plataforma_negocios n ORDER BY n.nombre,n.id"),
                 "movements",
                 jdbc.queryForList(
                         "SELECT m.*,n.nombre FROM plataforma_movimientos m JOIN plataforma_negocios n ON n.id=m.negocio_id ORDER BY m.fecha DESC,m.id DESC"));
@@ -164,7 +164,11 @@ public class PlatformBusinesses {
             @NotNull @Size(max = 500) @Pattern(regexp = "https?://[^\\s]+|") String tienda_url,
             @NotNull @Size(max = 160) String base_referencia,
             LocalDate respaldo,
-            @NotNull @Size(max = 2000) String notas) {}
+            @NotNull @Size(max = 2000) String notas) {
+        public Business withTrialMonths(int months) {
+            return new Business(nombre, razon_social, cuit, rubro, localidad, responsable, telefono, email, plan, abono, estado, alta, alta.plusMonths(months), gestion_url, tienda_url, base_referencia, respaldo, notas);
+        }
+    }
 
     public record Movement(
             @NotNull @Pattern(regexp = "CARGO|COBRO") String tipo,

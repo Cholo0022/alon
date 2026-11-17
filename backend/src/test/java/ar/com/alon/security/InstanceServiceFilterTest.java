@@ -13,6 +13,7 @@ class InstanceServiceFilterTest {
     private MockHttpServletResponse request(String state, String path) throws Exception {
         var file = folder.resolve("service-state");
         Files.writeString(file, state);
+        Files.writeString(folder.resolve("service-trial-until"), "2099-12-31T00:00:00");
         var response = new MockHttpServletResponse();
         new InstanceServiceFilter(file.toString())
                 .doFilter(new MockHttpServletRequest("GET", path), response, new MockFilterChain());

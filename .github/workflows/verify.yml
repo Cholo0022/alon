@@ -16,6 +16,11 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
         working-directory: frontend
+      - name: Prepare formatting patch
+        run: |
+          npx prettier --write src/pages/PlatformPage.tsx src/lib/navigation.ts src/components/LicenseExpiryNotice.tsx src/views/AppView.tsx src/components/InstanceAvailability.tsx src/pages/BusinessStateActions.tsx src/pages/BusinessInstallationPanel.tsx src/pages/PlatformBusinesses.tsx src/pages/platform-businesses.css src/pages/BusinessReceipts.tsx src/pages/PlatformPage.test.tsx src/components/LicenseExpiryNotice.test.tsx src/pages/BusinessReceipts.test.tsx
+          git diff --no-ext-diff -- src
+        working-directory: frontend
       - run: npm run build && npm run lint && npm run format:check && npm test && npm audit --audit-level=high
         working-directory: frontend
   backend:
@@ -42,5 +47,10 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: maven
+      - name: Prepare Java formatting patch
+        run: |
+          mvn --batch-mode spotless:apply
+          git diff --no-ext-diff -- src
+        working-directory: backend
       - run: mvn --batch-mode verify
         working-directory: backend

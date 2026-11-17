@@ -28,6 +28,9 @@ public class AccessSecurityService {
     @Value("${alon.browser-cookie-name:ALON_BROWSER}")
     private String browserCookieName = "ALON_BROWSER";
 
+    @Value("${alon.service-state-file:${ALON_SERVICE_STATE_FILE:}}")
+    private String serviceStateFile = "";
+
     private record Pending(
             long user,
             long store,
@@ -71,6 +74,7 @@ public class AccessSecurityService {
     /** Informa la vigencia del negocio; el superusuario conserva acceso para renovar licencias. */
     public Map<String, Object> license(Map<String, Object> user) {
         if (user.isEmpty()) return Map.of();
+        if (!serviceStateFile.isBlank()) return InstanceTerms.status(serviceStateFile, clock);
         var row =
                 jdbc.queryForMap(
                         "SELECT licencia_controlada,licencia_hasta FROM comercios WHERE id=?",

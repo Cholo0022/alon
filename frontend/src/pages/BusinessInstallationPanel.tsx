@@ -114,7 +114,7 @@ export function BusinessInstallationPanel({
     >
       <h3>Habilitar sistema y tienda de {business.nombre}</h3>
       <p>
-        Se crea una base independiente, un gerente y una licencia. Los enlaces son locales a esta
+        Se crea una base independiente, un gerente y una período de prueba. Los enlaces son locales a esta
         computadora; publicar en Internet requiere configurar hosting y dominio.
       </p>
       {installation && (
@@ -208,7 +208,7 @@ export function BusinessInstallationPanel({
                   />
                 </label>
                 <label>
-                  Meses de licencia inicial
+                  Meses de prueba inicial
                   <input
                     type="number"
                     min={1}
@@ -224,7 +224,7 @@ export function BusinessInstallationPanel({
                 </p>
                 <p>
                   Guardá la contraseña que elegiste. Si reintentás un alta incompleta, se conserva
-                  el gerente original y su contraseña. La licencia no se extiende por reintentar.
+                  el gerente original y su contraseña. La período de prueba no se extiende por reintentar.
                 </p>
               </>
             )}

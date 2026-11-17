@@ -98,3 +98,29 @@
 .business-detail .business-state-actions p {
   max-width: 640px;
 }
+
+.client-detail-dialog {
+  width: min(1060px, calc(100vw - 32px));
+  max-height: 90dvh;
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #d7e0e6;
+  border-radius: 14px;
+  background: #fff;
+  color: #162d3e;
+}
+.client-detail-dialog::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+.client-detail-dialog .business-detail {
+  margin: 12px 0;
+}
+.client-detail-dialog .entry-form {
+  max-width: 100%;
+}
+.platform-receipt {
+  padding: 16px;
+  margin: 12px 0;
+  border: 1px solid #d7e0e6;
+  border-radius: 8px;
+}

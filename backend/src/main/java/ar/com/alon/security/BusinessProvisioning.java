@@ -91,7 +91,13 @@ public class BusinessProvisioning {
     }
 
     public Map<String, Object> changeState(long id, String state, String reason) {
+        return changeState(id, state, reason, null);
+    }
+
+    public Map<String, Object> changeState(long id, String state, String reason, Integer trialMonths) {
         authorizeSuper();
+        if ("PRUEBA".equals(state) && (trialMonths == null || trialMonths < 1 || trialMonths > 120))
+            throw error(HttpStatus.BAD_REQUEST, "Elegí entre 1 y 120 meses de prueba.");
         if ("BAJA".equals(state))
             throw error(
                     HttpStatus.BAD_REQUEST,
@@ -134,6 +140,7 @@ public class BusinessProvisioning {
                         reason.trim(),
                         id);
                 stateRequested = true;
+                if ("PRUEBA".equals(state)) central.update("UPDATE plataforma_negocios SET vencimiento=? WHERE id=?", LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")).plusMonths(trialMonths), id);
                 boolean operational = Set.of("ACTIVO", "PRUEBA").contains(state);
                 boolean prepared =
                         !installations.isEmpty()
@@ -143,7 +150,7 @@ public class BusinessProvisioning {
                         && healthy(installations.getFirst())
                         && !supportsServiceControl(installations.getFirst()))
                     stopLegacyInstallation(installations.getFirst(), folder.resolve("alon.jar"));
-                if (folder != null) writeState(folder, state);
+                if (folder != null) writeTerms(folder, id, state);
                 if (prepared && operational) {
                     try {
                         launch(installations.getFirst());
@@ -429,7 +436,27 @@ public class BusinessProvisioning {
                 });
     }
 
+    private static LocalDateTime trialUntil(Map<String, Object> business, int months) {
+        Object until = business.get("vencimiento");
+        return until == null
+                ? LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")).plusMonths(months).atStartOfDay()
+                : LocalDate.parse(until.toString()).plusDays(1).atStartOfDay();
+    }
+
+    private void writeTerms(Path folder, long id, String state) throws IOException {
+        if ("PRUEBA".equals(state)) {
+            var business = central.queryForMap("SELECT vencimiento FROM plataforma_negocios WHERE id=?", id);
+            if (business.get("vencimiento") == null) throw new IOException("El período de prueba no tiene vencimiento.");
+            writeControl(folder, "service-trial-until", trialUntil(business, 1).toString());
+        }
+        writeState(folder, state);
+    }
+
     private static void writeState(Path folder, String state) throws IOException {
+        writeControl(folder, "service-state", state);
+    }
+
+    private static void writeControl(Path folder, String name, String state) throws IOException {
         Files.createDirectories(folder);
         Path temporary = Files.createTempFile(folder, "service-state-", ".tmp");
         try {
@@ -437,13 +464,13 @@ public class BusinessProvisioning {
             try {
                 Files.move(
                         temporary,
-                        folder.resolve("service-state"),
+                        folder.resolve(name),
                         StandardCopyOption.ATOMIC_MOVE,
                         StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException exception) {
                 Files.move(
                         temporary,
-                        folder.resolve("service-state"),
+                        folder.resolve(name),
                         StandardCopyOption.REPLACE_EXISTING);
             }
         } finally {
@@ -638,8 +665,7 @@ public class BusinessProvisioning {
                     port,
                     UUID.randomUUID().toString(),
                     input.username().trim(),
-                    LocalDateTime.now(ZoneId.of("America/Argentina/Buenos_Aires"))
-                            .plusMonths(input.months()));
+                    trialUntil(business, input.months()));
         }
         var row =
                 central.queryForMap(
@@ -751,7 +777,7 @@ public class BusinessProvisioning {
             try {
                 try (var update =
                         connection.prepareStatement(
-                                "UPDATE comercios SET nombre=?,licencia_controlada=TRUE,licencia_hasta=? WHERE id=1")) {
+                                "UPDATE comercios SET nombre=?,licencia_controlada=FALSE,licencia_hasta=? WHERE id=1")) {
                     update.setString(
                             1,
                             ((String) business.get("nombre"))
@@ -812,7 +838,7 @@ public class BusinessProvisioning {
         requireOperational(id);
         Path folder = directory.resolve(identifier(row.get("esquema")));
         Files.createDirectories(folder);
-        writeState(folder, businessState(id));
+        writeTerms(folder, id, businessState(id));
         if (healthy(row)) {
             if (supportsServiceControl(row)
                     && supportsBusinessLinks(row, businessSlug(id))

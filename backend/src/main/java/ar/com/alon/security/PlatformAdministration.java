@@ -84,7 +84,7 @@ public class PlatformAdministration {
                 input.email().trim(),
                 identity.storeId(),
                 id);
-        return Map.of("managerId", id, "license", issue(input.months()));
+        return Map.of("managerId", id);
     }
 
     /**

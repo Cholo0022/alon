@@ -35,6 +35,7 @@ public class BusinessRegistrationController {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Confirmá el nuevo negocio como Activo o Prueba.");
         var manager = input.manager();
+        var effective = "PRUEBA".equals(input.business().estado()) ? new Confirmation(input.requestId(), input.business().withTrialMonths(manager.months()), manager) : input;
         var setup =
                 new BusinessProvisioning.Input(
                         manager.username(),
@@ -46,9 +47,9 @@ public class BusinessRegistrationController {
         provisioning.validateProvision(setup);
         long id;
         try {
-            id = registration.reserve(input);
+            id = registration.reserve(effective);
         } catch (DuplicateKeyException duplicate) {
-            Long existing = registration.find(input);
+            Long existing = registration.find(effective);
             if (existing == null) throw duplicate;
             id = existing;
         }

@@ -8,16 +8,16 @@ export function LicenseExpiryNotice({ license }: { license?: AuthStatus['license
     <aside
       className="notice license-expiry-notice"
       role="status"
-      aria-label="Vencimiento de licencia"
+      aria-label="Vencimiento de prueba"
     >
       <div>
-        <strong>Tu licencia está por vencer</strong>
+        <strong>Tu período de prueba está por vencer</strong>
         <p>
           {days === 0 ? 'Vence hoy' : days === 1 ? 'Falta 1 día' : 'Faltan ' + days + ' días'} ·
           Vencimiento: {formatDateDisplay(license.expirationDate ?? license.expiresAt.slice(0, 10))}
           .
         </p>
-        <p>Contactá a alon para renovar la licencia y continuar usando la aplicación.</p>
+        <p>Contactá a Alon para activar el servicio antes de que finalice la prueba.</p>
       </div>
     </aside>
   )

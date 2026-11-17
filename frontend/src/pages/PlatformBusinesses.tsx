@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import './platform-businesses.css'
 import { BusinessInstallationPanel } from './BusinessInstallationPanel'
+import { BusinessReceipts } from './BusinessReceipts'
 import { BusinessStateActions } from './BusinessStateActions'
 import { businessStates as states } from '../lib/businessStates'
 
@@ -52,6 +53,7 @@ type Movement = {
   fecha: string
   importe: number
   concepto: string
+  anulado?: boolean
 }
 type Report = { businesses: Business[]; movements: Movement[] }
 const fields: {
@@ -72,7 +74,6 @@ const fields: {
   { key: 'plan', label: 'Plan contratado', required: true, max: 80 },
   { key: 'abono', label: 'Abono mensual (ARS)', type: 'number', required: true },
   { key: 'alta', label: 'Fecha de alta', type: 'date', required: true },
-  { key: 'vencimiento', label: 'Próximo vencimiento', type: 'date' },
   { key: 'base_referencia', label: 'Referencia de base de datos (sin contraseñas)', max: 160 },
   { key: 'respaldo', label: 'Último respaldo confirmado (manual)', type: 'date' },
 ]
@@ -111,6 +112,7 @@ export function PlatformBusinesses() {
   const [selected, setSelected] = useState<number | null>(null)
   const [installationBusiness, setInstallationBusiness] = useState<Business | null>(null)
   const editorOpen = draft !== null
+  const clientDialog = useRef<HTMLDialogElement>(null)
   const detail = useRef<HTMLElement>(null)
   const editor = useRef<HTMLElement>(null)
   const installation = useRef<HTMLDivElement>(null)
@@ -286,13 +288,33 @@ export function PlatformBusinesses() {
   const businesses = report?.businesses ?? []
   const movements = report?.movements ?? []
   const current = businesses.find((b) => b.id === selected)
+  const dialogOpen = Boolean(current || draft || installationBusiness)
+  useEffect(() => {
+    const element = clientDialog.current
+    if (!dialogOpen || !element) return
+    const previous = document.activeElement as HTMLElement | null
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    element.showModal()
+    return () => {
+      element.close()
+      document.body.style.overflow = overflow
+      if (previous?.isConnected) previous.focus()
+    }
+  }, [dialogOpen])
+  const closeDetail = () => {
+    if (busy) return
+    setSelected(null)
+    setDraft(null)
+    setInstallationBusiness(null)
+  }
   const filtered = businesses.filter(
     (b) =>
       (!status || b.estado === status) &&
       `${b.nombre} ${b.responsable} ${b.cuit}`.toLowerCase().includes(search.toLowerCase()),
   )
   const collected = movements
-    .filter((m) => m.tipo === 'COBRO' && m.fecha.startsWith(month))
+    .filter((m) => !m.anulado && m.tipo === 'COBRO' && m.fecha.startsWith(month))
     .reduce((sum, m) => sum + Number(m.importe), 0)
   const edit = (b?: Business) => {
     if (!b && pendingRegistration) {
@@ -323,7 +345,7 @@ export function PlatformBusinesses() {
       <div className="entry-heading">
         <div>
           <span className="alon-tag">ADMINISTRACIÓN GENERAL</span>
-          <h2>Mis negocios Alon</h2>
+          <h2>Mis clientes Alon</h2>
         </div>
         <button type="button" className="primary-button" disabled={busy} onClick={() => edit()}>
           {pendingRegistration ? 'Continuar alta pendiente' : 'Registrar negocio'}
@@ -441,7 +463,7 @@ export function PlatformBusinesses() {
                     'Plan / estado',
                     'Abono',
                     'Saldo',
-                    'Vencimiento',
+                    'Fin de prueba',
                     'Respaldo manual',
                     'Acciones',
                   ].map((h) => (
@@ -473,10 +495,9 @@ export function PlatformBusinesses() {
                     <td>{money(b.abono)}</td>
                     <td>{money(b.saldo)}</td>
                     <td>
-                      {b.vencimiento || 'Sin informar'}
-                      {b.vencimiento &&
-                        b.vencimiento < today() &&
-                        !['BAJA', 'SUSPENDIDO'].includes(b.estado) && (
+                      {b.estado === 'PRUEBA' ? b.vencimiento || 'Sin informar' : 'Sin vencimiento de acceso'}
+                      {b.estado === 'PRUEBA' && b.vencimiento &&
+                        b.vencimiento < today() && (
                           <strong className="platform-alert">Vencido</strong>
                         )}
                     </td>
@@ -502,11 +523,11 @@ export function PlatformBusinesses() {
             </table>
           </div>
           {!filtered.length && <p>No hay negocios que mostrar. Registrá tu primer cliente.</p>}
-          <h3>Vencimientos próximos (30 días)</h3>
+          <h3>Pruebas que finalizan en los próximos 30 días</h3>
           {businesses
             .filter(
               (b) =>
-                !['BAJA', 'SUSPENDIDO'].includes(b.estado) &&
+                b.estado === 'PRUEBA' &&
                 b.vencimiento &&
                 b.vencimiento >= today() &&
                 b.vencimiento <= upcomingLimit,
@@ -518,6 +539,8 @@ export function PlatformBusinesses() {
             ))}
         </>
       )}
+      {dialogOpen && <dialog ref={clientDialog} className="client-detail-dialog" aria-label={current ? 'Ficha de ' + current.nombre : 'Alta de cliente'} onCancel={(event) => { event.preventDefault(); closeDetail() }}>
+        <button type="button" className="select-button" disabled={busy} onClick={closeDetail}>Cerrar ficha</button>
       {installationBusiness && (
         <div ref={installation}>
           <BusinessInstallationPanel
@@ -660,8 +683,8 @@ export function PlatformBusinesses() {
                     onChange={(event) => setManager({ ...manager, password: event.target.value })}
                   />
                 </label>
-                <label>
-                  Meses de licencia inicial
+                {draft.estado === 'PRUEBA' && <label>
+                  Meses de prueba
                   <input
                     type="number"
                     required
@@ -669,11 +692,12 @@ export function PlatformBusinesses() {
                     max={120}
                     disabled={registrationLocked}
                     value={manager.months}
+                    step={1}
                     onChange={(event) =>
                       setManager({ ...manager, months: Number(event.target.value) })
                     }
                   />
-                </label>
+                </label>}
                 <p>
                   El gerente tendrá todos los permisos de administración de su negocio. No tendrá
                   acceso al panel de superusuario, a otros negocios ni a la administración general
@@ -770,7 +794,8 @@ export function PlatformBusinesses() {
           <p>Base: {current.base_referencia || 'Sin informar'}</p>
           <p>{current.notas}</p>
           {!current.baja_iniciada_en && <BusinessAvailability businessId={current.id} />}
-          <h4>Cuenta de {current.nombre}</h4>
+          <BusinessReceipts key={current.id} business={current} onSaved={() => setRevision((n) => n + 1)} />
+          <h4>Ajustes manuales de cuenta de {current.nombre}</h4>
           <p>Saldo: {money(current.saldo)}. Los movimientos son del abono de Alon.</p>
           <form
             className="entry-form"
@@ -829,12 +854,13 @@ export function PlatformBusinesses() {
             .filter((m) => m.negocio_id === current.id)
             .map((m) => (
               <p key={m.id}>
-                {m.fecha} · {m.tipo === 'COBRO' ? 'Cobro' : 'Cargo'} · {money(m.importe)} ·{' '}
+                {m.anulado ? 'ANULADO · ' : ''}{m.fecha} · {m.tipo === 'COBRO' ? 'Cobro' : 'Cargo'} · {money(m.importe)} ·{' '}
                 {m.concepto}
               </p>
             ))}
         </section>
       )}
+      </dialog>}
     </section>
   )
 }

@@ -48,7 +48,7 @@ public class PlatformController {
     /** Emite la próxima renovación sin sumar meses hasta que el superusuario la active. */
     @PostMapping("/super/licenses")
     public Map<String, Object> issue(@Valid @RequestBody Months input) {
-        return platform.issue(input.months());
+        throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.GONE, "Alon ya no utiliza claves de licencia. Administrá el estado del cliente.");
     }
 
     /** Limita intentos y aplica una clave de licencia de un solo uso al negocio autenticado. */
@@ -56,7 +56,7 @@ public class PlatformController {
     public Map<String, Object> activate(
             @Valid @RequestBody Activation input, HttpServletRequest request) {
         throttle.check("license:" + request.getRemoteAddr());
-        return platform.activate(input.key());
+        throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.GONE, "Alon ya no utiliza claves de licencia. Administrá el estado del cliente.");
     }
 
     public record Months(@Min(1) @Max(120) int months) {}
