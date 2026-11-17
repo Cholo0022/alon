@@ -35,7 +35,9 @@ it('creates and selects a customer while preserving sale items and date', async 
     target: { value: 'Ana Pérez' },
   })
   fireEvent.change(within(dialog).getByLabelText('Teléfono'), { target: { value: '123456789' } })
-  fireEvent.change(within(dialog).getByLabelText('DNI (solo números)'), { target: { value: '30111222' } })
+  fireEvent.change(within(dialog).getByLabelText('DNI (solo números)'), {
+    target: { value: '30111222' },
+  })
   fireEvent.keyDown(within(dialog).getByLabelText('Nombre y apellido'), { key: 'g', ctrlKey: true })
   expect(screen.queryByText('Confirmar venta')).toBeNull()
   fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar y usar cliente' }))

@@ -40,7 +40,8 @@ final class InstanceTerms {
                     until == null
                             ? -1
                             : ChronoUnit.DAYS.between(
-                                    LocalDate.now(localClock(clock)), until.minusNanos(1).toLocalDate());
+                                    LocalDate.now(localClock(clock)),
+                                    until.minusNanos(1).toLocalDate());
             boolean active = "ACTIVO".equals(state) || "PRUEBA".equals(state);
             return Map.of(
                     "managed",

@@ -3022,14 +3022,29 @@ class MySqlIntegrationTest {
         assertThat(created).doesNotContainKey("license");
         assertThat(security.license(securityUser(manager))).containsEntry("active", true);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM licencias", Long.class)).isZero();
-        assertThat(jdbc.queryForObject("SELECT security_email FROM usuarios WHERE id=?", String.class, manager))
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT security_email FROM usuarios WHERE id=?",
+                                String.class,
+                                manager))
                 .isEqualTo("manager@example.test");
-        assertThat(jdbc.queryForObject("SELECT permisos FROM usuarios WHERE id=?", String.class, manager))
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT permisos FROM usuarios WHERE id=?", String.class, manager))
                 .doesNotContain("usuarios", "costos", "negocio");
         when(identity.user()).thenReturn(Map.of("rol", "DUENO", "id", manager, "comercio_id", 1L));
         when(identity.userId()).thenReturn(manager);
-        assertThatThrownBy(() -> platform.issue(2)).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
-        assertThatThrownBy(() -> auth.createUser(new UserService.UserInput("escalate", "Escalada", "Contraseña segura 2026", "DUENO", List.of("ventas"))))
+        assertThatThrownBy(() -> platform.issue(2))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        assertThatThrownBy(
+                        () ->
+                                auth.createUser(
+                                        new UserService.UserInput(
+                                                "escalate",
+                                                "Escalada",
+                                                "Contraseña segura 2026",
+                                                "DUENO",
+                                                List.of("ventas"))))
                 .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
     }
 

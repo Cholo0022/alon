@@ -39,6 +39,20 @@ class InstanceServiceFilterTest {
     }
 
     @Test
+    void expiredTrialBlocksPublicOrdersAndManagementButCanBeActivated() throws Exception {
+        var file = folder.resolve("service-state");
+        Files.writeString(file, "PRUEBA");
+        Files.writeString(folder.resolve("service-trial-until"), "2000-01-01T00:00:00");
+        for (String path : new String[] {"/api/v1/shop/orders", "/api/v1/shop/products", "/api/v1/auth/status"}) {
+            var response = new MockHttpServletResponse();
+            new InstanceServiceFilter(file.toString()).doFilter(new MockHttpServletRequest("POST", path), response, new MockFilterChain());
+            assertThat(response.getStatus()).isEqualTo(403);
+            assertThat(response.getHeader("X-Alon-Service-State")).isEqualTo("PRUEBA_VENCIDA");
+        }
+        assertThat(request("ACTIVO", "/api/v1/shop/orders").getStatus()).isEqualTo(200);
+    }
+
+    @Test
     void keepsMonitoringAvailableAndFailsClosedWhenTheControlFileIsMissing() throws Exception {
         assertThat(request("BAJA", "/api/v1/health").getStatus()).isEqualTo(200);
         assertThat(request("BAJA", "/api/v1/health").getHeader("X-Alon-Service-State"))

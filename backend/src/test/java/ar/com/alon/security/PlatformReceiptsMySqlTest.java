@@ -86,6 +86,19 @@ class PlatformReceiptsMySqlTest {
     }
 
     @Test
+    void fullDiscountKeepsReceiptWithoutZeroValueLedgerMovements() {
+        transaction.executeWithoutResult(tx -> {
+            business(97004);
+            var input = new PlatformReceipts.Receipt(UUID.randomUUID().toString(), LocalDate.of(2026, 11, 16), "2026-11", 1, new BigDecimal("100"));
+            var result = service.issue(97004, input);
+            assertThat(result.get("total")).isEqualTo(new BigDecimal("0.00"));
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM plataforma_movimientos WHERE negocio_id=97004", Long.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM plataforma_periodos_cobrados WHERE negocio_id=97004", Long.class)).isEqualTo(1);
+            tx.setRollbackOnly();
+        });
+    }
+
+    @Test
     void cancellationPreservesReceiptAndReleasesPeriodsOnlyForItsBusiness() {
         transaction.executeWithoutResult(
                 tx -> {

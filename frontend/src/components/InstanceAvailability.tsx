@@ -55,7 +55,13 @@ export function InstanceAvailability({ children }: { children: ReactNode }) {
       <section>
         <h1>{title}</h1>
         <p>El sistema y la tienda no están disponibles. Comunicate con el administrador de Alon.</p>
-        <button type="button" onClick={() => { setState('CHECKING'); setRevision((n) => n + 1) }}>
+        <button
+          type="button"
+          onClick={() => {
+            setState('CHECKING')
+            setRevision((n) => n + 1)
+          }}
+        >
           Comprobar estado
         </button>
       </section>
