@@ -1,6 +1,7 @@
 package ar.com.alon.security;
 
 import static org.assertj.core.api.Assertions.*;
+
 import java.nio.file.*;
 import java.time.*;
 import org.junit.jupiter.api.Test;
@@ -8,7 +9,10 @@ import org.junit.jupiter.api.io.TempDir;
 
 class InstanceTermsTest {
     @TempDir Path folder;
-    private final Clock clock = Clock.fixed(Instant.parse("2026-11-16T15:00:00Z"), ZoneId.of("America/Argentina/Buenos_Aires"));
+    private final Clock clock =
+            Clock.fixed(
+                    Instant.parse("2026-11-16T15:00:00Z"),
+                    ZoneId.of("America/Argentina/Buenos_Aires"));
 
     @Test
     void trialExpiresAtTheBoundaryAndActiveHasNoDeadline() throws Exception {
@@ -19,7 +23,9 @@ class InstanceTermsTest {
         assertThat(InstanceTerms.status(file.toString(), clock)).containsEntry("active", false);
         Files.writeString(file, "ACTIVO");
         assertThat(InstanceTerms.state(file.toString(), clock)).isEqualTo("ACTIVO");
-        assertThat(InstanceTerms.status(file.toString(), clock)).containsEntry("active", true).containsEntry("managed", false);
+        assertThat(InstanceTerms.status(file.toString(), clock))
+                .containsEntry("active", true)
+                .containsEntry("managed", false);
     }
 
     @Test
@@ -28,6 +34,8 @@ class InstanceTermsTest {
         Files.writeString(file, "PRUEBA");
         assertThat(InstanceTerms.status(file.toString(), clock)).containsEntry("active", false);
         Files.writeString(folder.resolve("service-trial-until"), "2026-11-20T00:00:00");
-        assertThat(InstanceTerms.status(file.toString(), clock)).containsEntry("active", true).containsEntry("expiringSoon", true);
+        assertThat(InstanceTerms.status(file.toString(), clock))
+                .containsEntry("active", true)
+                .containsEntry("expiringSoon", true);
     }
 }

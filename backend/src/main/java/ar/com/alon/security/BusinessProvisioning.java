@@ -94,7 +94,8 @@ public class BusinessProvisioning {
         return changeState(id, state, reason, null);
     }
 
-    public Map<String, Object> changeState(long id, String state, String reason, Integer trialMonths) {
+    public Map<String, Object> changeState(
+            long id, String state, String reason, Integer trialMonths) {
         authorizeSuper();
         if ("PRUEBA".equals(state) && (trialMonths == null || trialMonths < 1 || trialMonths > 120))
             throw error(HttpStatus.BAD_REQUEST, "Elegí entre 1 y 120 meses de prueba.");
@@ -140,7 +141,12 @@ public class BusinessProvisioning {
                         reason.trim(),
                         id);
                 stateRequested = true;
-                if ("PRUEBA".equals(state)) central.update("UPDATE plataforma_negocios SET vencimiento=? WHERE id=?", LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")).plusMonths(trialMonths), id);
+                if ("PRUEBA".equals(state))
+                    central.update(
+                            "UPDATE plataforma_negocios SET vencimiento=? WHERE id=?",
+                            LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"))
+                                    .plusMonths(trialMonths),
+                            id);
                 boolean operational = Set.of("ACTIVO", "PRUEBA").contains(state);
                 boolean prepared =
                         !installations.isEmpty()
@@ -439,14 +445,19 @@ public class BusinessProvisioning {
     private static LocalDateTime trialUntil(Map<String, Object> business, int months) {
         Object until = business.get("vencimiento");
         return until == null
-                ? LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")).plusMonths(months).atStartOfDay()
+                ? LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"))
+                        .plusMonths(months)
+                        .atStartOfDay()
                 : LocalDate.parse(until.toString()).plusDays(1).atStartOfDay();
     }
 
     private void writeTerms(Path folder, long id, String state) throws IOException {
         if ("PRUEBA".equals(state)) {
-            var business = central.queryForMap("SELECT vencimiento FROM plataforma_negocios WHERE id=?", id);
-            if (business.get("vencimiento") == null) throw new IOException("El período de prueba no tiene vencimiento.");
+            var business =
+                    central.queryForMap(
+                            "SELECT vencimiento FROM plataforma_negocios WHERE id=?", id);
+            if (business.get("vencimiento") == null)
+                throw new IOException("El período de prueba no tiene vencimiento.");
             writeControl(folder, "service-trial-until", trialUntil(business, 1).toString());
         }
         writeState(folder, state);
@@ -468,10 +479,7 @@ public class BusinessProvisioning {
                         StandardCopyOption.ATOMIC_MOVE,
                         StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException exception) {
-                Files.move(
-                        temporary,
-                        folder.resolve(name),
-                        StandardCopyOption.REPLACE_EXISTING);
+                Files.move(temporary, folder.resolve(name), StandardCopyOption.REPLACE_EXISTING);
             }
         } finally {
             Files.deleteIfExists(temporary);

@@ -35,7 +35,13 @@ public class BusinessRegistrationController {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Confirmá el nuevo negocio como Activo o Prueba.");
         var manager = input.manager();
-        var effective = "PRUEBA".equals(input.business().estado()) ? new Confirmation(input.requestId(), input.business().withTrialMonths(manager.months()), manager) : input;
+        var effective =
+                "PRUEBA".equals(input.business().estado())
+                        ? new Confirmation(
+                                input.requestId(),
+                                input.business().withTrialMonths(manager.months()),
+                                manager)
+                        : input;
         var setup =
                 new BusinessProvisioning.Input(
                         manager.username(),

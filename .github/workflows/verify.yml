@@ -18,7 +18,7 @@ jobs:
         working-directory: frontend
       - name: Prepare formatting patch
         run: |
-          npx prettier --write src/pages/PlatformPage.tsx src/lib/navigation.ts src/components/LicenseExpiryNotice.tsx src/views/AppView.tsx src/components/InstanceAvailability.tsx src/pages/BusinessStateActions.tsx src/pages/BusinessInstallationPanel.tsx src/pages/PlatformBusinesses.tsx src/pages/platform-businesses.css src/pages/BusinessReceipts.tsx src/pages/PlatformPage.test.tsx src/components/LicenseExpiryNotice.test.tsx src/pages/BusinessReceipts.test.tsx
+          npx prettier --write src *.ts *.json
           git diff --no-ext-diff -- src
         working-directory: frontend
       - run: npm run build && npm run lint && npm run format:check && npm test && npm audit --audit-level=high

@@ -55,7 +55,12 @@ export function BusinessStateActions({
         method: 'PUT',
         retry: false,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state, reason, ...(state === 'PRUEBA' ? { trialMonths } : {}), ...(state === 'BAJA' ? { confirmation } : {}) }),
+        body: JSON.stringify({
+          state,
+          reason,
+          ...(state === 'PRUEBA' ? { trialMonths } : {}),
+          ...(state === 'BAJA' ? { confirmation } : {}),
+        }),
       })
       const body = await response.json()
       if (!response.ok) throw new Error(body.error ?? 'No se pudo cambiar el estado.')
@@ -141,7 +146,20 @@ export function BusinessStateActions({
           ))}
         </select>
       </label>
-      {state === 'PRUEBA' && state !== business.estado && <label>Meses de prueba<input type="number" min={1} max={120} step={1} required value={trialMonths} onChange={(event) => setTrialMonths(Number(event.target.value))} /></label>}
+      {state === 'PRUEBA' && state !== business.estado && (
+        <label>
+          Meses de prueba
+          <input
+            type="number"
+            min={1}
+            max={120}
+            step={1}
+            required
+            value={trialMonths}
+            onChange={(event) => setTrialMonths(Number(event.target.value))}
+          />
+        </label>
+      )}
       {(state !== business.estado || state === 'BAJA') && (
         <>
           <p>

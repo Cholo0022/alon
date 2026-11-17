@@ -495,11 +495,12 @@ export function PlatformBusinesses() {
                     <td>{money(b.abono)}</td>
                     <td>{money(b.saldo)}</td>
                     <td>
-                      {b.estado === 'PRUEBA' ? b.vencimiento || 'Sin informar' : 'Sin vencimiento de acceso'}
-                      {b.estado === 'PRUEBA' && b.vencimiento &&
-                        b.vencimiento < today() && (
-                          <strong className="platform-alert">Vencido</strong>
-                        )}
+                      {b.estado === 'PRUEBA'
+                        ? b.vencimiento || 'Sin informar'
+                        : 'Sin vencimiento de acceso'}
+                      {b.estado === 'PRUEBA' && b.vencimiento && b.vencimiento < today() && (
+                        <strong className="platform-alert">Vencido</strong>
+                      )}
                     </td>
                     <td>{b.respaldo || 'Sin confirmar'}</td>
                     <td>
@@ -539,328 +540,351 @@ export function PlatformBusinesses() {
             ))}
         </>
       )}
-      {dialogOpen && <dialog ref={clientDialog} className="client-detail-dialog" aria-label={current ? 'Ficha de ' + current.nombre : 'Alta de cliente'} onCancel={(event) => { event.preventDefault(); closeDetail() }}>
-        <button type="button" className="select-button" disabled={busy} onClick={closeDetail}>Cerrar ficha</button>
-      {installationBusiness && (
-        <div ref={installation}>
-          <BusinessInstallationPanel
-            key={installationBusiness.id}
-            business={installationBusiness}
-            onSaved={(result) => {
-              if (
-                result.running &&
-                pendingRegistration &&
-                installationBusiness.alta_token === pendingRegistration.token
-              ) {
-                localStorage.removeItem(pendingRegistrationKey)
-                setPendingRegistration(null)
-                setRegistrationLocked(false)
-                setRegistrationToken(crypto.randomUUID())
-                setDraft(null)
-                setManager({ username: '', name: '', email: '', password: '', months: 1 })
-              }
-              setRevision((n) => n + 1)
-            }}
-            onClose={() => setInstallationBusiness(null)}
-          />
-        </div>
-      )}
-      {draft && (
-        <section className="entry-panel" ref={editor}>
-          {!editing && registrationLocked && (
-            <p role="status">
-              Alta pendiente: se conservaron los datos y la referencia. Reingresá la contraseña
-              original para continuar. También podés consultar la instalación desde el listado.
-            </p>
-          )}
-          <h3>{editing ? 'Editar negocio' : 'Registrar nuevo negocio'}</h3>
-          <form
-            className="entry-form"
-            onSubmit={(e) =>
-              editing
-                ? void save(
-                    e,
-                    editing ? '/' + editing : '',
-                    {
-                      ...draft,
-                      abono: Number(draft.abono),
-                      vencimiento: draft.vencimiento || null,
-                      respaldo: draft.respaldo || null,
-                    },
-                    editing ? 'PUT' : 'POST',
-                  )
-                : void confirmBusiness(e)
-            }
-          >
-            {fields.map((f) => (
-              <label key={f.key}>
-                {f.label}
-                <input
-                  type={f.type ?? 'text'}
-                  disabled={busy || (!editing && registrationLocked)}
-                  value={draft[f.key]}
-                  required={f.required}
-                  maxLength={f.max}
-                  min={f.type === 'number' ? 0 : undefined}
-                  step={f.type === 'number' ? '0.01' : undefined}
-                  pattern={f.key === 'cuit' ? '[0-9]{11}' : undefined}
-                  onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
-                />
-              </label>
-            ))}
-            <label>
-              Estado del servicio
-              <select
-                disabled={busy || Boolean(editing) || registrationLocked}
-                value={draft.estado}
-                onChange={(e) => setDraft({ ...draft, estado: e.target.value })}
-              >
-                {Object.entries(states)
-                  .filter(([key]) => editing || ['ACTIVO', 'PRUEBA'].includes(key))
-                  .map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label>
-              Observaciones y soporte
-              <textarea
-                disabled={busy || (!editing && registrationLocked)}
-                maxLength={2000}
-                value={draft.notas}
-                onChange={(e) => setDraft({ ...draft, notas: e.target.value })}
+      {dialogOpen && (
+        <dialog
+          ref={clientDialog}
+          className="client-detail-dialog"
+          aria-label={current ? 'Ficha de ' + current.nombre : 'Alta de cliente'}
+          onCancel={(event) => {
+            event.preventDefault()
+            closeDetail()
+          }}
+        >
+          <button type="button" className="select-button" disabled={busy} onClick={closeDetail}>
+            Cerrar ficha
+          </button>
+          {installationBusiness && (
+            <div ref={installation}>
+              <BusinessInstallationPanel
+                key={installationBusiness.id}
+                business={installationBusiness}
+                onSaved={(result) => {
+                  if (
+                    result.running &&
+                    pendingRegistration &&
+                    installationBusiness.alta_token === pendingRegistration.token
+                  ) {
+                    localStorage.removeItem(pendingRegistrationKey)
+                    setPendingRegistration(null)
+                    setRegistrationLocked(false)
+                    setRegistrationToken(crypto.randomUUID())
+                    setDraft(null)
+                    setManager({ username: '', name: '', email: '', password: '', months: 1 })
+                  }
+                  setRevision((n) => n + 1)
+                }}
+                onClose={() => setInstallationBusiness(null)}
               />
-            </label>
-            {!editing && (
-              <fieldset className="permission-choices" disabled={busy}>
-                <legend>Gerente o encargado administrador del negocio</legend>
+            </div>
+          )}
+          {draft && (
+            <section className="entry-panel" ref={editor}>
+              {!editing && registrationLocked && (
+                <p role="status">
+                  Alta pendiente: se conservaron los datos y la referencia. Reingresá la contraseña
+                  original para continuar. También podés consultar la instalación desde el listado.
+                </p>
+              )}
+              <h3>{editing ? 'Editar negocio' : 'Registrar nuevo negocio'}</h3>
+              <form
+                className="entry-form"
+                onSubmit={(e) =>
+                  editing
+                    ? void save(
+                        e,
+                        editing ? '/' + editing : '',
+                        {
+                          ...draft,
+                          abono: Number(draft.abono),
+                          vencimiento: draft.vencimiento || null,
+                          respaldo: draft.respaldo || null,
+                        },
+                        editing ? 'PUT' : 'POST',
+                      )
+                    : void confirmBusiness(e)
+                }
+              >
+                {fields.map((f) => (
+                  <label key={f.key}>
+                    {f.label}
+                    <input
+                      type={f.type ?? 'text'}
+                      disabled={busy || (!editing && registrationLocked)}
+                      value={draft[f.key]}
+                      required={f.required}
+                      maxLength={f.max}
+                      min={f.type === 'number' ? 0 : undefined}
+                      step={f.type === 'number' ? '0.01' : undefined}
+                      pattern={f.key === 'cuit' ? '[0-9]{11}' : undefined}
+                      onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
+                    />
+                  </label>
+                ))}
                 <label>
-                  Usuario del gerente
+                  Estado del servicio
+                  <select
+                    disabled={busy || Boolean(editing) || registrationLocked}
+                    value={draft.estado}
+                    onChange={(e) => setDraft({ ...draft, estado: e.target.value })}
+                  >
+                    {Object.entries(states)
+                      .filter(([key]) => editing || ['ACTIVO', 'PRUEBA'].includes(key))
+                      .map(([k, v]) => (
+                        <option key={k} value={k}>
+                          {v}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label>
+                  Observaciones y soporte
+                  <textarea
+                    disabled={busy || (!editing && registrationLocked)}
+                    maxLength={2000}
+                    value={draft.notas}
+                    onChange={(e) => setDraft({ ...draft, notas: e.target.value })}
+                  />
+                </label>
+                {!editing && (
+                  <fieldset className="permission-choices" disabled={busy}>
+                    <legend>Gerente o encargado administrador del negocio</legend>
+                    <label>
+                      Usuario del gerente
+                      <input
+                        name="managerUsername"
+                        required
+                        minLength={3}
+                        maxLength={80}
+                        pattern="[a-zA-Z0-9_.\-]+"
+                        autoComplete="off"
+                        disabled={registrationLocked}
+                        value={manager.username}
+                        onChange={(event) =>
+                          setManager({ ...manager, username: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Nombre del gerente
+                      <input
+                        required
+                        maxLength={160}
+                        disabled={registrationLocked}
+                        value={manager.name}
+                        onChange={(event) => setManager({ ...manager, name: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Correo del gerente
+                      <input
+                        type="email"
+                        required
+                        maxLength={254}
+                        disabled={registrationLocked}
+                        value={manager.email}
+                        onChange={(event) => setManager({ ...manager, email: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Contraseña del gerente
+                      <input
+                        type="password"
+                        required
+                        minLength={4}
+                        maxLength={128}
+                        autoComplete="new-password"
+                        value={manager.password}
+                        onChange={(event) =>
+                          setManager({ ...manager, password: event.target.value })
+                        }
+                      />
+                    </label>
+                    {draft.estado === 'PRUEBA' && (
+                      <label>
+                        Meses de prueba
+                        <input
+                          type="number"
+                          required
+                          min={1}
+                          max={120}
+                          disabled={registrationLocked}
+                          value={manager.months}
+                          step={1}
+                          onChange={(event) =>
+                            setManager({ ...manager, months: Number(event.target.value) })
+                          }
+                        />
+                      </label>
+                    )}
+                    <p>
+                      El gerente tendrá todos los permisos de administración de su negocio. No
+                      tendrá acceso al panel de superusuario, a otros negocios ni a la
+                      administración general de Alon.
+                    </p>
+                  </fieldset>
+                )}
+                <button className="primary-button" disabled={busy}>
+                  {busy
+                    ? 'Preparando negocio…'
+                    : editing
+                      ? 'Guardar negocio'
+                      : 'Confirmar negocio y crear gerente'}
+                </button>
+                <button
+                  className="select-button"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setDraft(null)}
+                >
+                  Cancelar
+                </button>
+              </form>
+            </section>
+          )}
+          {current && (
+            <section
+              className="entry-panel business-detail"
+              ref={detail}
+              tabIndex={-1}
+              aria-label={'Detalle de ' + current.nombre}
+            >
+              <div className="entry-heading">
+                <h3>{current.nombre}</h3>
+                <button
+                  type="button"
+                  className="select-button"
+                  onClick={() => {
+                    setSelected(null)
+                    setDraft(null)
+                    setInstallationBusiness(null)
+                  }}
+                >
+                  Volver al listado
+                </button>
+              </div>
+              <h4>Estado y acceso de la aplicación</h4>
+              <BusinessStateActions
+                key={
+                  current.id +
+                  ':' +
+                  current.estado +
+                  ':' +
+                  current.eliminado_en +
+                  ':' +
+                  current.baja_iniciada_en +
+                  ':' +
+                  current.estado_aplicacion +
+                  ':' +
+                  current.baja_paso
+                }
+                business={current}
+                onRefresh={() => setRevision((n) => n + 1)}
+                onSaved={() => {
+                  setRevision((n) => n + 1)
+                  setInstallationBusiness(null)
+                }}
+              />
+              <div className="entry-actions">
+                <button
+                  type="button"
+                  className="select-button"
+                  disabled={Boolean(current.baja_iniciada_en)}
+                  onClick={() => edit(current)}
+                >
+                  Editar {current.nombre}
+                </button>
+                <button
+                  type="button"
+                  className="select-button"
+                  disabled={Boolean(current.baja_iniciada_en)}
+                  onClick={() => setInstallationBusiness(current)}
+                >
+                  Habilitar sistema de {current.nombre}
+                </button>
+              </div>
+              <h4>Datos del negocio</h4>
+              <p>
+                {current.razon_social} · {current.cuit} · {current.localidad}
+              </p>
+              <p>
+                {current.telefono} · {current.email}
+              </p>
+              <p>Base: {current.base_referencia || 'Sin informar'}</p>
+              <p>{current.notas}</p>
+              {!current.baja_iniciada_en && <BusinessAvailability businessId={current.id} />}
+              <BusinessReceipts
+                key={current.id}
+                business={current}
+                onSaved={() => setRevision((n) => n + 1)}
+              />
+              <h4>Ajustes manuales de cuenta de {current.nombre}</h4>
+              <p>Saldo: {money(current.saldo)}. Los movimientos son del abono de Alon.</p>
+              <form
+                className="entry-form"
+                onSubmit={(e) =>
+                  void save(e, '/' + current.id + '/movements', {
+                    ...movement,
+                    importe: Number(movement.importe),
+                  })
+                }
+              >
+                <label>
+                  Tipo de movimiento
+                  <select
+                    value={movement.tipo}
+                    onChange={(e) => setMovement({ ...movement, tipo: e.target.value })}
+                  >
+                    <option value="COBRO">Cobro recibido</option>
+                    <option value="CARGO">Cargo al negocio</option>
+                  </select>
+                </label>
+                <label>
+                  Fecha del movimiento
                   <input
-                    name="managerUsername"
+                    type="date"
                     required
-                    minLength={3}
-                    maxLength={80}
-                    pattern="[a-zA-Z0-9_.\-]+"
-                    autoComplete="off"
-                    disabled={registrationLocked}
-                    value={manager.username}
-                    onChange={(event) => setManager({ ...manager, username: event.target.value })}
+                    value={movement.fecha}
+                    onChange={(e) => setMovement({ ...movement, fecha: e.target.value })}
                   />
                 </label>
                 <label>
-                  Nombre del gerente
-                  <input
-                    required
-                    maxLength={160}
-                    disabled={registrationLocked}
-                    value={manager.name}
-                    onChange={(event) => setManager({ ...manager, name: event.target.value })}
-                  />
-                </label>
-                <label>
-                  Correo del gerente
-                  <input
-                    type="email"
-                    required
-                    maxLength={254}
-                    disabled={registrationLocked}
-                    value={manager.email}
-                    onChange={(event) => setManager({ ...manager, email: event.target.value })}
-                  />
-                </label>
-                <label>
-                  Contraseña del gerente
-                  <input
-                    type="password"
-                    required
-                    minLength={4}
-                    maxLength={128}
-                    autoComplete="new-password"
-                    value={manager.password}
-                    onChange={(event) => setManager({ ...manager, password: event.target.value })}
-                  />
-                </label>
-                {draft.estado === 'PRUEBA' && <label>
-                  Meses de prueba
+                  Importe (ARS)
                   <input
                     type="number"
                     required
-                    min={1}
-                    max={120}
-                    disabled={registrationLocked}
-                    value={manager.months}
-                    step={1}
-                    onChange={(event) =>
-                      setManager({ ...manager, months: Number(event.target.value) })
-                    }
+                    min="0.01"
+                    step="0.01"
+                    value={movement.importe}
+                    onChange={(e) => setMovement({ ...movement, importe: e.target.value })}
                   />
-                </label>}
-                <p>
-                  El gerente tendrá todos los permisos de administración de su negocio. No tendrá
-                  acceso al panel de superusuario, a otros negocios ni a la administración general
-                  de Alon.
-                </p>
-              </fieldset>
-            )}
-            <button className="primary-button" disabled={busy}>
-              {busy
-                ? 'Preparando negocio…'
-                : editing
-                  ? 'Guardar negocio'
-                  : 'Confirmar negocio y crear gerente'}
-            </button>
-            <button
-              className="select-button"
-              type="button"
-              disabled={busy}
-              onClick={() => setDraft(null)}
-            >
-              Cancelar
-            </button>
-          </form>
-        </section>
+                </label>
+                <label>
+                  Concepto o comprobante
+                  <input
+                    required
+                    maxLength={300}
+                    value={movement.concepto}
+                    onChange={(e) => setMovement({ ...movement, concepto: e.target.value })}
+                  />
+                </label>
+                <button className="primary-button" disabled={busy}>
+                  Registrar movimiento
+                </button>
+              </form>
+              <h4>Historial de cargos y cobros</h4>
+              {movements
+                .filter((m) => m.negocio_id === current.id)
+                .map((m) => (
+                  <p key={m.id}>
+                    {m.anulado ? 'ANULADO · ' : ''}
+                    {m.fecha} · {m.tipo === 'COBRO' ? 'Cobro' : 'Cargo'} · {money(m.importe)} ·{' '}
+                    {m.concepto}
+                  </p>
+                ))}
+            </section>
+          )}
+        </dialog>
       )}
-      {current && (
-        <section
-          className="entry-panel business-detail"
-          ref={detail}
-          tabIndex={-1}
-          aria-label={'Detalle de ' + current.nombre}
-        >
-          <div className="entry-heading">
-            <h3>{current.nombre}</h3>
-            <button
-              type="button"
-              className="select-button"
-              onClick={() => {
-                setSelected(null)
-                setDraft(null)
-                setInstallationBusiness(null)
-              }}
-            >
-              Volver al listado
-            </button>
-          </div>
-          <h4>Estado y acceso de la aplicación</h4>
-          <BusinessStateActions
-            key={
-              current.id +
-              ':' +
-              current.estado +
-              ':' +
-              current.eliminado_en +
-              ':' +
-              current.baja_iniciada_en +
-              ':' +
-              current.estado_aplicacion +
-              ':' +
-              current.baja_paso
-            }
-            business={current}
-            onRefresh={() => setRevision((n) => n + 1)}
-            onSaved={() => {
-              setRevision((n) => n + 1)
-              setInstallationBusiness(null)
-            }}
-          />
-          <div className="entry-actions">
-            <button
-              type="button"
-              className="select-button"
-              disabled={Boolean(current.baja_iniciada_en)}
-              onClick={() => edit(current)}
-            >
-              Editar {current.nombre}
-            </button>
-            <button
-              type="button"
-              className="select-button"
-              disabled={Boolean(current.baja_iniciada_en)}
-              onClick={() => setInstallationBusiness(current)}
-            >
-              Habilitar sistema de {current.nombre}
-            </button>
-          </div>
-          <h4>Datos del negocio</h4>
-          <p>
-            {current.razon_social} · {current.cuit} · {current.localidad}
-          </p>
-          <p>
-            {current.telefono} · {current.email}
-          </p>
-          <p>Base: {current.base_referencia || 'Sin informar'}</p>
-          <p>{current.notas}</p>
-          {!current.baja_iniciada_en && <BusinessAvailability businessId={current.id} />}
-          <BusinessReceipts key={current.id} business={current} onSaved={() => setRevision((n) => n + 1)} />
-          <h4>Ajustes manuales de cuenta de {current.nombre}</h4>
-          <p>Saldo: {money(current.saldo)}. Los movimientos son del abono de Alon.</p>
-          <form
-            className="entry-form"
-            onSubmit={(e) =>
-              void save(e, '/' + current.id + '/movements', {
-                ...movement,
-                importe: Number(movement.importe),
-              })
-            }
-          >
-            <label>
-              Tipo de movimiento
-              <select
-                value={movement.tipo}
-                onChange={(e) => setMovement({ ...movement, tipo: e.target.value })}
-              >
-                <option value="COBRO">Cobro recibido</option>
-                <option value="CARGO">Cargo al negocio</option>
-              </select>
-            </label>
-            <label>
-              Fecha del movimiento
-              <input
-                type="date"
-                required
-                value={movement.fecha}
-                onChange={(e) => setMovement({ ...movement, fecha: e.target.value })}
-              />
-            </label>
-            <label>
-              Importe (ARS)
-              <input
-                type="number"
-                required
-                min="0.01"
-                step="0.01"
-                value={movement.importe}
-                onChange={(e) => setMovement({ ...movement, importe: e.target.value })}
-              />
-            </label>
-            <label>
-              Concepto o comprobante
-              <input
-                required
-                maxLength={300}
-                value={movement.concepto}
-                onChange={(e) => setMovement({ ...movement, concepto: e.target.value })}
-              />
-            </label>
-            <button className="primary-button" disabled={busy}>
-              Registrar movimiento
-            </button>
-          </form>
-          <h4>Historial de cargos y cobros</h4>
-          {movements
-            .filter((m) => m.negocio_id === current.id)
-            .map((m) => (
-              <p key={m.id}>
-                {m.anulado ? 'ANULADO · ' : ''}{m.fecha} · {m.tipo === 'COBRO' ? 'Cobro' : 'Cargo'} · {money(m.importe)} ·{' '}
-                {m.concepto}
-              </p>
-            ))}
-        </section>
-      )}
-      </dialog>}
     </section>
   )
 }

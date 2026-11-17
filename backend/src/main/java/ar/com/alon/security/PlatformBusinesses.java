@@ -166,7 +166,25 @@ public class PlatformBusinesses {
             LocalDate respaldo,
             @NotNull @Size(max = 2000) String notas) {
         public Business withTrialMonths(int months) {
-            return new Business(nombre, razon_social, cuit, rubro, localidad, responsable, telefono, email, plan, abono, estado, alta, alta.plusMonths(months), gestion_url, tienda_url, base_referencia, respaldo, notas);
+            return new Business(
+                    nombre,
+                    razon_social,
+                    cuit,
+                    rubro,
+                    localidad,
+                    responsable,
+                    telefono,
+                    email,
+                    plan,
+                    abono,
+                    estado,
+                    alta,
+                    alta.plusMonths(months),
+                    gestion_url,
+                    tienda_url,
+                    base_referencia,
+                    respaldo,
+                    notas);
         }
     }
 
