@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { loadSaleReceipt } from '../lib/salesReceipt'
+import { loadReceiptPdf, loadSaleReceipt } from '../lib/salesReceipt'
 import './sales-receipt-preview.css'
 
 export function SalesReceiptPreview({
@@ -11,6 +11,33 @@ export function SalesReceiptPreview({
   saleId: number
   number: string
   onClose: () => void
+}) {
+  return (
+    <ReceiptPdfPreview
+      title={'Comprobante de venta ' + number}
+      saleId={saleId}
+      frameTitle={'Vista del comprobante de venta ' + number}
+      onClose={onClose}
+    />
+  )
+}
+
+export function ReceiptPdfPreview({
+  title,
+  path,
+  saleId,
+  frameTitle,
+  onClose,
+  download,
+  container,
+}: {
+  title: string
+  path?: string
+  saleId?: number
+  frameTitle?: string
+  onClose: () => void
+  download?: string
+  container?: HTMLElement | null
 }) {
   const [url, setUrl] = useState('')
   const [error, setError] = useState('')
@@ -32,7 +59,11 @@ export function SalesReceiptPreview({
   useEffect(() => {
     const controller = new AbortController()
     let objectUrl = ''
-    void loadSaleReceipt(saleId, controller.signal)
+    const request =
+      saleId === undefined
+        ? loadReceiptPdf(path ?? '', controller.signal)
+        : loadSaleReceipt(saleId, controller.signal)
+    void request
       .then((blob) => {
         if (controller.signal.aborted) return
         objectUrl = URL.createObjectURL(blob)
@@ -46,7 +77,7 @@ export function SalesReceiptPreview({
       controller.abort()
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [saleId, attempt])
+  }, [path, saleId, attempt])
   return createPortal(
     <div className="receipt-preview-backdrop">
       <section
@@ -54,7 +85,7 @@ export function SalesReceiptPreview({
         className="receipt-preview"
         role="dialog"
         aria-modal="true"
-        aria-label={'Comprobante de venta ' + number}
+        aria-label={title}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             event.preventDefault()
@@ -80,8 +111,12 @@ export function SalesReceiptPreview({
       >
         <header>
           <div>
-            <h2>Comprobante de venta {number}</h2>
-            <p>Revisá el comprobante y elegí Imprimir si querés una copia en papel.</p>
+            <h2>{title}</h2>
+            <p>
+              {download
+                ? 'El recibo ocupa la mitad superior de una hoja A4.'
+                : 'Revisá el comprobante y elegí Imprimir si querés una copia en papel.'}
+            </p>
           </div>
           <div className="receipt-preview-actions">
             <button
@@ -101,6 +136,11 @@ export function SalesReceiptPreview({
             >
               Imprimir
             </button>
+            {download && url && (
+              <a className="secondary-button" href={url} download={download}>
+                Descargar PDF
+              </a>
+            )}
             <button ref={close} type="button" className="secondary-button" onClick={onClose}>
               Cerrar comprobante
             </button>
@@ -129,7 +169,7 @@ export function SalesReceiptPreview({
           <>
             <iframe
               ref={frame}
-              title={'Vista del comprobante de venta ' + number}
+              title={frameTitle ?? 'Vista de ' + title}
               src={url}
               onLoad={() => setReady(true)}
             />
@@ -140,6 +180,6 @@ export function SalesReceiptPreview({
         )}
       </section>
     </div>,
-    document.body,
+    container ?? document.body,
   )
 }

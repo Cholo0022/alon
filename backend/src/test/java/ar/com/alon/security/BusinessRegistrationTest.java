@@ -88,7 +88,8 @@ class BusinessRegistrationTest {
                 "",
                 "",
                 null,
-                "");
+                "",
+                null);
     }
 
     private BusinessRegistrationController.Confirmation input() {

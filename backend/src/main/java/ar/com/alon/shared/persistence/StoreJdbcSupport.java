@@ -58,7 +58,7 @@ public abstract class StoreJdbcSupport {
                     default -> "El registro";
                 };
         if (id <= 0) throw new IllegalArgumentException(label + " seleccionado no es válido.");
-        String activeClause = table.equals("rubros") || allowInactive ? "" : " AND estado='ACTIVO'";
+        String activeClause = allowInactive ? "" : " AND estado='ACTIVO'";
         Integer count =
                 jdbc.queryForObject(
                         "SELECT COUNT(*) FROM "

@@ -104,13 +104,19 @@ public class ReportQueries {
         var period = period(from, to);
         return jdbc.queryForList(
                 """
-                SELECT a.codigo, a.nombre, r.nombre rubro, SUM(d.cantidad) unidades_vendidas,
-                SUM(d.total_linea) importe_vendido, SUM(d.cantidad*d.costo_unitario) costo_vendido,
-                SUM(d.total_linea-d.cantidad*d.costo_unitario) margen_bruto
-                FROM venta_detalle d JOIN ventas v ON v.id=d.venta_id
-                JOIN articulos a ON a.id=d.articulo_id JOIN rubros r ON r.id=a.rubro_id
-                WHERE v.comercio_id = ? AND v.fecha >= ? AND v.fecha < ? AND v.estado='CONFIRMADA'
-                GROUP BY a.id, a.codigo, a.nombre, r.nombre ORDER BY unidades_vendidas DESC LIMIT 10
+                SELECT a.codigo, a.nombre, r.nombre rubro, totales.unidades_vendidas,
+                totales.importe_vendido, totales.costo_vendido, totales.margen_bruto
+                FROM (
+                    SELECT d.articulo_id, SUM(d.cantidad) unidades_vendidas,
+                    SUM(d.total_linea) importe_vendido, SUM(d.cantidad*d.costo_unitario) costo_vendido,
+                    SUM(d.total_linea-d.cantidad*d.costo_unitario) margen_bruto
+                    FROM ventas v JOIN venta_detalle d ON d.venta_id=v.id
+                    WHERE v.comercio_id = ? AND v.fecha >= ? AND v.fecha < ? AND v.estado='CONFIRMADA'
+                    GROUP BY d.articulo_id
+                ) totales
+                JOIN articulos a ON a.id=totales.articulo_id
+                JOIN rubros r ON r.id=a.rubro_id
+                ORDER BY totales.unidades_vendidas DESC, a.id LIMIT 10
                 """,
                 identity.storeId(),
                 period.start(),

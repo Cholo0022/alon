@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
 import './platform-businesses.css'
 import { BusinessInstallationPanel } from './BusinessInstallationPanel'
-import { BusinessReceipts } from './BusinessReceipts'
+import { BusinessReceipts, BusinessAudit } from './BusinessReceipts'
 import { BusinessStateActions } from './BusinessStateActions'
 import { businessStates as states } from '../lib/businessStates'
+import { monthNumber, rateAt, type PlatformRate } from '../lib/platformBilling'
 
 const today = () =>
   new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
@@ -21,6 +22,7 @@ const blank = () => ({
   email: '',
   plan: 'Inicial',
   abono: '0',
+  cargo_configuracion: '0',
   estado: 'PRUEBA',
   alta: today(),
   vencimiento: '',
@@ -31,7 +33,10 @@ const blank = () => ({
   notas: '',
 })
 type Draft = ReturnType<typeof blank>
-type Business = Omit<Draft, 'vencimiento' | 'respaldo'> & {
+type Business = Omit<Draft, 'vencimiento' | 'respaldo' | 'cargo_configuracion'> & {
+  cargo_configuracion?: number
+  instalacion_estado?: string | null
+  gerente_usuario?: string | null
   alta_token?: string
   estado_objetivo?: string | null
   estado_aplicacion?: string
@@ -55,7 +60,28 @@ type Movement = {
   concepto: string
   anulado?: boolean
 }
-type Report = { businesses: Business[]; movements: Movement[] }
+type ServiceReceipt = {
+  negocio_id: number
+  fecha: string
+  periodo_desde: string
+  meses: number
+  cargo_configuracion: number
+  total: number
+}
+type Report = {
+  businesses: Business[]
+  movements: Movement[]
+  receipts?: ServiceReceipt[]
+  rates?: PlatformRate[]
+}
+
+function monthLabel(value: number) {
+  return Number.isFinite(value)
+    ? String((value % 12) + 1).padStart(2, '0') + '/' + Math.floor(value / 12)
+    : 'Sin períodos cubiertos'
+}
+const detailSections = ['Resumen', 'Cobros', 'Servicio', 'Historial'] as const
+
 const fields: {
   key: keyof Draft
   label: string
@@ -72,6 +98,12 @@ const fields: {
   { key: 'telefono', label: 'Teléfono del responsable', max: 40 },
   { key: 'email', label: 'Correo del responsable', type: 'email', max: 254 },
   { key: 'plan', label: 'Plan contratado', required: true, max: 80 },
+  {
+    key: 'cargo_configuracion',
+    label: 'Configuración por única vez (ARS)',
+    type: 'number',
+    required: true,
+  },
   { key: 'abono', label: 'Abono mensual (ARS)', type: 'number', required: true },
   { key: 'alta', label: 'Fecha de alta', type: 'date', required: true },
   { key: 'base_referencia', label: 'Referencia de base de datos (sin contraseñas)', max: 160 },
@@ -131,7 +163,10 @@ export function PlatformBusinesses() {
   }, [installationBusiness])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
+  const [focus, setFocus] = useState('')
+  const [detailSection, setDetailSection] = useState<(typeof detailSections)[number]>('Resumen')
   const [month, setMonth] = useState(today().slice(0, 7))
+  const [effectiveMonth, setEffectiveMonth] = useState(today().slice(0, 7))
   const [message, setMessage] = useState('')
   const [createdLinks, setCreatedLinks] = useState<{
     managementUrl: string
@@ -208,7 +243,7 @@ export function PlatformBusinesses() {
     if (busy || !draft || !event.currentTarget.reportValidity()) return
     const pending = pendingRegistration ?? {
       token: registrationToken,
-      draft,
+      draft: draft.estado === 'PRUEBA' ? { ...draft, abono: '0' } : draft,
       manager: {
         username: manager.username,
         name: manager.name,
@@ -238,8 +273,12 @@ export function PlatformBusinesses() {
         body: JSON.stringify({
           requestId: registrationToken,
           business: {
-            ...draft,
-            abono: Number(draft.abono),
+            ...pending.draft,
+            abono: Number(pending.draft.abono),
+            cargo_configuracion:
+              pending.draft.estado === 'ACTIVO' && pending.draft.cargo_configuracion !== undefined
+                ? Number(pending.draft.cargo_configuracion)
+                : undefined,
             vencimiento: draft.vencimiento || null,
             respaldo: draft.respaldo || null,
           },
@@ -308,15 +347,77 @@ export function PlatformBusinesses() {
     setDraft(null)
     setInstallationBusiness(null)
   }
-  const filtered = businesses.filter(
-    (b) =>
+  const receipts = report?.receipts ?? []
+  const monthReceipts = receipts.filter((receipt) => receipt.fecha.slice(0, 7) === month)
+  const collected = monthReceipts.reduce((sum, receipt) => sum + Number(receipt.total), 0)
+  const collectedSetup = monthReceipts.reduce(
+    (sum, receipt) => sum + Number(receipt.cargo_configuracion),
+    0,
+  )
+  const byBusiness = new Map<number, ServiceReceipt[]>()
+  for (const receipt of receipts) {
+    const list = byBusiness.get(receipt.negocio_id) ?? []
+    list.push(receipt)
+    byBusiness.set(receipt.negocio_id, list)
+  }
+  const selectedMonth = monthNumber(month)
+  const ratesByBusiness = new Map<number, PlatformRate[]>()
+  for (const rate of report?.rates ?? []) {
+    const list = ratesByBusiness.get(rate.negocio_id) ?? []
+    list.push(rate)
+    ratesByBusiness.set(rate.negocio_id, list)
+  }
+  const summaries = businesses.map((b) => {
+    const rates = ratesByBusiness.get(b.id) ?? []
+    const monthlyRate = rateAt(rates, selectedMonth, Number(b.abono))
+    const periods = new Set<number>()
+    let setupPaid = false
+    let latest = -Infinity
+    for (const receipt of byBusiness.get(b.id) ?? []) {
+      const start = monthNumber(receipt.periodo_desde)
+      for (let offset = 0; offset < receipt.meses; offset++) periods.add(start + offset)
+      latest = Math.max(latest, start + receipt.meses - 1)
+      setupPaid ||= Number(receipt.cargo_configuracion) > 0
+    }
+    const trialAlert =
+      b.estado === 'PRUEBA' && Boolean(b.vencimiento && b.vencimiento <= upcomingLimit)
+    const installationAlert = b.instalacion_estado === 'ERROR' || b.estado_aplicacion === 'ERROR'
+    const monthlyDue =
+      b.estado === 'ACTIVO' &&
+      b.alta &&
+      month.slice(0, 7) >= b.alta.slice(0, 7) &&
+      monthlyRate > 0 &&
+      !periods.has(selectedMonth)
+    const setupDue = setupPaid ? 0 : Number(b.cargo_configuracion ?? 0)
+    let nextPeriod = Math.max(selectedMonth, monthNumber(b.alta ?? month))
+    while (periods.has(nextPeriod)) nextPeriod++
+    const nextPending =
+      b.estado === 'ACTIVO' && rateAt(rates, nextPeriod, Number(b.abono)) > 0 ? nextPeriod : null
+    return {
+      b,
+      periods,
+      latest,
+      monthlyDue,
+      monthlyRate,
+      rates,
+      nextPending,
+      setupDue,
+      trialAlert,
+      installationAlert,
+      attention: trialAlert || installationAlert || b.estado === 'SUSPENDIDO',
+    }
+  })
+  const currentSummary = summaries.find(({ b }) => b.id === selected)
+  const filtered = summaries.filter(
+    ({ b, monthlyDue, setupDue, trialAlert, installationAlert }) =>
       (!status || b.estado === status) &&
+      (focus !== 'pending' || monthlyDue || setupDue > 0) &&
+      (focus !== 'trial' || trialAlert) &&
+      (focus !== 'installation' || installationAlert) &&
       `${b.nombre} ${b.responsable} ${b.cuit}`.toLowerCase().includes(search.toLowerCase()),
   )
-  const collected = movements
-    .filter((m) => !m.anulado && m.tipo === 'COBRO' && m.fecha.startsWith(month))
-    .reduce((sum, m) => sum + Number(m.importe), 0)
   const edit = (b?: Business) => {
+    setEffectiveMonth(today().slice(0, 7))
     if (!b && pendingRegistration) {
       setEditing(null)
       setDraft(pendingRegistration.draft)
@@ -383,40 +484,27 @@ export function PlatformBusinesses() {
         <>
           <div className="platform-metrics">
             <div>
-              En preparación
-              <strong>{businesses.filter((b) => b.estado === 'PREPARACION').length}</strong>
+              Cobrado en el mes<strong>{money(collected)}</strong>
+              <span>
+                Abonos {money(collected - collectedSetup)} · Configuración {money(collectedSetup)}
+              </span>
             </div>
             <div>
-              Activos<strong>{businesses.filter((b) => b.estado === 'ACTIVO').length}</strong>
-            </div>
-            <div>
-              En prueba<strong>{businesses.filter((b) => b.estado === 'PRUEBA').length}</strong>
-            </div>
-            <div>
-              Inhabilitados
-              <strong>{businesses.filter((b) => b.estado === 'SUSPENDIDO').length}</strong>
-            </div>
-            <div>
-              Bajas<strong>{businesses.filter((b) => b.estado === 'BAJA').length}</strong>
-            </div>
-            <div>
-              Abonos mensuales activos
+              Abonos pendientes del mes
               <strong>
                 {money(
-                  businesses
-                    .filter((b) => b.estado === 'ACTIVO')
-                    .reduce((s, b) => s + Number(b.abono), 0),
+                  summaries.reduce((sum, row) => sum + (row.monthlyDue ? row.monthlyRate : 0), 0),
                 )}
               </strong>
+              <span>{summaries.filter((row) => row.monthlyDue).length} negocios</span>
             </div>
             <div>
-              Cobrado en el mes elegido<strong>{money(collected)}</strong>
+              Configuración pendiente
+              <strong>{money(summaries.reduce((sum, row) => sum + row.setupDue, 0))}</strong>
             </div>
             <div>
-              Pendiente de cobro
-              <strong>
-                {money(businesses.reduce((s, b) => s + Math.max(0, Number(b.saldo)), 0))}
-              </strong>
+              Negocios que requieren atención
+              <strong>{summaries.filter((row) => row.attention).length}</strong>
             </div>
           </div>
           <div className="entry-form">
@@ -436,19 +524,26 @@ export function PlatformBusinesses() {
               </select>
             </label>
             <label>
+              Filtrar seguimiento
+              <select value={focus} onChange={(e) => setFocus(e.target.value)}>
+                <option value="">Todos</option>
+                <option value="pending">Pendientes de cobro</option>
+                <option value="trial">Pruebas por vencer o vencidas</option>
+                <option value="installation">Problemas de instalación</option>
+              </select>
+            </label>
+            <label>
               Mes del informe
               <input
                 type="month"
                 required
                 value={month}
-                onChange={(e) => setMonth(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value) setMonth(e.target.value)
+                }}
               />
             </label>
           </div>
-          <p>
-            El saldo surge de cargos menos cobros registrados. El abono mensual no genera cargos
-            automáticamente. Un saldo negativo representa crédito a favor del negocio.
-          </p>
           <div className="platform-table">
             <h3>Listado de negocios ({filtered.length})</h3>
             <p>
@@ -462,9 +557,9 @@ export function PlatformBusinesses() {
                     'Negocio',
                     'Plan / estado',
                     'Abono',
-                    'Saldo',
-                    'Fin de prueba',
-                    'Respaldo manual',
+                    'Último período cubierto',
+                    'Cobro y próximo pendiente',
+                    'Atención',
                     'Acciones',
                   ].map((h) => (
                     <th key={h}>{h}</th>
@@ -472,72 +567,81 @@ export function PlatformBusinesses() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((b) => (
-                  <tr key={b.id}>
-                    <td>
-                      {b.nombre}
-                      <br />
-                      {b.responsable}
-                    </td>
-                    <td>
-                      {b.plan}
-                      <br />
-                      {states[b.estado]}
-                      {b.estado_motivo && <p>{b.estado_motivo}</p>}
-                      {b.estado_aplicacion && b.estado_aplicacion !== 'CONFIRMADO' && (
-                        <p role="status">
-                          {b.estado_aplicacion === 'APLICANDO'
-                            ? 'Aplicando cambio'
-                            : 'Cambio incompleto; abrir detalle'}
-                        </p>
-                      )}
-                    </td>
-                    <td>{money(b.abono)}</td>
-                    <td>{money(b.saldo)}</td>
-                    <td>
-                      {b.estado === 'PRUEBA'
-                        ? b.vencimiento || 'Sin informar'
-                        : 'Sin vencimiento de acceso'}
-                      {b.estado === 'PRUEBA' && b.vencimiento && b.vencimiento < today() && (
-                        <strong className="platform-alert">Vencido</strong>
-                      )}
-                    </td>
-                    <td>{b.respaldo || 'Sin confirmar'}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="select-button"
-                        aria-label={'Ver ' + b.nombre}
-                        onClick={() => {
-                          setSelected(b.id)
-                          setDraft(null)
-                          setInstallationBusiness(null)
-                          setMovement({ tipo: 'COBRO', fecha: today(), importe: '', concepto: '' })
-                        }}
-                      >
-                        Ver
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map(
+                  ({
+                    b,
+                    nextPending,
+                    latest,
+                    monthlyDue,
+                    monthlyRate,
+                    setupDue,
+                    periods,
+                    trialAlert,
+                    installationAlert,
+                  }) => (
+                    <tr key={b.id}>
+                      <td>
+                        {b.nombre}
+                        <br />
+                        {b.responsable}
+                      </td>
+                      <td>
+                        {b.plan}
+                        <br />
+                        {states[b.estado]}
+                        {b.estado_motivo && <p>{b.estado_motivo}</p>}
+                        {b.estado_aplicacion && b.estado_aplicacion !== 'CONFIRMADO' && (
+                          <p role="status">
+                            {b.estado_aplicacion === 'APLICANDO'
+                              ? 'Aplicando cambio'
+                              : 'Cambio incompleto; abrir detalle'}
+                          </p>
+                        )}
+                      </td>
+                      <td>{money(monthlyRate)}</td>
+                      <td>{monthLabel(latest)}</td>
+                      <td>
+                        {periods.has(selectedMonth)
+                          ? 'Cubierto'
+                          : monthlyDue
+                            ? 'Abono pendiente'
+                            : '—'}
+                        {setupDue > 0 && <p>Configuración pendiente</p>}
+                        {nextPending !== null && <p>Próximo pendiente {monthLabel(nextPending)}</p>}
+                      </td>
+                      <td>
+                        {trialAlert && <p>Prueba {b.vencimiento}</p>}
+                        {installationAlert && <p>Revisar instalación</p>}
+                        {b.estado === 'SUSPENDIDO' && <p>Inhabilitado</p>}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="select-button"
+                          aria-label={'Ver ' + b.nombre}
+                          onClick={() => {
+                            setDetailSection('Resumen')
+                            setSelected(b.id)
+                            setDraft(null)
+                            setInstallationBusiness(null)
+                            setMovement({
+                              tipo: 'COBRO',
+                              fecha: today(),
+                              importe: '',
+                              concepto: '',
+                            })
+                          }}
+                        >
+                          Ver
+                        </button>
+                      </td>
+                    </tr>
+                  ),
+                )}
               </tbody>
             </table>
           </div>
           {!filtered.length && <p>No hay negocios que mostrar. Registrá tu primer cliente.</p>}
-          <h3>Pruebas que finalizan en los próximos 30 días</h3>
-          {businesses
-            .filter(
-              (b) =>
-                b.estado === 'PRUEBA' &&
-                b.vencimiento &&
-                b.vencimiento >= today() &&
-                b.vencimiento <= upcomingLimit,
-            )
-            .map((b) => (
-              <p key={b.id}>
-                {b.nombre}: {b.vencimiento}
-              </p>
-            ))}
         </>
       )}
       {dialogOpen && (
@@ -592,10 +696,11 @@ export function PlatformBusinesses() {
                   editing
                     ? void save(
                         e,
-                        editing ? '/' + editing : '',
+                        '/' + editing + '?abonoDesde=' + encodeURIComponent(effectiveMonth),
                         {
                           ...draft,
                           abono: Number(draft.abono),
+                          cargo_configuracion: undefined,
                           vencimiento: draft.vencimiento || null,
                           respaldo: draft.respaldo || null,
                         },
@@ -604,22 +709,42 @@ export function PlatformBusinesses() {
                     : void confirmBusiness(e)
                 }
               >
-                {fields.map((f) => (
-                  <label key={f.key}>
-                    {f.label}
-                    <input
-                      type={f.type ?? 'text'}
-                      disabled={busy || (!editing && registrationLocked)}
-                      value={draft[f.key]}
-                      required={f.required}
-                      maxLength={f.max}
-                      min={f.type === 'number' ? 0 : undefined}
-                      step={f.type === 'number' ? '0.01' : undefined}
-                      pattern={f.key === 'cuit' ? '[0-9]{11}' : undefined}
-                      onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
-                    />
-                  </label>
-                ))}
+                {fields
+                  .filter(({ key }) => {
+                    if (key === 'cargo_configuracion') return !editing && draft.estado === 'ACTIVO'
+                    return key !== 'abono' || editing || draft.estado === 'ACTIVO'
+                  })
+                  .map((f) => (
+                    <label key={f.key}>
+                      {f.label}
+                      <input
+                        type={f.type ?? 'text'}
+                        disabled={busy || (!editing && registrationLocked)}
+                        value={draft[f.key] ?? '0'}
+                        required={f.required}
+                        maxLength={f.max}
+                        min={f.type === 'number' ? 0 : undefined}
+                        step={f.type === 'number' ? '0.01' : undefined}
+                        pattern={f.key === 'cuit' ? '[0-9]{11}' : undefined}
+                        onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
+                      />
+                    </label>
+                  ))}
+                {editing &&
+                  Number(draft.abono) !==
+                    Number(businesses.find((b) => b.id === editing)?.abono) && (
+                    <label>
+                      Nuevo abono desde
+                      <input
+                        type="month"
+                        required
+                        min={today().slice(0, 7)}
+                        disabled={busy}
+                        value={effectiveMonth}
+                        onChange={(event) => setEffectiveMonth(event.target.value)}
+                      />
+                    </label>
+                  )}
                 <label>
                   Estado del servicio
                   <select
@@ -762,125 +887,208 @@ export function PlatformBusinesses() {
                   Volver al listado
                 </button>
               </div>
-              <h4>Estado y acceso de la aplicación</h4>
-              <BusinessStateActions
-                key={
-                  current.id +
-                  ':' +
-                  current.estado +
-                  ':' +
-                  current.eliminado_en +
-                  ':' +
-                  current.baja_iniciada_en +
-                  ':' +
-                  current.estado_aplicacion +
-                  ':' +
-                  current.baja_paso
-                }
-                business={current}
-                onRefresh={() => setRevision((n) => n + 1)}
-                onSaved={() => {
-                  setRevision((n) => n + 1)
-                  setInstallationBusiness(null)
-                }}
-              />
-              <div className="entry-actions">
-                <button
-                  type="button"
-                  className="select-button"
-                  disabled={Boolean(current.baja_iniciada_en)}
-                  onClick={() => edit(current)}
-                >
-                  Editar {current.nombre}
-                </button>
-                <button
-                  type="button"
-                  className="select-button"
-                  disabled={Boolean(current.baja_iniciada_en)}
-                  onClick={() => setInstallationBusiness(current)}
-                >
-                  Habilitar sistema de {current.nombre}
-                </button>
-              </div>
-              <h4>Datos del negocio</h4>
               <p>
-                {current.razon_social} · {current.cuit} · {current.localidad}
+                {states[current.estado]} · Último período cubierto{' '}
+                {monthLabel(currentSummary?.latest ?? -Infinity)}
               </p>
-              <p>
-                {current.telefono} · {current.email}
-              </p>
-              <p>Base: {current.base_referencia || 'Sin informar'}</p>
-              <p>{current.notas}</p>
-              {!current.baja_iniciada_en && <BusinessAvailability businessId={current.id} />}
-              <BusinessReceipts
-                key={current.id}
-                business={current}
-                onSaved={() => setRevision((n) => n + 1)}
-              />
-              <h4>Ajustes manuales de cuenta de {current.nombre}</h4>
-              <p>Saldo: {money(current.saldo)}. Los movimientos son del abono de Alon.</p>
-              <form
-                className="entry-form"
-                onSubmit={(e) =>
-                  void save(e, '/' + current.id + '/movements', {
-                    ...movement,
-                    importe: Number(movement.importe),
-                  })
-                }
-              >
-                <label>
-                  Tipo de movimiento
-                  <select
-                    value={movement.tipo}
-                    onChange={(e) => setMovement({ ...movement, tipo: e.target.value })}
+              <div className="entry-actions" role="group" aria-label="Secciones del negocio">
+                {detailSections.map((section) => (
+                  <button
+                    key={section}
+                    type="button"
+                    className={detailSection === section ? 'primary-button' : 'select-button'}
+                    aria-pressed={detailSection === section}
+                    onClick={() => setDetailSection(section)}
                   >
-                    <option value="COBRO">Cobro recibido</option>
-                    <option value="CARGO">Cargo al negocio</option>
-                  </select>
-                </label>
-                <label>
-                  Fecha del movimiento
-                  <input
-                    type="date"
-                    required
-                    value={movement.fecha}
-                    onChange={(e) => setMovement({ ...movement, fecha: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Importe (ARS)
-                  <input
-                    type="number"
-                    required
-                    min="0.01"
-                    step="0.01"
-                    value={movement.importe}
-                    onChange={(e) => setMovement({ ...movement, importe: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Concepto o comprobante
-                  <input
-                    required
-                    maxLength={300}
-                    value={movement.concepto}
-                    onChange={(e) => setMovement({ ...movement, concepto: e.target.value })}
-                  />
-                </label>
-                <button className="primary-button" disabled={busy}>
-                  Registrar movimiento
-                </button>
-              </form>
-              <h4>Historial de cargos y cobros</h4>
-              {movements
-                .filter((m) => m.negocio_id === current.id)
-                .map((m) => (
-                  <p key={m.id}>
-                    {m.anulado ? 'ANULADO · ' : ''}
-                    {m.fecha} · {m.tipo === 'COBRO' ? 'Cobro' : 'Cargo'} · {money(m.importe)} ·{' '}
-                    {m.concepto}
-                  </p>
+                    {section}
+                  </button>
                 ))}
+              </div>
+              <div hidden={detailSection !== 'Servicio'}>
+                <h4>Estado y acceso de la aplicación</h4>
+                <BusinessStateActions
+                  key={
+                    current.id +
+                    ':' +
+                    current.estado +
+                    ':' +
+                    current.eliminado_en +
+                    ':' +
+                    current.baja_iniciada_en +
+                    ':' +
+                    current.estado_aplicacion +
+                    ':' +
+                    current.baja_paso
+                  }
+                  business={current}
+                  onRefresh={() => setRevision((n) => n + 1)}
+                  onSaved={() => {
+                    setRevision((n) => n + 1)
+                    setInstallationBusiness(null)
+                  }}
+                />
+                <p>Último respaldo confirmado: {current.respaldo || 'Sin confirmar'}</p>
+                {!current.baja_iniciada_en && <BusinessAvailability businessId={current.id} />}
+              </div>
+              <div hidden={detailSection !== 'Resumen'}>
+                <div className="entry-actions">
+                  <button
+                    type="button"
+                    className="select-button"
+                    disabled={Boolean(current.baja_iniciada_en)}
+                    onClick={() => edit(current)}
+                  >
+                    Editar {current.nombre}
+                  </button>
+                  <button
+                    type="button"
+                    className="select-button"
+                    disabled={Boolean(current.baja_iniciada_en)}
+                    onClick={() => setInstallationBusiness(current)}
+                  >
+                    Habilitar sistema de {current.nombre}
+                  </button>
+                </div>
+                <h4>Datos del negocio</h4>
+                <p>
+                  Alta: {current.alta} · Gerente: {current.gerente_usuario || 'Sin informar'}
+                </p>
+                <p>Responsable: {current.responsable || 'Sin informar'}</p>
+                <p>
+                  Abono mensual vigente:{' '}
+                  {money(
+                    rateAt(
+                      currentSummary?.rates ?? [],
+                      monthNumber(today()),
+                      Number(current.abono),
+                    ),
+                  )}{' '}
+                  · Configuración: {money(current.cargo_configuracion)}
+                </p>
+                {[
+                  ['Gestión', current.gestion_url],
+                  ['Tienda', current.tienda_url],
+                ].map(
+                  ([label, url]) =>
+                    url &&
+                    /^https?:\/\//i.test(url) && (
+                      <p key={label}>
+                        <a href={url} target="_blank" rel="noreferrer">
+                          Abrir {label}
+                        </a>
+                      </p>
+                    ),
+                )}
+                <p>
+                  {current.razon_social} · {current.cuit} · {current.localidad}
+                </p>
+                <p>
+                  {current.telefono} · {current.email}
+                </p>
+                <p>Base: {current.base_referencia || 'Sin informar'}</p>
+                <p>{current.notas}</p>
+              </div>
+              <div hidden={detailSection !== 'Cobros'}>
+                <h4>Períodos de {month.slice(0, 4)}</h4>
+                <ul className="platform-periods">
+                  {Array.from({ length: 12 }, (_, index) => {
+                    const period = Number(month.slice(0, 4)) * 12 + index
+                    const key = month.slice(0, 4) + '-' + String(index + 1).padStart(2, '0')
+                    const covered = currentSummary?.periods.has(period)
+                    const amount = rateAt(
+                      currentSummary?.rates ?? [],
+                      period,
+                      Number(current.abono),
+                    )
+                    const expected =
+                      current.estado === 'ACTIVO' &&
+                      amount > 0 &&
+                      Boolean(current.alta && key >= current.alta.slice(0, 7))
+                    return (
+                      <li key={period}>
+                        {monthLabel(period)} ·{' '}
+                        {covered
+                          ? 'Cubierto'
+                          : expected && key <= today().slice(0, 7)
+                            ? 'Pendiente ' + money(amount)
+                            : '—'}
+                      </li>
+                    )
+                  })}
+                </ul>
+                <BusinessReceipts
+                  key={current.id}
+                  business={current}
+                  rates={currentSummary?.rates}
+                  showAudit={false}
+                  onSaved={() => setRevision((n) => n + 1)}
+                />
+                <h4>Ajustes manuales de cuenta de {current.nombre}</h4>
+                <p>Saldo: {money(current.saldo)}. Los movimientos son del abono de Alon.</p>
+                <form
+                  className="entry-form"
+                  onSubmit={(e) =>
+                    void save(e, '/' + current.id + '/movements', {
+                      ...movement,
+                      importe: Number(movement.importe),
+                    })
+                  }
+                >
+                  <label>
+                    Tipo de movimiento
+                    <select
+                      value={movement.tipo}
+                      onChange={(e) => setMovement({ ...movement, tipo: e.target.value })}
+                    >
+                      <option value="COBRO">Cobro recibido</option>
+                      <option value="CARGO">Cargo al negocio</option>
+                    </select>
+                  </label>
+                  <label>
+                    Fecha del movimiento
+                    <input
+                      type="date"
+                      required
+                      value={movement.fecha}
+                      onChange={(e) => setMovement({ ...movement, fecha: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Importe (ARS)
+                    <input
+                      type="number"
+                      required
+                      min="0.01"
+                      step="0.01"
+                      value={movement.importe}
+                      onChange={(e) => setMovement({ ...movement, importe: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Concepto o comprobante
+                    <input
+                      required
+                      maxLength={300}
+                      value={movement.concepto}
+                      onChange={(e) => setMovement({ ...movement, concepto: e.target.value })}
+                    />
+                  </label>
+                  <button className="primary-button" disabled={busy}>
+                    Registrar movimiento
+                  </button>
+                </form>
+                <h4>Historial de cargos y cobros</h4>
+                {movements
+                  .filter((m) => m.negocio_id === current.id)
+                  .map((m) => (
+                    <p key={m.id}>
+                      {m.anulado ? 'ANULADO · ' : ''}
+                      {m.fecha} · {m.tipo === 'COBRO' ? 'Cobro' : 'Cargo'} · {money(m.importe)} ·{' '}
+                      {m.concepto}
+                    </p>
+                  ))}
+              </div>
+              {detailSection === 'Historial' && <BusinessAudit businessId={current.id} />}
             </section>
           )}
         </dialog>

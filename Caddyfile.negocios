@@ -1,0 +1,42 @@
+{
+    on_demand_tls {
+        ask http://api:8080/internal/business-certificate
+    }
+}
+
+alon.bozzanisoft.tech {
+    @setup path /api/v1/auth/setup /api/v1/auth/setup/*
+    respond @setup 404
+
+    handle /api/* {
+        reverse_proxy api:8080
+    }
+
+    handle {
+        reverse_proxy web:8080
+    }
+}
+
+https:// {
+    tls {
+        on_demand
+    }
+
+    @business host *.bozzanisoft.tech *.negocios.bozzanisoft.tech
+    handle @business {
+        route {
+            request_header -X-Alon-Upstream-Port
+            forward_auth api:8080 {
+                uri /internal/business-route
+                header_up X-Forwarded-Host {host}
+                copy_headers X-Alon-Upstream-Port
+            }
+            reverse_proxy api:{http.request.header.X-Alon-Upstream-Port} {
+                header_up -X-Alon-Upstream-Port
+            }
+        }
+    }
+    handle {
+        respond "Dominio de comercio no configurado" 404
+    }
+}

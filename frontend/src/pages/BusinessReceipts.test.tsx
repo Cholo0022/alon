@@ -4,6 +4,8 @@ import { BusinessReceipts } from './BusinessReceipts'
 const { request } = vi.hoisted(() => ({ request: vi.fn() }))
 vi.mock('../lib/http', () => ({ apiFetch: request }))
 beforeEach(() => {
+  URL.createObjectURL = vi.fn(() => 'blob:receipt-preview')
+  URL.revokeObjectURL = vi.fn()
   sessionStorage.clear()
   request.mockReset()
 })
@@ -11,7 +13,9 @@ const business = { id: 7, nombre: 'Comercio A', abono: '1000' }
 
 test('starts at one month and zero discount and submits the selected months without changing service state', async () => {
   request.mockImplementation(async (_path, options) =>
-    Response.json(options?.method === 'POST' ? { id: 8 } : { receipts: [], audit: [] }),
+    _path.endsWith('/pdf')
+      ? new Response('%PDF', { headers: { 'Content-Type': 'application/pdf' } })
+      : Response.json(options?.method === 'POST' ? { id: 8 } : { receipts: [], audit: [] }),
   )
   render(<BusinessReceipts business={business} onSaved={() => {}} />)
   expect((screen.getByLabelText('Cantidad de meses') as HTMLInputElement).value).toBe('1')
@@ -20,6 +24,16 @@ test('starts at one month and zero discount and submits the selected months with
   fireEvent.change(screen.getByLabelText('Bonificación (%)'), { target: { value: '10' } })
   fireEvent.click(screen.getByRole('button', { name: 'Emitir recibo y registrar cobro' }))
   await screen.findByText(/Recibo #8 registrado/)
+  expect(await screen.findByRole('dialog', { name: 'Recibo Alon #8' })).toBeTruthy()
+  const download = await screen.findByRole('link', { name: 'Descargar PDF' })
+  expect(download.getAttribute('download')).toBe('alon-recibo-8.pdf')
+  fireEvent.load(screen.getByTitle('Vista de Recibo Alon #8'))
+  expect((screen.getByRole('button', { name: 'Imprimir' }) as HTMLButtonElement).disabled).toBe(
+    false,
+  )
+  expect(
+    request.mock.calls.some(([path]) => path === '/api/v1/super/businesses/7/receipts/8/pdf'),
+  ).toBe(true)
   const command = request.mock.calls.find(([, options]) => options?.method === 'POST')!
   expect(JSON.parse(command[1].body)).toMatchObject({ months: 2, discountPercent: 10 })
   expect(command[0]).toBe('/api/v1/super/businesses/7/receipts')

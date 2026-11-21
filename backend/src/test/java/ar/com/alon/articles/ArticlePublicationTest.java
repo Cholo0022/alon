@@ -27,7 +27,7 @@ class ArticlePublicationTest {
                         "SELECT * FROM articulos WHERE id=? AND comercio_id=? FOR UPDATE", 1L, 1L))
                 .thenReturn(current);
         when(jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM rubros WHERE id=? AND comercio_id=?",
+                        "SELECT COUNT(*) FROM rubros WHERE id=? AND comercio_id=? AND estado='ACTIVO'",
                         Integer.class,
                         1L,
                         1L))
@@ -70,7 +70,7 @@ class ArticlePublicationTest {
                         "SELECT * FROM articulos WHERE id=? AND comercio_id=? FOR UPDATE", 1L, 1L))
                 .thenReturn(Map.of("proveedor_principal_id", 7L));
         when(jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM rubros WHERE id=? AND comercio_id=?",
+                        "SELECT COUNT(*) FROM rubros WHERE id=? AND comercio_id=? AND estado='ACTIVO'",
                         Integer.class,
                         1L,
                         1L))
@@ -92,7 +92,49 @@ class ArticlePublicationTest {
                 .isTrue();
     }
 
+    @Test
+    void unpublishesAnArticleThatHasNoSupplier() {
+        var jdbc = mock(JdbcTemplate.class);
+        var identity = mock(RequestIdentity.class);
+        when(identity.storeId()).thenReturn(1L);
+        when(identity.permits("compras")).thenReturn(true);
+        when(jdbc.queryForMap(
+                        "SELECT * FROM articulos WHERE id=? AND comercio_id=? FOR UPDATE", 1L, 1L))
+                .thenReturn(Map.of("stock", new BigDecimal("10"), "cargar_web", true));
+        when(jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM rubros WHERE id=? AND comercio_id=? AND estado='ACTIVO'",
+                        Integer.class,
+                        1L,
+                        1L))
+                .thenReturn(1);
+        var service =
+                new ArticleService(
+                        jdbc,
+                        identity,
+                        Clock.systemUTC(),
+                        mock(AuditLog.class),
+                        mock(StockRepository.class));
+
+        service.updateArticle(1, input(0, false));
+
+        var update =
+                mockingDetails(jdbc).getInvocations().stream()
+                        .filter(
+                                call ->
+                                        call.getMethod().getName().equals("update")
+                                                && call.<String>getArgument(0)
+                                                        .startsWith("UPDATE articulos SET codigo="))
+                        .findFirst()
+                        .orElseThrow();
+        assertThat((Long) update.getArgument(4)).isNull();
+        assertThat((Boolean) update.getArgument(11)).isFalse();
+    }
+
     private ArticleInput input(long supplier) {
+        return input(supplier, true);
+    }
+
+    private ArticleInput input(long supplier, boolean publish) {
         return new ArticleInput(
                 "A1",
                 "Artículo",
@@ -110,7 +152,7 @@ class ArticlePublicationTest {
                 BigDecimal.ZERO,
                 new BigDecimal("120"),
                 null,
-                true,
+                publish,
                 null);
     }
 }

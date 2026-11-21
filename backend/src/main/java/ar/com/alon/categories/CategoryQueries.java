@@ -26,9 +26,16 @@ public class CategoryQueries {
 
     /** Consulta rubros del comercio ordenados por nombre. */
     public List<Map<String, Object>> categories() {
+        return categories(false);
+    }
+
+    public List<Map<String, Object>> categories(boolean includeInactive) {
+        if (includeInactive) identity.require("rubros");
         return pages.query(
                 "codigo,nombre",
-                "SELECT id, codigo, nombre FROM rubros WHERE comercio_id = ? ORDER BY nombre,id",
+                "SELECT id, codigo, nombre, estado FROM rubros WHERE comercio_id = ?"
+                        + (includeInactive ? "" : " AND estado = 'ACTIVO'")
+                        + " ORDER BY nombre,id",
                 identity.storeId());
     }
 }

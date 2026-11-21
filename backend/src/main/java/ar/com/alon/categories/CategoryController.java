@@ -34,12 +34,26 @@ public class CategoryController {
         return commands.execute("createCategory", input, () -> service.createCategory(input));
     }
 
-    /**
-     * Expone rubros del comercio ordenados por nombre mediante la API, delegando la consulta al
-     * repositorio.
-     */
+    @PutMapping("/operations/categories/{id}")
+    public Map<String, Object> updateCategory(
+            @PathVariable long id, @Valid @RequestBody CategoryInput input) {
+        return commands.execute(
+                "updateCategory", List.of(id, input), () -> service.updateCategory(id, input));
+    }
+
+    @PostMapping("/operations/categories/{id}/deactivate")
+    public Map<String, Object> deactivate(@PathVariable long id) {
+        return commands.execute("deactivateCategory", id, () -> service.setActive(id, false));
+    }
+
+    @PostMapping("/operations/categories/{id}/activate")
+    public Map<String, Object> activate(@PathVariable long id) {
+        return commands.execute("activateCategory", id, () -> service.setActive(id, true));
+    }
+
     @GetMapping("/alon/categories")
-    public List<Map<String, Object>> categories() {
-        return queries.categories();
+    public List<Map<String, Object>> categories(
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
+        return queries.categories(includeInactive);
     }
 }

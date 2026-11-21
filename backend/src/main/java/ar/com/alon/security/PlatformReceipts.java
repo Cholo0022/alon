@@ -1,13 +1,15 @@
 package ar.com.alon.security;
 
+import ar.com.alon.sales.SalesReceiptPdf;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+import java.io.IOException;
 import java.math.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.*;
 import java.util.*;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -52,7 +54,8 @@ public class PlatformReceipts {
         authorize();
         var rows =
                 jdbc.queryForList(
-                        "SELECT abono FROM plataforma_negocios WHERE id=? FOR UPDATE", businessId);
+                        "SELECT abono,cargo_configuracion FROM plataforma_negocios WHERE id=? FOR UPDATE",
+                        businessId);
         if (rows.isEmpty()) throw error(HttpStatus.NOT_FOUND, "No se encontró el cliente.");
         String fingerprint = fingerprint(businessId, input);
         var previous =
@@ -91,12 +94,41 @@ public class PlatformReceipts {
                                 + YearMonth.from(period)
                                 + " ya está cobrado. Revisá el recibo existente.");
         }
-        BigDecimal unit = (BigDecimal) rows.getFirst().get("abono");
-        BigDecimal subtotal =
-                unit.multiply(BigDecimal.valueOf(input.months())).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal total = discounted(subtotal, discount);
+        var rates = new TreeMap<LocalDate, BigDecimal>();
+        jdbc.query(
+                "SELECT desde,importe FROM plataforma_abonos WHERE negocio_id=?",
+                rs -> {
+                    rates.put(rs.getDate("desde").toLocalDate(), rs.getBigDecimal("importe"));
+                },
+                businessId);
+        BigDecimal fallback =
+                rates.isEmpty()
+                        ? (BigDecimal) rows.getFirst().get("abono")
+                        : rates.firstEntry().getValue();
+        BigDecimal unit = rateAt(rates, start, fallback);
+        BigDecimal monthlySubtotal = BigDecimal.ZERO;
+        boolean mixedRates = false;
+        var breakdown = new StringJoiner("\n");
+        for (int offset = 0; offset < input.months(); offset++) {
+            YearMonth period = start.plusMonths(offset);
+            BigDecimal amount = rateAt(rates, period, fallback);
+            mixedRates |= amount.compareTo(unit) != 0;
+            monthlySubtotal = monthlySubtotal.add(amount);
+            breakdown.add(period + ": ARS " + amount.toPlainString());
+        }
+        BigDecimal setup = (BigDecimal) rows.getFirst().get("cargo_configuracion");
+        if (setup.signum() > 0
+                && jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM plataforma_recibos WHERE negocio_id=? AND cargo_configuracion>0 AND estado='EMITIDO'",
+                                Long.class,
+                                businessId)
+                        > 0) setup = BigDecimal.ZERO;
+        BigDecimal subtotal = monthlySubtotal.add(setup);
+        BigDecimal total = discounted(monthlySubtotal, discount).add(setup);
+        if (subtotal.precision() - subtotal.scale() > 13)
+            throw error(HttpStatus.BAD_REQUEST, "El subtotal supera el importe máximo permitido.");
         jdbc.update(
-                "INSERT INTO plataforma_recibos(negocio_id,solicitud,huella,fecha,periodo_desde,meses,abono_unitario,bonificacion,subtotal,total,creado_por) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO plataforma_recibos(negocio_id,solicitud,huella,fecha,periodo_desde,meses,abono_unitario,bonificacion,subtotal,total,creado_por,cargo_configuracion,abonos_detalle) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 businessId,
                 input.requestId(),
                 fingerprint,
@@ -107,7 +139,9 @@ public class PlatformReceipts {
                 discount,
                 subtotal,
                 total,
-                identity.userId());
+                identity.userId(),
+                setup,
+                mixedRates ? breakdown.toString() : null);
         long id = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
         for (int i = 0; i < input.months(); i++)
             jdbc.update(
@@ -142,6 +176,30 @@ public class PlatformReceipts {
                         + "% · Total "
                         + total);
         return Map.of("id", id, "total", total, "replayed", false);
+    }
+
+    @GetMapping(value = "/receipts/{receiptId}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> pdf(@PathVariable long businessId, @PathVariable long receiptId)
+            throws IOException {
+        authorize();
+        var receipts =
+                jdbc.queryForList(
+                        """
+                        SELECT r.*, n.nombre
+                        FROM plataforma_recibos r JOIN plataforma_negocios n ON n.id=r.negocio_id
+                        WHERE r.negocio_id=? AND r.id=?
+                        """,
+                        businessId,
+                        receiptId);
+        if (receipts.isEmpty())
+            throw error(HttpStatus.NOT_FOUND, "No se encontró el recibo de este cliente.");
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=alon-recibo-" + receiptId + ".pdf")
+                .cacheControl(CacheControl.noStore())
+                .body(SalesReceiptPdf.createServiceReceipt(receipts.getFirst()));
     }
 
     @PostMapping("/receipts/{receiptId}/void")
@@ -183,6 +241,12 @@ public class PlatformReceipts {
     static BigDecimal discounted(BigDecimal subtotal, BigDecimal discount) {
         return subtotal.multiply(new BigDecimal("100").subtract(discount))
                 .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal rateAt(
+            NavigableMap<LocalDate, BigDecimal> rates, YearMonth period, BigDecimal fallback) {
+        var rate = rates.floorEntry(period.atDay(1));
+        return rate == null ? fallback : rate.getValue();
     }
 
     static YearMonth parsePeriod(String period) {

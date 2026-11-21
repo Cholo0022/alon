@@ -1,0 +1,12 @@
+alon.bozzanisoft.tech {
+    @setup path /api/v1/auth/setup /api/v1/auth/setup/*
+    respond @setup 404
+
+    handle /api/* {
+        reverse_proxy api:8080
+    }
+
+    handle {
+        reverse_proxy web:8080
+    }
+}

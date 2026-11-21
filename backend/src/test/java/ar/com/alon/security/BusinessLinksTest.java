@@ -6,6 +6,19 @@ import org.junit.jupiter.api.Test;
 
 class BusinessLinksTest {
     @Test
+    void keepsTheOldAddressAvailableAlongsideTheShortPublicLink() {
+        var slug = BusinessLinks.slug("CF Cosméticos y Belleza");
+        var domain = "bozzanisoft.tech";
+        assertThat(BusinessLinks.management(1, slug, domain))
+                .isEqualTo("https://cf-cosmeticos-y-belleza.bozzanisoft.tech/");
+        assertThat(BusinessLinks.shop(1, slug, domain))
+                .isEqualTo(
+                        "https://cf-cosmeticos-y-belleza.bozzanisoft.tech/tienda/cf-cosmeticos-y-belleza");
+        assertThat(BusinessLinks.legacyHost(1, slug, domain))
+                .isEqualTo("cf-cosmeticos-y-belleza-20001.negocios.bozzanisoft.tech");
+    }
+
+    @Test
     void turnsCommercialNamesIntoSafePaths() {
         assertThat(BusinessLinks.slug("  Las Trés L & Hijos S.R.L.  "))
                 .isEqualTo("las-tres-l-hijos-s-r-l");

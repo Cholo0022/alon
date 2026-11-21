@@ -32,6 +32,19 @@ public final class SalesReceiptPdf {
         return value == null ? "" : value.toString();
     }
 
+    public static byte[] createServiceReceipt(Map<String, Object> data) throws IOException {
+        try (var document = new PDDocument();
+                var out = new ByteArrayOutputStream()) {
+            document.getDocumentInformation().setTitle("Recibo Alon #" + value(data.get("id")));
+            document.getDocumentInformation().setAuthor("Alon");
+            try (var page = new Receipt(document, data)) {
+                page.renderServiceReceipt();
+            }
+            document.save(out);
+            return out.toByteArray();
+        }
+    }
+
     private static BigDecimal decimal(Object value) {
         return value == null ? BigDecimal.ZERO : new BigDecimal(value.toString());
     }
@@ -130,13 +143,21 @@ public final class SalesReceiptPdf {
         }
 
         private void page() throws IOException {
+            newPage();
+            paragraph(value(data.get("negocio")), 15, true);
+            saleHeader();
+        }
+
+        private void newPage() throws IOException {
             if (content != null) content.close();
             var page = new PDPage(PDRectangle.A4);
             document.addPage(page);
             content = new PDPageContentStream(document, page);
             y = PDRectangle.A4.getHeight() - 32;
             content.setNonStrokingColor(Color.BLACK);
-            paragraph(value(data.get("negocio")), 15, true);
+        }
+
+        private void saleHeader() throws IOException {
             if (!value(data.get("slogan")).isBlank())
                 paragraph(value(data.get("slogan")), 9, false);
             if (!value(data.get("telefono_tienda")).isBlank())
@@ -180,6 +201,63 @@ public final class SalesReceiptPdf {
             text("Dto. %", 420, y - 10, 8, true);
             text("Importe", 490, y - 10, 8, true);
             y -= 28;
+        }
+
+        private void serviceHeader() throws IOException {
+            newPage();
+            paragraph("Alon", 17, true);
+            rule();
+            paragraph(
+                    "RECIBO DE SERVICIO #"
+                            + value(data.get("id"))
+                            + (document.getNumberOfPages() > 1 ? " - Continuación" : ""),
+                    12,
+                    true);
+            if ("ANULADO".equals(data.get("estado"))) paragraph("RECIBO ANULADO", 12, true);
+            paragraph("Negocio: " + value(data.get("nombre")), 10, false);
+        }
+
+        private void renderServiceReceipt() throws IOException {
+            serviceHeader();
+            var date = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            var month = DateTimeFormatter.ofPattern("MM/yyyy");
+            LocalDate start = LocalDate.parse(value(data.get("periodo_desde")));
+            int months = ((Number) data.get("meses")).intValue();
+            paragraph("Fecha: " + LocalDate.parse(value(data.get("fecha"))).format(date), 9, false);
+            paragraph(
+                    "Período cubierto: "
+                            + start.format(month)
+                            + " a "
+                            + start.plusMonths(months - 1L).format(month)
+                            + " ("
+                            + months
+                            + " meses)",
+                    9,
+                    false);
+            String detail = value(data.get("abonos_detalle"));
+            if (detail.isBlank()) {
+                summary("Abono mensual", decimal(data.get("abono_unitario")), false);
+            } else {
+                for (String line : detail.lines().toList()) {
+                    if (y < PDRectangle.A4.getHeight() / 2 + 48) serviceHeader();
+                    paragraph(line, 9, false);
+                }
+            }
+            if (y < PDRectangle.A4.getHeight() / 2 + 162) serviceHeader();
+            BigDecimal setup = decimal(data.get("cargo_configuracion"));
+            if (setup.signum() > 0) summary("Configuración por única vez", setup, false);
+            summary("Subtotal", decimal(data.get("subtotal")), false);
+            BigDecimal discount = decimal(data.get("bonificacion"));
+            if (discount.signum() > 0)
+                summary(
+                        "Bonificación del abono (" + quantity.format(discount) + " %)",
+                        decimal(data.get("subtotal")).subtract(decimal(data.get("total"))),
+                        false);
+            rule();
+            summary("TOTAL ARS", decimal(data.get("total")), true);
+            if ("ANULADO".equals(data.get("estado")))
+                paragraph("Motivo: " + value(data.get("motivo_anulacion")), 9, false);
+            paragraph("Recibo interno del servicio Alon.", 8, false);
         }
 
         @SuppressWarnings("unchecked")

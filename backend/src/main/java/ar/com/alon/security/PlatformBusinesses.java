@@ -1,9 +1,12 @@
 package ar.com.alon.security;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,6 +20,9 @@ import org.springframework.web.server.ResponseStatusException;
 public class PlatformBusinesses {
     private final JdbcTemplate jdbc;
     private final RequestIdentity identity;
+
+    @org.springframework.beans.factory.annotation.Value("${alon.provisioning.public-domain:}")
+    private String publicDomain = "";
 
     public PlatformBusinesses(JdbcTemplate jdbc, RequestIdentity identity) {
         this.jdbc = jdbc;
@@ -35,10 +41,27 @@ public class PlatformBusinesses {
         return Map.of(
                 "businesses",
                 jdbc.queryForList(
-                        "SELECT n.*, COALESCE((SELECT SUM(CASE WHEN m.tipo='CARGO' THEN m.importe ELSE -m.importe END) FROM plataforma_movimientos m WHERE m.negocio_id=n.id AND m.anulado=FALSE),0) saldo FROM plataforma_negocios n ORDER BY n.nombre,n.id"),
+                        """
+                        SELECT n.*, i.estado AS instalacion_estado, i.gerente_usuario,
+                               COALESCE((SELECT SUM(CASE WHEN m.tipo='CARGO' THEN m.importe ELSE -m.importe END)
+                                 FROM plataforma_movimientos m WHERE m.negocio_id=n.id AND m.anulado=FALSE),0) saldo
+                        FROM plataforma_negocios n
+                        LEFT JOIN plataforma_instalaciones i ON i.negocio_id=n.id
+                        ORDER BY n.nombre,n.id
+                        """),
+                "receipts",
+                jdbc.queryForList(
+                        """
+                        SELECT negocio_id,fecha,periodo_desde,meses,cargo_configuracion,total
+                        FROM plataforma_recibos WHERE estado='EMITIDO'
+                        ORDER BY periodo_desde
+                        """),
                 "movements",
                 jdbc.queryForList(
-                        "SELECT m.*,n.nombre FROM plataforma_movimientos m JOIN plataforma_negocios n ON n.id=m.negocio_id ORDER BY m.fecha DESC,m.id DESC"));
+                        "SELECT m.*,n.nombre FROM plataforma_movimientos m JOIN plataforma_negocios n ON n.id=m.negocio_id ORDER BY m.fecha DESC,m.id DESC"),
+                "rates",
+                jdbc.queryForList(
+                        "SELECT negocio_id,desde,importe FROM plataforma_abonos ORDER BY negocio_id,desde"));
     }
 
     public Map<String, Object> create(@Valid @RequestBody Business input) {
@@ -47,13 +70,32 @@ public class PlatformBusinesses {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Registrá el negocio en preparación, prueba o activo. La baja se confirma desde el listado.");
+        String slug = BusinessLinks.slug(input.nombre());
+        if (!publicDomain.isBlank()) {
+            String label = BusinessLinks.publicLabel(slug);
+            jdbc.queryForObject("SELECT id FROM comercios WHERE id=1 FOR UPDATE", Long.class);
+            if (BusinessLinks.reservedHost(label)
+                    || jdbc.queryForObject(
+                                    "SELECT COUNT(*) FROM plataforma_negocios WHERE TRIM(TRAILING '-' FROM LEFT(url_slug, 63))=?",
+                                    Long.class,
+                                    label)
+                            > 0)
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Ese nombre de enlace ya está reservado. Elegí un nombre comercial distinto.");
+        }
         jdbc.update(
                 "INSERT INTO plataforma_negocios(nombre,razon_social,cuit,rubro,localidad,responsable,telefono,email,plan,abono,estado,alta,vencimiento,gestion_url,tienda_url,base_referencia,respaldo,notas) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 values(input));
         Long id = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-        String slug = BusinessLinks.slug(input.nombre());
-        String management = BusinessLinks.management(id, slug);
-        String shop = BusinessLinks.shop(id, slug);
+        saveRate(id, input.alta().withDayOfMonth(1), input.abono());
+        if (!"PRUEBA".equals(input.estado()) && input.cargo_configuracion() != null)
+            jdbc.update(
+                    "UPDATE plataforma_negocios SET cargo_configuracion=? WHERE id=?",
+                    input.cargo_configuracion(),
+                    id);
+        String management = BusinessLinks.management(id, slug, publicDomain);
+        String shop = BusinessLinks.shop(id, slug, publicDomain);
         jdbc.update(
                 "UPDATE plataforma_negocios SET url_slug=?,gestion_url=?,tienda_url=? WHERE id=?",
                 slug,
@@ -65,25 +107,49 @@ public class PlatformBusinesses {
     }
 
     @PutMapping("/{id}")
-    public Map<String, Object> update(@PathVariable long id, @Valid @RequestBody Business input) {
+    public Map<String, Object> update(
+            @PathVariable long id,
+            @RequestParam(required = false) String abonoDesde,
+            @Valid @RequestBody Business input) {
         authorize();
-        exists(id);
-        if (jdbc.queryForObject(
-                "SELECT baja_iniciada_en IS NOT NULL FROM plataforma_negocios WHERE id=?",
-                Boolean.class,
-                id))
+        var rows =
+                jdbc.queryForList(
+                        "SELECT estado,abono,baja_iniciada_en FROM plataforma_negocios WHERE id=? FOR UPDATE",
+                        id);
+        if (rows.isEmpty())
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No se encontró el negocio.");
+        var current = rows.getFirst();
+        if (current.get("baja_iniciada_en") != null)
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "La baja definitiva ya fue iniciada. No se puede modificar este negocio.");
-        String currentState =
-                jdbc.queryForObject(
-                        "SELECT estado FROM plataforma_negocios WHERE id=? FOR UPDATE",
-                        String.class,
-                        id);
-        if (!currentState.equals(input.estado()))
+        if (!current.get("estado").equals(input.estado()))
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Cambiá el estado desde el listado de negocios para aplicar también el control de acceso.");
+        BigDecimal prior = (BigDecimal) current.get("abono");
+        if (prior.compareTo(input.abono()) != 0) {
+            YearMonth currentMonth = YearMonth.now(ZoneId.of("America/Argentina/Buenos_Aires"));
+            YearMonth effective =
+                    abonoDesde == null ? currentMonth : PlatformReceipts.parsePeriod(abonoDesde);
+            if (effective.isBefore(currentMonth)
+                    || effective.isBefore(YearMonth.from(input.alta())))
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Elegí un mes vigente a partir del alta del negocio.");
+            LocalDate start = effective.atDay(1);
+            jdbc.update("DELETE FROM plataforma_abonos WHERE negocio_id=? AND desde>=?", id, start);
+            saveRate(id, start, input.abono());
+            jdbc.update(
+                    "INSERT INTO plataforma_auditoria(usuario_id,negocio_id,accion,detalle) VALUES(?,?,'CAMBIO_ABONO',?)",
+                    identity.userId(),
+                    id,
+                    prior.toPlainString()
+                            + " → "
+                            + input.abono().toPlainString()
+                            + " desde "
+                            + effective);
+        }
         var args = new ArrayList<Object>(Arrays.asList(values(input)));
         args.add(id);
         jdbc.update(
@@ -91,6 +157,14 @@ public class PlatformBusinesses {
                 args.toArray());
         audit(id, "EDICION");
         return Map.of("ok", true);
+    }
+
+    private void saveRate(long id, LocalDate start, BigDecimal amount) {
+        jdbc.update(
+                "INSERT INTO plataforma_abonos(negocio_id,desde,importe) VALUES(?,?,?)",
+                id,
+                start,
+                amount);
     }
 
     @PostMapping("/{id}/movements")
@@ -164,7 +238,11 @@ public class PlatformBusinesses {
             @NotNull @Size(max = 500) @Pattern(regexp = "https?://[^\\s]+|") String tienda_url,
             @NotNull @Size(max = 160) String base_referencia,
             LocalDate respaldo,
-            @NotNull @Size(max = 2000) String notas) {
+            @NotNull @Size(max = 2000) String notas,
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+                    @DecimalMin("0")
+                    @Digits(integer = 13, fraction = 2)
+                    BigDecimal cargo_configuracion) {
         public Business withTrialMonths(int months) {
             return new Business(
                     nombre,
@@ -184,7 +262,8 @@ public class PlatformBusinesses {
                     tienda_url,
                     base_referencia,
                     respaldo,
-                    notas);
+                    notas,
+                    null);
         }
     }
 

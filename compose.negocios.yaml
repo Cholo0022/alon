@@ -1,0 +1,19 @@
+services:
+  api:
+    build:
+      target: provisioning
+      additional_contexts:
+        frontend: ./frontend
+    mem_limit: 2g
+    environment:
+      ALON_PROVISIONING_ENABLED: "true"
+      ALON_PROVISIONING_PUBLIC_DOMAIN: bozzanisoft.tech
+      ALON_PROVISIONING_JAR: /app/alon.jar
+      ALON_PROVISIONING_WEB: /app/frontend
+      ALON_PROVISIONING_USERNAME: alon_provisioner
+      ALON_PROVISIONING_PASSWORD: ${ALON_PROVISIONING_PASSWORD:?Configurá el usuario de aprovisionamiento}
+      ALON_PROVISIONING_CLIENT_HOST: "%"
+      JAVA_TOOL_OPTIONS: "-Xmx384m"
+  caddy:
+    volumes:
+      - ./Caddyfile.negocios:/etc/caddy/Caddyfile:ro

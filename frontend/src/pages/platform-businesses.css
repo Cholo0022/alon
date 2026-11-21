@@ -124,3 +124,16 @@
   border: 1px solid #d7e0e6;
   border-radius: 8px;
 }
+.platform-periods {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+}
+
+.platform-periods li {
+  border: 1px solid currentColor;
+  border-radius: 0.4rem;
+  padding: 0.5rem;
+}

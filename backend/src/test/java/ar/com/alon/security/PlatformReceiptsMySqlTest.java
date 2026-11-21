@@ -86,6 +86,30 @@ class PlatformReceiptsMySqlTest {
     }
 
     @Test
+    void chargesConfigurationOnceAndRestoresItWhenItsReceiptIsVoided() {
+        transaction.executeWithoutResult(
+                tx -> {
+                    business(97005);
+                    jdbc.update(
+                            "UPDATE plataforma_negocios SET cargo_configuracion=500 WHERE id=97005");
+                    var first = input(UUID.randomUUID().toString(), "2026-11");
+                    var result = service.issue(97005, first);
+                    assertThat(result.get("total")).isEqualTo(new BigDecimal("2300.00"));
+                    long firstId = ((Number) result.get("id")).longValue();
+                    jdbc.update("UPDATE plataforma_negocios SET abono=2000 WHERE id=97005");
+                    assertThat(service.issue(97005, first).get("id")).isEqualTo(firstId);
+                    var second =
+                            service.issue(97005, input(UUID.randomUUID().toString(), "2027-01"));
+                    assertThat(second.get("total")).isEqualTo(new BigDecimal("3600.00"));
+                    service.cancel(97005, firstId, new PlatformReceipts.Cancellation("Corrección"));
+                    var replacement =
+                            service.issue(97005, input(UUID.randomUUID().toString(), "2026-11"));
+                    assertThat(replacement.get("total")).isEqualTo(new BigDecimal("4100.00"));
+                    tx.setRollbackOnly();
+                });
+    }
+
+    @Test
     void fullDiscountKeepsReceiptWithoutZeroValueLedgerMovements() {
         transaction.executeWithoutResult(
                 tx -> {

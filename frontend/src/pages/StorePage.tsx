@@ -14,6 +14,7 @@ type OrderLine = {
   stock: number
   estado_articulo: string
   unidad: string
+  tipo_producto?: string
 }
 
 type Order = {
@@ -46,6 +47,7 @@ const statusLabel = (state: string) =>
 export function StorePage() {
   const [selected, setSelected] = useState<number | null>(null)
   const [order, setOrder] = useState<Order | null>(null)
+  const [quantityDraft, setQuantityDraft] = useState<{ lineId: number; value: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
@@ -89,23 +91,30 @@ export function StorePage() {
     return () => clearInterval(timer)
   }, [])
   /** Envía la acción elegida sobre el pedido, incluye el medio al aprobarlo y recarga el detalle y los contadores al completarse. */
-  const action = async (suffix: string) => {
+  const action = async (
+    suffix: string,
+    payload?: { quantity: number } | { paymentMethod: string },
+  ) => {
     if (!order || busy) return
     setBusy(true)
     setError('')
     try {
       const r = await apiFetch('/api/v1/operations/store-orders/' + order.id + suffix, {
         method: 'POST',
-        ...(suffix === '/approve'
+        ...(payload
           ? {
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentMethod: payment }),
+              body: JSON.stringify(payload),
             }
           : {}),
       })
       if (!r.ok) {
         const b = await r.json()
         throw new Error(b.error ?? 'No se pudo actualizar el pedido.')
+      }
+      if (suffix.endsWith('/quantity')) {
+        setOrder((await r.json()) as Order)
+        setQuantityDraft(null)
       }
       setRevision((n) => n + 1)
       window.dispatchEvent(new Event('alon:refresh'))
@@ -124,7 +133,9 @@ export function StorePage() {
   const approvalBlockers = [
     ...(!order?.cash_open ? ['Abrí la caja de hoy desde Caja.'] : []),
     ...(!included.length ? ['El pedido no tiene artículos incluidos para vender.'] : []),
-    ...(shortage ? ['Quitá los artículos inactivos o sin stock suficiente.'] : []),
+    ...(shortage
+      ? ['Ajustá la cantidad al stock disponible o quitá los artículos inactivos o sin stock.']
+      : []),
     ...(!payment ? ['Seleccioná un medio de pago.'] : []),
   ]
   return (
@@ -168,8 +179,10 @@ export function StorePage() {
               <button
                 type="button"
                 className="secondary-button store-view-order"
+                disabled={busy}
                 onClick={() => {
                   scrollToOrder.current = true
+                  setQuantityDraft(null)
                   setOrder(null)
                   setError('')
                   setSelected(Number(row.id))
@@ -194,8 +207,10 @@ export function StorePage() {
             <h2 id="store-order-heading">Pedido #{selected}</h2>
             <button
               className="secondary-button"
+              disabled={busy}
               onClick={() => {
                 scrollToOrder.current = false
+                setQuantityDraft(null)
                 setSelected(null)
                 setOrder(null)
               }}
@@ -247,8 +262,8 @@ export function StorePage() {
               </div>
               {pending && shortage && (
                 <p className="entry-message">
-                  Hay artículos inactivos o sin stock suficiente. Quitalos del pedido para poder
-                  confirmar.
+                  Ajustá las cantidades al stock disponible y quitá los artículos inactivos o sin
+                  stock.
                 </p>
               )}
               {pending && !order.cash_open && (
@@ -288,7 +303,57 @@ export function StorePage() {
                             {!l.incluido && <small> · Quitado del pedido</small>}
                           </td>
                           <td data-label="Cantidad">
-                            {Number(l.cantidad)} {l.unidad}
+                            {pending && l.incluido && quantityDraft?.lineId === l.id ? (
+                              <form
+                                onSubmit={(event) => {
+                                  event.preventDefault()
+                                  void action('/lines/' + l.id + '/quantity', {
+                                    quantity: Number(quantityDraft.value),
+                                  })
+                                }}
+                              >
+                                <input
+                                  aria-label={'Cantidad de ' + l.nombre_articulo}
+                                  type="number"
+                                  min={
+                                    l.tipo_producto === 'INDUMENTARIA' ||
+                                    l.tipo_producto === 'CALZADO'
+                                      ? 1
+                                      : 0.001
+                                  }
+                                  step={
+                                    l.tipo_producto === 'INDUMENTARIA' ||
+                                    l.tipo_producto === 'CALZADO'
+                                      ? 1
+                                      : 0.001
+                                  }
+                                  max={999999999999.999}
+                                  required
+                                  disabled={busy}
+                                  value={quantityDraft.value}
+                                  onChange={(event) =>
+                                    setQuantityDraft({ lineId: l.id, value: event.target.value })
+                                  }
+                                />
+                                <div className="row-actions">
+                                  <button className="secondary-button" disabled={busy}>
+                                    Guardar cantidad
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="secondary-button"
+                                    disabled={busy}
+                                    onClick={() => setQuantityDraft(null)}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </form>
+                            ) : (
+                              <>
+                                {Number(l.cantidad)} {l.unidad}
+                              </>
+                            )}
                           </td>
                           <td data-label="Stock actual">
                             <span
@@ -314,13 +379,25 @@ export function StorePage() {
                           </td>
                           <td data-label="Acción">
                             {pending && Boolean(l.incluido) && (
-                              <button
-                                className="secondary-button"
-                                disabled={busy}
-                                onClick={() => void action('/lines/' + l.id + '/exclude')}
-                              >
-                                Quitar
-                              </button>
+                              <div className="row-actions">
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  disabled={busy || quantityDraft !== null}
+                                  onClick={() =>
+                                    setQuantityDraft({ lineId: l.id, value: String(l.cantidad) })
+                                  }
+                                >
+                                  Modificar cantidad
+                                </button>
+                                <button
+                                  className="secondary-button"
+                                  disabled={busy || quantityDraft !== null}
+                                  onClick={() => void action('/lines/' + l.id + '/exclude')}
+                                >
+                                  Quitar
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -373,7 +450,7 @@ export function StorePage() {
                     </button>
                     <button
                       className="primary-button"
-                      disabled={busy || approvalBlockers.length > 0}
+                      disabled={busy || quantityDraft !== null || approvalBlockers.length > 0}
                       aria-describedby={
                         approvalBlockers.length ? 'store-approval-blockers' : undefined
                       }
@@ -387,7 +464,7 @@ export function StorePage() {
                               '? Se registrará una venta web y su cobro en caja, y se descontará el stock.',
                           )
                         )
-                          void action('/approve')
+                          void action('/approve', { paymentMethod: payment })
                       }}
                     >
                       {busy ? 'Procesando…' : 'Confirmar venta web'}

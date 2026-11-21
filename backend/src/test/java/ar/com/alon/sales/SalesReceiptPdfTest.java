@@ -98,6 +98,40 @@ class SalesReceiptPdfTest {
     }
 
     @Test
+    void serviceReceiptFitsUpperHalfA4AndShowsCharges() throws Exception {
+        var receipt =
+                Map.<String, Object>ofEntries(
+                        Map.entry("id", 42),
+                        Map.entry("nombre", "Comercio Ejemplo"),
+                        Map.entry("fecha", LocalDate.of(2026, 11, 17)),
+                        Map.entry("periodo_desde", LocalDate.of(2026, 11, 1)),
+                        Map.entry("meses", 2),
+                        Map.entry("abono_unitario", new BigDecimal("1000")),
+                        Map.entry("cargo_configuracion", new BigDecimal("500")),
+                        Map.entry("subtotal", new BigDecimal("2500")),
+                        Map.entry("bonificacion", new BigDecimal("10")),
+                        Map.entry("total", new BigDecimal("2300")),
+                        Map.entry("estado", "ANULADO"),
+                        Map.entry("motivo_anulacion", "Error al cargar el pago"));
+        try (var document = Loader.loadPDF(SalesReceiptPdf.createServiceReceipt(receipt))) {
+            assertThat(document.getNumberOfPages()).isEqualTo(1);
+            var pageSize = document.getPage(0).getMediaBox();
+            assertThat(pageSize.getWidth()).isEqualTo(PDRectangle.A4.getWidth());
+            assertThat(pageSize.getHeight()).isEqualTo(PDRectangle.A4.getHeight());
+            var positions = new Positions();
+            assertThat(positions.getText(document))
+                    .contains(
+                            "RECIBO DE SERVICIO #42",
+                            "RECIBO ANULADO",
+                            "11/2026 a 12/2026",
+                            "Configuración por única vez",
+                            "2.300,00",
+                            "Error al cargar el pago");
+            assertThat(positions.maxY).isLessThan(PDRectangle.A4.getHeight() / 2);
+        }
+    }
+
+    @Test
     void manyLongRowsPaginateWithoutClippingOrOmittingItems() throws Exception {
         try (var document = Loader.loadPDF(SalesReceiptPdf.create(data(80, true)))) {
             assertThat(document.getNumberOfPages()).isGreaterThan(1);

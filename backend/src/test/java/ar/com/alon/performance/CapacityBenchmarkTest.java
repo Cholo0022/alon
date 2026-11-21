@@ -49,6 +49,7 @@ class CapacityBenchmarkTest {
     private final Map<String, Object> measurements = new LinkedHashMap<>();
     private JdbcTemplate jdbc;
     private HikariDataSource pool;
+    private long customerIdOffset;
 
     static class Identity extends RequestIdentity {
         private final long userId;
@@ -188,6 +189,7 @@ class CapacityBenchmarkTest {
     private void seed() throws Exception {
         long start = System.nanoTime();
         prepareBenchmarkStores(jdbc);
+        customerIdOffset = number("SELECT COALESCE(MAX(id), 0) FROM clientes");
         for (int id = 1; id <= 5; id++)
             jdbc.update(
                     "INSERT INTO usuarios(id,comercio_id,usuario,nombre,password_hash,rol,permisos) VALUES(?,1,?,?,'unused','DUENO','ventas')",
@@ -204,7 +206,7 @@ class CapacityBenchmarkTest {
                     id > 125 ? 100 : 0);
             jdbc.update(
                     "INSERT INTO clientes(id,comercio_id,codigo,nombre,telefono,email,limite_credito) VALUES(?,1,?,?,?,'',1000000)",
-                    id,
+                    customerIdOffset + id,
                     "C" + id,
                     "Cliente %04d".formatted(id),
                     "3446" + id);
@@ -224,6 +226,7 @@ class CapacityBenchmarkTest {
                             "INSERT INTO articulos(id,comercio_id,codigo,nombre,rubro_id,proveedor_principal_id,unidad,costo,precio_venta,stock,stock_minimo,tipo_producto,modelo,marca,talle,sistema_talle,color,material,publico,temporada,descripcion) VALUES(?,1,?,?,?,1,'UNIDAD',60,100,9900,5,?,?, 'Sin marca',?,'LETRAS','Unico','Sin especificar','UNISEX','TODO EL AÑO','Prueba')")) {
                 for (int id = 1; id <= ARTICLES; id++) {
                     boolean apparel = id > 9000;
+                    int productIndex = apparel ? (id - 9001) / 2 : id - 1;
                     String size = apparel && id % 2 == 0 ? "M" : "S";
                     articles.setInt(1, id);
                     articles.setString(2, "PERF%05d".formatted(id));
@@ -232,9 +235,9 @@ class CapacityBenchmarkTest {
                             apparel
                                     ? "Prenda %04d · %s · Unico".formatted((id - 9001) / 2, size)
                                     : "Producto %05d".formatted(id));
-                    articles.setInt(4, (id - 1) % 120 + 1);
+                    articles.setInt(4, productIndex % 120 + 1);
                     articles.setString(5, apparel ? "INDUMENTARIA" : "ARTICULO");
-                    articles.setString(6, apparel ? "Modelo " + (id - 9001) / 2 : "");
+                    articles.setString(6, apparel ? "Modelo " + productIndex : "");
                     articles.setString(7, apparel ? size : "");
                     articles.addBatch();
                     if (id % 1000 == 0) {
@@ -253,7 +256,7 @@ class CapacityBenchmarkTest {
                     sales.setString(2, "HIST-%06d".formatted(id));
                     sales.setDate(3, java.sql.Date.valueOf(day));
                     sales.setTimestamp(4, Timestamp.valueOf(day.atTime(12, 0)));
-                    sales.setInt(5, (id - 1) % 250 + 1);
+                    sales.setLong(5, customerIdOffset + (id - 1) % 250 + 1);
                     sales.addBatch();
                     if (id % 1000 == 0) {
                         sales.executeBatch();
@@ -477,7 +480,12 @@ class CapacityBenchmarkTest {
                                                         BigDecimal.ONE,
                                                         BigDecimal.ZERO));
                                     var input =
-                                            new SaleInput(1, TODAY, "CONTADO", "EFECTIVO", lines);
+                                            new SaleInput(
+                                                    customerIdOffset + 1,
+                                                    TODAY,
+                                                    "CONTADO",
+                                                    "EFECTIVO",
+                                                    lines);
                                     try {
                                         for (int i = 0; i < 3; i++)
                                             commitSale(

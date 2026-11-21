@@ -6,6 +6,7 @@ import { orderWhatsAppUrl } from '../lib/orderWhatsApp'
 import { apiFetch } from '../lib/http'
 
 vi.mock('../lib/http', () => ({ apiFetch: vi.fn() }))
+let quantity = 1
 let cashOpen = true
 let customerComment = 'Es cliente web nuevo'
 const fetchMock = vi.mocked(apiFetch)
@@ -30,18 +31,21 @@ it('offers the customer WhatsApp chat in a separate tab', async () => {
   expect(link.getAttribute('target')).toBe('_blank')
 })
 beforeEach(() => {
+  quantity = 1
   cashOpen = true
   customerComment = 'Es cliente web nuevo'
   fetchMock.mockReset()
-  fetchMock.mockImplementation(async (url) =>
-    Response.json(
-      url.startsWith('/api/v1/alon/store-orders/7')
+  fetchMock.mockImplementation(async (url, options) => {
+    const savingQuantity = url.endsWith('/quantity')
+    if (savingQuantity) quantity = JSON.parse(String(options?.body)).quantity
+    return Response.json(
+      savingQuantity || url.startsWith('/api/v1/alon/store-orders/7')
         ? {
             id: 7,
             nombre_cliente: 'Cliente de prueba',
             contacto: '1100000000',
             estado: 'PENDIENTE_CONFIRMACION',
-            total_estimado: 200,
+            total_estimado: quantity * 200,
             creado_en: '2026-10-29 10:00:00',
             medio_pago: null,
             venta_id: null,
@@ -51,7 +55,7 @@ beforeEach(() => {
               {
                 id: 1,
                 nombre_articulo: 'Artículo de prueba',
-                cantidad: 1,
+                cantidad: quantity,
                 precio_unitario: 200,
                 incluido: true,
                 stock: 5,
@@ -63,8 +67,8 @@ beforeEach(() => {
         : url.startsWith('/api/v1/operations/')
           ? { ok: true }
           : [{ id: 7, nombre_cliente: 'Cliente de prueba', estado: 'PENDIENTE_CONFIRMACION' }],
-    ),
-  )
+    )
+  })
 })
 
 it.each(['Es cliente web nuevo', 'Este cliente ya ha comprado en la web'])(
@@ -138,4 +142,21 @@ it('requires a payment choice and submits it with the approval', async () => {
       ),
     ).toBe(true),
   )
+})
+
+it('saves the edited quantity and shows the updated order total', async () => {
+  const user = userEvent.setup()
+  render(<StorePage />)
+  await user.click(await screen.findByRole('button', { name: 'Ver pedido' }))
+  await user.click(await screen.findByRole('button', { name: 'Modificar cantidad' }))
+  const input = screen.getByRole('spinbutton')
+  await user.clear(input)
+  await user.type(input, '3')
+  await user.click(screen.getByRole('button', { name: 'Guardar cantidad' }))
+  expect(await screen.findByText('3 UNIDAD')).toBeTruthy()
+  expect(fetchMock).toHaveBeenCalledWith(
+    '/api/v1/operations/store-orders/7/lines/1/quantity',
+    expect.objectContaining({ method: 'POST', body: JSON.stringify({ quantity: 3 }) }),
+  )
+  expect(screen.getByText(/Total:.*600/)).toBeTruthy()
 })

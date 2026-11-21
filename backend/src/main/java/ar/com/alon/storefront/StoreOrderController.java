@@ -87,6 +87,17 @@ public class StoreOrderController {
                 () -> service.approve(id, input.paymentMethod()));
     }
 
+    @PostMapping("/operations/store-orders/{id}/lines/{lineId}/quantity")
+    public Map<String, Object> updateQuantity(
+            @PathVariable long id, @PathVariable long lineId, @Valid @RequestBody Quantity input) {
+        return commands.execute(
+                "updateStoreLineQuantity",
+                List.of(id, lineId, input),
+                () -> service.updateQuantity(id, lineId, input.quantity()));
+    }
+
+    public record Quantity(@jakarta.validation.constraints.NotNull java.math.BigDecimal quantity) {}
+
     public record Approval(
             @jakarta.validation.constraints.NotBlank
                     @jakarta.validation.constraints.Pattern(

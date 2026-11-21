@@ -568,7 +568,8 @@ public class ArticleService extends StoreJdbcSupport {
                 current.get("proveedor_principal_id") instanceof Number supplier
                         ? supplier.longValue()
                         : null;
-        Long supplierId = input.supplierId() > 0 ? input.supplierId() : previousSupplier;
+        Long supplierId =
+                input.supplierId() > 0 ? Long.valueOf(input.supplierId()) : previousSupplier;
         if (input.supplierId() > 0)
             assertBelongs(
                     "proveedores",
@@ -649,7 +650,11 @@ public class ArticleService extends StoreJdbcSupport {
     private long categoryFor(ArticleInput input, Map<String, Object> current) {
         if (input.apparel() != null && current != null && input.categoryId() == 0)
             return ((Number) current.get("rubro_id")).longValue();
-        assertBelongs("rubros", input.categoryId());
+        boolean keepsCategory =
+                current != null
+                        && current.get("rubro_id") instanceof Number category
+                        && category.longValue() == input.categoryId();
+        assertBelongs("rubros", input.categoryId(), keepsCategory);
         return input.categoryId();
     }
 

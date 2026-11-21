@@ -28,14 +28,7 @@ public class CategoryService extends StoreJdbcSupport {
     @Transactional
     public Map<String, Object> createCategory(CategoryInput input) {
         String name = required(input.name(), "El nombre del rubro es obligatorio.");
-        Integer exists =
-                jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM rubros WHERE comercio_id=? AND LOWER(TRIM(nombre))=LOWER(TRIM(?))",
-                        Integer.class,
-                        identity.storeId(),
-                        name);
-        if (exists != null && exists > 0)
-            throw new IllegalArgumentException("Ya existe un rubro con ese nombre.");
+        ensureUniqueName(name, 0);
         String code = "RUB-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         long id =
                 insert(
@@ -44,5 +37,64 @@ public class CategoryService extends StoreJdbcSupport {
                         code,
                         name);
         return Map.of("id", id, "codigo", code, "nombre", name);
+    }
+
+    @Transactional
+    public Map<String, Object> updateCategory(long id, CategoryInput input) {
+        String name = required(input.name(), "El nombre del rubro es obligatorio.");
+        var before = lockCategory(id);
+        ensureUniqueName(name, id);
+        jdbc.update(
+                "UPDATE rubros SET nombre=? WHERE comercio_id=? AND id=?",
+                name,
+                identity.storeId(),
+                id);
+        Map<String, Object> after =
+                Map.of(
+                        "id",
+                        id,
+                        "codigo",
+                        before.get("codigo"),
+                        "nombre",
+                        name,
+                        "estado",
+                        before.get("estado"));
+        audit.record("rubro", id, "MODIFICACION", before, after);
+        return after;
+    }
+
+    @Transactional
+    public Map<String, Object> setActive(long id, boolean active) {
+        var before = lockCategory(id);
+        String state = active ? "ACTIVO" : "INACTIVO";
+        if (state.equals(before.get("estado"))) return before;
+        jdbc.update(
+                "UPDATE rubros SET estado=? WHERE comercio_id=? AND id=?",
+                state,
+                identity.storeId(),
+                id);
+        Map<String, Object> after = new java.util.LinkedHashMap<>(before);
+        after.put("estado", state);
+        audit.record("rubro", id, active ? "REACTIVACION" : "DESACTIVACION", before, after);
+        return after;
+    }
+
+    private Map<String, Object> lockCategory(long id) {
+        return jdbc.queryForMap(
+                "SELECT id,codigo,nombre,estado FROM rubros WHERE comercio_id=? AND id=? FOR UPDATE",
+                identity.storeId(),
+                id);
+    }
+
+    private void ensureUniqueName(String name, long excludedId) {
+        Integer exists =
+                jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM rubros WHERE comercio_id=? AND LOWER(TRIM(nombre))=LOWER(TRIM(?)) AND id<>?",
+                        Integer.class,
+                        identity.storeId(),
+                        name,
+                        excludedId);
+        if (exists != null && exists > 0)
+            throw new IllegalArgumentException("Ya existe un rubro con ese nombre.");
     }
 }

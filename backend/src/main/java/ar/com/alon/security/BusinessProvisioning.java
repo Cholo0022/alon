@@ -30,6 +30,10 @@ public class BusinessProvisioning {
     private final TotpSecurity crypto;
     private final boolean enabled;
     private final String url, adminUser, adminPassword, clientHost;
+
+    @Value("${alon.provisioning.public-domain:}")
+    private String publicDomain = "";
+
     private final Path jar, web, directory;
     private final Map<Long, Process> processes = new ConcurrentHashMap<>();
     private volatile HttpClient http;
@@ -82,7 +86,9 @@ public class BusinessProvisioning {
         if (!enabled)
             throw error(
                     HttpStatus.CONFLICT,
-                    "El alta automática no está habilitada en este servidor. Iniciá Alon con el iniciador actualizado.");
+                    "El alta automática está deshabilitada en esta instalación. Si usás el VPS,"
+                            + " el servidor todavía debe configurarse para crear comercios."
+                            + " En una instalación local, iniciá Alon con el iniciador actualizado.");
     }
 
     private void authorizeSuper() {
@@ -590,11 +596,13 @@ public class BusinessProvisioning {
                 "managementUrl",
                 BusinessLinks.management(
                         ((Number) row.get("negocio_id")).longValue(),
-                        businessSlug(((Number) row.get("negocio_id")).longValue())),
+                        businessSlug(((Number) row.get("negocio_id")).longValue()),
+                        publicDomain),
                 "shopUrl",
                 BusinessLinks.shop(
                         ((Number) row.get("negocio_id")).longValue(),
-                        businessSlug(((Number) row.get("negocio_id")).longValue())));
+                        businessSlug(((Number) row.get("negocio_id")).longValue()),
+                        publicDomain));
     }
 
     public Map<String, Object> start(long id) {
@@ -893,7 +901,7 @@ public class BusinessProvisioning {
         env.put("SPRING_DATASOURCE_USERNAME", identifier(row.get("db_usuario")));
         env.put("SPRING_DATASOURCE_PASSWORD", crypto.decrypt((String) row.get("db_clave_cifrada")));
         env.put("PORT", Integer.toString(port));
-        env.put("SERVER_ADDRESS", "127.0.0.1");
+        env.put("SERVER_ADDRESS", publicDomain.isBlank() ? "127.0.0.1" : "0.0.0.0");
         env.put("SERVER_SERVLET_SESSION_COOKIE_NAME", "ALON_SESSION_" + id);
         env.put("SESSION_COOKIE_SECURE", "false");
         env.put("ALON_PROVISIONING_ENABLED", "false");
@@ -1134,8 +1142,8 @@ public class BusinessProvisioning {
                 id);
         central.update(
                 "UPDATE plataforma_negocios SET gestion_url=?,tienda_url=?,base_referencia=?,url_slug=? WHERE id=?",
-                BusinessLinks.management(id, slug),
-                BusinessLinks.shop(id, slug),
+                BusinessLinks.management(id, slug, publicDomain),
+                BusinessLinks.shop(id, slug, publicDomain),
                 row.get("esquema"),
                 slug,
                 id);

@@ -39,7 +39,8 @@ class PlatformBusinessesTest {
                         "",
                         "",
                         null,
-                        "");
+                        "",
+                        null);
         var result = new PlatformBusinesses(jdbc, identity).create(input);
         assertThat(result)
                 .containsEntry("managementUrl", "http://127.0.0.1:20007/las-tres-l")
@@ -67,7 +68,7 @@ class PlatformBusinessesTest {
         assertThatThrownBy(controller::report).isInstanceOf(ResponseStatusException.class);
         assertThatThrownBy(() -> controller.create(null))
                 .isInstanceOf(ResponseStatusException.class);
-        assertThatThrownBy(() -> controller.update(1, null))
+        assertThatThrownBy(() -> controller.update(1, null, null))
                 .isInstanceOf(ResponseStatusException.class);
         assertThatThrownBy(() -> controller.movement(1, null))
                 .isInstanceOf(ResponseStatusException.class);

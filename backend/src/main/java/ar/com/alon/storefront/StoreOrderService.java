@@ -4,6 +4,7 @@ package ar.com.alon.storefront;
 import ar.com.alon.security.RequestIdentity;
 import ar.com.alon.shared.audit.AuditLog;
 import ar.com.alon.shared.persistence.StoreJdbcSupport;
+import ar.com.alon.shared.validation.DecimalRules;
 import ar.com.alon.storefront.dto.StoreOrderInput;
 import java.math.*;
 import java.sql.*;
@@ -67,7 +68,7 @@ public class StoreOrderService extends StoreJdbcSupport {
                         id);
         var lines =
                 jdbc.queryForList(
-                        "SELECT d.id,d.articulo_id,d.nombre_articulo,d.unidad,d.cantidad,d.precio_unitario,d.incluido,a.stock,a.estado AS estado_articulo FROM pedido_tienda_detalle d JOIN articulos a ON a.id=d.articulo_id AND a.comercio_id=d.comercio_id WHERE d.comercio_id=? AND d.pedido_id=? ORDER BY d.articulo_id",
+                        "SELECT d.id,d.articulo_id,d.nombre_articulo,d.unidad,d.cantidad,d.precio_unitario,d.incluido,a.stock,a.tipo_producto,a.estado AS estado_articulo FROM pedido_tienda_detalle d JOIN articulos a ON a.id=d.articulo_id AND a.comercio_id=d.comercio_id WHERE d.comercio_id=? AND d.pedido_id=? ORDER BY d.articulo_id",
                         identity.storeId(),
                         id);
         order.put("lines", lines);
@@ -102,6 +103,40 @@ public class StoreOrderService extends StoreJdbcSupport {
         recalculate(id);
         audit.record("pedido_tienda", id, "QUITAR_ARTICULO", before, detail(id));
         return Map.of("id", id, "ok", true);
+    }
+
+    @Transactional
+    public Map<String, Object> updateQuantity(long id, long lineId, BigDecimal quantity) {
+        identity.require("tienda");
+        lockPending(id);
+        var before = detail(id);
+        var line =
+                jdbc.queryForMap(
+                        "SELECT a.tipo_producto,d.cantidad FROM pedido_tienda_detalle d "
+                                + "JOIN articulos a ON a.id=d.articulo_id AND a.comercio_id=d.comercio_id "
+                                + "WHERE d.comercio_id=? AND d.pedido_id=? AND d.id=? AND d.incluido=TRUE",
+                        identity.storeId(),
+                        id,
+                        lineId);
+        BigDecimal normalized =
+                DecimalRules.quantity(
+                        quantity,
+                        true,
+                        "Ingresá una cantidad mayor que cero dentro del límite permitido.");
+        if (java.util.Set.of("INDUMENTARIA", "CALZADO").contains(line.get("tipo_producto"))
+                && normalized.stripTrailingZeros().scale() > 0)
+            throw new IllegalArgumentException("Ingresá una cantidad entera de prendas o pares.");
+        if (normalized.compareTo((BigDecimal) line.get("cantidad")) == 0) return before;
+        jdbc.update(
+                "UPDATE pedido_tienda_detalle SET cantidad=? WHERE comercio_id=? AND pedido_id=? AND id=?",
+                normalized,
+                identity.storeId(),
+                id,
+                lineId);
+        recalculate(id);
+        var after = detail(id);
+        audit.record("pedido_tienda", id, "MODIFICAR_CANTIDAD", before, after);
+        return after;
     }
 
     /**

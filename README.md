@@ -154,3 +154,46 @@ En Artículos → Cargar artículo, Tipo de producto permite elegir Artículo co
 La validación de altas y modificaciones marca en rojo todos los campos inválidos y lleva al primero, abriendo los detalles plegados si hace falta. Los errores de formato del servidor conservan la ruta del campo (incluido el renglón del talle). La carga por talles envía explícitamente las opciones de flete requeridas para evitar rechazar formularios completos.
 
 El Enter del lector en los formularios de artículos y talles avanza la carga sin guardarla. En Modificar artículo, Agregar talles a esta prenda permite crear nuevas combinaciones de talle y color con stock inicial independiente. Los datos, precio y fotos se toman del modelo guardado; se conservan los stocks anteriores y se rechazan las combinaciones repetidas. Los cambios del formulario de modificación que aún no se hayan guardado permanecen abiertos.
+## Prueba de Alon en Hostinger
+
+`compose.hostinger.yaml` ejecuta React, Spring Boot y MySQL en una instalación
+independiente para pruebas. La interfaz escucha en el puerto 8080 local del VPS y
+se abre desde tu PC mediante un túnel SSH. La base comienza vacía y los datos se
+guardan en volúmenes de Docker.
+
+Desde PowerShell, en la carpeta del proyecto, armá el paquete y subilo al VPS.
+El paquete se arma con el código del directorio de trabajo, incluidos los cambios
+locales. Se excluyen las configuraciones con credenciales y los datos locales.
+
+```powershell
+tar -czf "$env:TEMP/alon-hostinger.tar.gz" compose.hostinger.yaml backend/Dockerfile backend/.dockerignore backend/pom.xml backend/src frontend/Dockerfile frontend/.dockerignore frontend/nginx.hostinger.conf frontend/package.json frontend/package-lock.json frontend/index.html frontend/tsconfig.json frontend/tsconfig.app.json frontend/tsconfig.node.json frontend/vite.config.ts frontend/public frontend/src
+scp "$env:TEMP/alon-hostinger.tar.gz" root@179.66.153.179:/root/
+```
+
+En la terminal del VPS, creá las contraseñas de MySQL una sola vez, levantá los
+servicios y comprobá la API. Conservá el archivo `.env` para los despliegues
+posteriores de esta misma base.
+
+```bash
+mkdir -p /opt/alon-prueba
+cd /opt/alon-prueba
+tar -xzf /root/alon-hostinger.tar.gz
+if [ ! -f .env ]; then
+  (umask 077; printf 'MYSQL_PASSWORD=%s\nMYSQL_ROOT_PASSWORD=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > .env)
+fi
+docker compose -f compose.hostinger.yaml up -d --build
+docker compose -f compose.hostinger.yaml ps
+curl --fail --retry 20 --retry-all-errors --retry-delay 3 http://127.0.0.1:8080/api/v1/health
+```
+
+Abrí otra ventana de PowerShell y dejá este túnel conectado mientras usás Alon.
+Después entrá a `http://127.0.0.1:18080` y creá el superusuario inicial `alon`
+con una contraseña propia. Para esta prueba usá datos ficticios.
+
+```powershell
+ssh -N -o ExitOnForwardFailure=yes -L 18080:127.0.0.1:8080 root@179.66.153.179
+```
+
+La publicación para el cliente requiere configurar HTTPS y habilitar las cookies
+seguras. El alta automática de instancias de comercios y el respaldo desde el
+panel quedan pendientes de adaptación para este entorno.

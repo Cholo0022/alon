@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/http'
 import { LookupField } from '../components/LookupField'
 import { GarmentEditor } from '../components/GarmentEditor'
 import { AddApparelSizesDialog } from '../components/AddApparelSizesDialog'
@@ -414,22 +415,99 @@ export function ArticleList({
 
 /** Presenta el alta y el listado de rubros usados para organizar los artículos. */
 export function CategoriesPage() {
+  const [editing, setEditing] = useState<ApiRow | null>(null)
+  const categoryEditor = useRef<HTMLDivElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function changeCategoryStatus(row: ApiRow) {
+    const activate = row.estado === 'INACTIVO'
+    setBusy(true)
+    setError('')
+    try {
+      const response = await apiFetch(
+        '/api/v1/operations/categories/' + row.id + (activate ? '/activate' : '/deactivate'),
+        { method: 'POST' },
+      )
+      if (!response.ok) {
+        const body = await response.json()
+        throw new Error(body.error ?? 'No se pudo cambiar el estado del rubro.')
+      }
+      window.dispatchEvent(new Event('alon:refresh'))
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'No se pudo cambiar el estado del rubro.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  useLayoutEffect(() => {
+    if (editing) categoryEditor.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' })
+  }, [editing])
   return (
     <>
-      <LocalEntryPanel
-        title="Nuevo rubro"
-        action="Crear rubro"
-        endpoint="/api/v1/operations/categories"
-        fields={[{ name: 'name', label: 'Nombre del rubro' }]}
-      />
+      <div ref={categoryEditor}>
+        <LocalEntryPanel
+          key={editing ? 'edit-category-' + editing.id : 'new-category'}
+          title={editing ? 'Modificar rubro' : 'Nuevo rubro'}
+          action={editing ? 'Guardar cambios' : 'Crear rubro'}
+          endpoint={'/api/v1/operations/categories' + (editing ? '/' + editing.id : '')}
+          method={editing ? 'PUT' : 'POST'}
+          initialOpen={Boolean(editing)}
+          onSaved={() => setEditing(null)}
+          fields={[
+            {
+              name: 'name',
+              label: 'Nombre del rubro',
+              defaultValue: textValue(editing?.nombre ?? ''),
+            },
+          ]}
+          headerContent={
+            editing && (
+              <button type="button" className="secondary-button" onClick={() => setEditing(null)}>
+                Cancelar modificación
+              </button>
+            )
+          }
+        />
+      </div>
+      {error && (
+        <p role="alert" className="entry-message">
+          {error}
+        </p>
+      )}
       <ApiTable
-        title="Rubros disponibles para artículos"
-        endpoint="/api/v1/alon/categories"
+        title="Rubros"
+        endpoint="/api/v1/alon/categories?includeInactive=true"
         columns={[
           { key: 'codigo', label: 'CÓDIGO' },
           { key: 'nombre', label: 'RUBRO' },
+          {
+            key: 'estado',
+            label: 'ESTADO',
+            render: (row) => (row.estado === 'INACTIVO' ? 'Inactivo' : 'Activo'),
+          },
+          {
+            key: 'actions',
+            label: 'ACCIONES',
+            render: (row) => (
+              <div className="row-actions">
+                <button type="button" className="secondary-button" onClick={() => setEditing(row)}>
+                  Modificar
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() => void changeCategoryStatus(row)}
+                >
+                  {row.estado === 'INACTIVO' ? 'Reactivar' : 'Desactivar'}
+                </button>
+              </div>
+            ),
+          },
         ]}
-        note="Los rubros activos aparecen al crear o modificar un artículo."
+        note="Los rubros inactivos conservan sus artículos y dejan de estar disponibles para nuevas asignaciones."
       />
     </>
   )
