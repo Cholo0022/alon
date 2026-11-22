@@ -307,6 +307,7 @@ public class ShopService {
                             "SELECT id,tipo_producto,nombre,unidad,stock,precio_venta,cargar_web FROM articulos WHERE comercio_id=? AND id=? AND estado='ACTIVO' FOR UPDATE",
                             store,
                             line.articleId());
+            DecimalRules.requireWholeUnits(a.get("unidad"), line.quantity());
             if (!"ARTICULO".equals(a.get("tipo_producto"))
                     && line.quantity().stripTrailingZeros().scale() > 0)
                 throw new IllegalArgumentException(

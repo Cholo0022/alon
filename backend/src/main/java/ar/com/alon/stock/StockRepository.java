@@ -32,7 +32,7 @@ public class StockRepository {
      */
     public Map<String, Object> lockArticle(long id) {
         return jdbc.queryForMap(
-                "SELECT id,nombre,stock,costo,flete_unitario,flete_porcentaje,margen_porcentaje,redondeo_precio,precio_venta FROM articulos WHERE id=? AND comercio_id=? AND estado='ACTIVO' FOR UPDATE",
+                "SELECT id,nombre,unidad,stock,costo,flete_unitario,flete_porcentaje,margen_porcentaje,redondeo_precio,precio_venta FROM articulos WHERE id=? AND comercio_id=? AND estado='ACTIVO' FOR UPDATE",
                 id,
                 identity.storeId());
     }

@@ -204,6 +204,7 @@ class MySqlIntegrationTest {
                 .containsExactlyInAnyOrder(2L, 3L);
         assertThat(queries.variants(5)).isEmpty();
         assertThat(queries.variants(1)).isEmpty();
+        jdbc.update("UPDATE articulos SET unidad='KILO' WHERE id=1");
         long id =
                 buy(
                         new PurchaseInput(
@@ -1249,6 +1250,20 @@ class MySqlIntegrationTest {
                         "SELECT id FROM pedido_tienda_detalle WHERE pedido_id=? AND articulo_id=2",
                         Long.class,
                         id);
+        assertThatThrownBy(
+                        () ->
+                                transaction.execute(
+                                        s -> storeOrders().updateQuantity(id, line, d("1.5"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("entera");
+        transaction.execute(s -> storeOrders().updateQuantity(id, line, d("1")));
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT cantidad FROM pedido_tienda_detalle WHERE id=?",
+                                BigDecimal.class,
+                                line))
+                .isEqualByComparingTo("1");
+        assertThat(storeOrders().detail(id)).containsEntry("total_estimado", d("500.00"));
         transaction.execute(s -> storeOrders().exclude(id, line));
         transaction.execute(s -> storeOrders().approve(id, "EFECTIVO"));
         assertThat(stock()).isEqualByComparingTo("8");
@@ -1832,11 +1847,21 @@ class MySqlIntegrationTest {
                         LocalDate.now(clock),
                         "CONTADO",
                         "EFECTIVO",
-                        List.of(new SaleLine(1, d("2"), d("0"))));
+                        List.of(
+                                new SaleLine(1, d("2"), d("0")),
+                                new SaleLine(
+                                        null, d("2"), d("0"), "Collar de perlas", d("1250.50")),
+                                new SaleLine(null, d("1"), d("0"), "Pulsera", d("500"))));
         long id =
                 transaction.execute(
                         status -> ((Number) sales.createSale(input).get("id")).longValue());
         assertThat(stock()).isEqualByComparingTo("8");
+        assertThat(
+                        jdbc.queryForList(
+                                "SELECT descripcion_generica FROM venta_detalle WHERE venta_id=? AND articulo_id IS NULL ORDER BY renglon",
+                                String.class,
+                                id))
+                .containsExactly("Collar de perlas", "Pulsera");
         assertThatThrownBy(
                         () ->
                                 transaction.execute(
@@ -2606,7 +2631,7 @@ class MySqlIntegrationTest {
                         "Artículo",
                         1,
                         1,
-                        "UNIDAD",
+                        "KILO",
                         d("100"),
                         d("0"),
                         d("0"),

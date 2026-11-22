@@ -7,6 +7,7 @@ import ar.com.alon.sales.dto.SaleLine;
 import ar.com.alon.security.RequestIdentity;
 import ar.com.alon.shared.audit.AuditLog;
 import ar.com.alon.shared.persistence.StoreJdbcSupport;
+import ar.com.alon.shared.validation.DecimalRules;
 import ar.com.alon.shared.web.BusinessConflict;
 import ar.com.alon.stock.StockRepository;
 import java.math.*;
@@ -59,7 +60,11 @@ public class SalesService extends StoreJdbcSupport {
             SaleInput input, long orderId, Map<Long, BigDecimal> prices) {
         identity.require("tienda");
         if (orderId <= 0
-                || input.lines().stream().anyMatch(line -> !prices.containsKey(line.articleId())))
+                || input.lines().stream()
+                        .anyMatch(
+                                line ->
+                                        line.articleId() == null
+                                                || !prices.containsKey(line.articleId())))
             throw new IllegalArgumentException("El detalle del pedido web no es válido.");
         return createSale(input, orderId, prices);
     }
@@ -94,7 +99,8 @@ public class SalesService extends StoreJdbcSupport {
                 total = BigDecimal.ZERO,
                 costTotal = BigDecimal.ZERO;
         record PricedLine(
-                long articleId,
+                Long articleId,
+                String description,
                 BigDecimal quantity,
                 BigDecimal price,
                 BigDecimal cost,
@@ -104,30 +110,50 @@ public class SalesService extends StoreJdbcSupport {
         java.util.Map<Long, BigDecimal> reservedStock = new java.util.HashMap<>();
         input.lines().stream()
                 .map(SaleLine::articleId)
+                .filter(java.util.Objects::nonNull)
                 .distinct()
                 .sorted()
                 .forEach(this.stock::lockArticle);
         for (SaleLine line : input.lines()) {
             BigDecimal quantity =
                     positiveQuantity(line.quantity(), "La cantidad vendida debe ser mayor a cero.");
-            Map<String, Object> article = this.stock.lockArticle(line.articleId());
-            BigDecimal stock = new BigDecimal(article.get("stock").toString());
-            BigDecimal reserved =
-                    reservedStock.getOrDefault(line.articleId(), BigDecimal.ZERO).add(quantity);
-            if (stock.compareTo(reserved) < 0)
-                throw new BusinessConflict(
-                        "Stock insuficiente para "
-                                + article.get("nombre")
-                                + ". Disponible: "
-                                + stock.toPlainString());
-            reservedStock.put(line.articleId(), reserved);
-            BigDecimal price =
-                    orderId == null
-                            ? new BigDecimal(article.get("precio_venta").toString())
-                            : nonNegative(
-                                    prices.get(line.articleId()),
-                                    "El precio del pedido no es válido.");
-            BigDecimal cost = new BigDecimal(article.get("costo").toString());
+            String description = null;
+            BigDecimal price;
+            BigDecimal cost = BigDecimal.ZERO;
+            if (line.articleId() == null) {
+                description =
+                        required(
+                                line.description(),
+                                "Ingresá la descripción del artículo genérico.");
+                if (description.length() > 180)
+                    throw new IllegalArgumentException(
+                            "La descripción admite hasta 180 caracteres.");
+                DecimalRules.requireWholeUnits("UNIDAD", quantity);
+                price =
+                        positive(
+                                line.unitPrice(),
+                                "Ingresá un precio mayor a cero para el artículo genérico.");
+            } else {
+                Map<String, Object> article = this.stock.lockArticle(line.articleId());
+                DecimalRules.requireWholeUnits(article.get("unidad"), quantity);
+                BigDecimal stock = new BigDecimal(article.get("stock").toString());
+                BigDecimal reserved =
+                        reservedStock.getOrDefault(line.articleId(), BigDecimal.ZERO).add(quantity);
+                if (stock.compareTo(reserved) < 0)
+                    throw new BusinessConflict(
+                            "Stock insuficiente para "
+                                    + article.get("nombre")
+                                    + ". Disponible: "
+                                    + stock.toPlainString());
+                reservedStock.put(line.articleId(), reserved);
+                price =
+                        orderId == null
+                                ? new BigDecimal(article.get("precio_venta").toString())
+                                : nonNegative(
+                                        prices.get(line.articleId()),
+                                        "El precio del pedido no es válido.");
+                cost = new BigDecimal(article.get("costo").toString());
+            }
             BigDecimal percent =
                     nonNegative(
                             line.discountPercent() == null
@@ -145,7 +171,15 @@ public class SalesService extends StoreJdbcSupport {
             discount = discount.add(lineDiscount);
             total = total.add(lineTotal);
             costTotal = costTotal.add(quantity.multiply(cost));
-            lines.add(new PricedLine(line.articleId(), quantity, price, cost, percent, lineTotal));
+            lines.add(
+                    new PricedLine(
+                            line.articleId(),
+                            description,
+                            quantity,
+                            price,
+                            cost,
+                            percent,
+                            lineTotal));
         }
         subtotal = subtotal.setScale(2, RoundingMode.HALF_UP);
         discount = discount.setScale(2, RoundingMode.HALF_UP);
@@ -189,15 +223,17 @@ public class SalesService extends StoreJdbcSupport {
         int row = 1;
         for (PricedLine line : lines) {
             jdbc.update(
-                    "INSERT INTO venta_detalle (venta_id,renglon,articulo_id,cantidad,precio_unitario,costo_unitario,descuento_pct,total_linea) VALUES (?,?,?,?,?,?,?,?)",
+                    "INSERT INTO venta_detalle (venta_id,renglon,articulo_id,descripcion_generica,cantidad,precio_unitario,costo_unitario,descuento_pct,total_linea) VALUES (?,?,?,?,?,?,?,?,?)",
                     saleId,
                     row++,
                     line.articleId(),
+                    line.description(),
                     line.quantity(),
                     line.price(),
                     line.cost(),
                     line.discountPercent(),
                     line.lineTotal());
+            if (line.articleId() == null) continue;
             jdbc.update(
                     "UPDATE articulos SET stock=stock-? WHERE id=? AND comercio_id=?",
                     line.quantity(),
@@ -298,6 +334,7 @@ public class SalesService extends StoreJdbcSupport {
             throw new BusinessConflict("La venta no tiene artículos para devolver al stock.");
         LocalDate reversalDate = LocalDate.now(clock);
         for (Map<String, Object> line : lines) {
+            if (line.get("articulo_id") == null) continue;
             long articleId = ((Number) line.get("articulo_id")).longValue();
             BigDecimal quantity = new BigDecimal(line.get("cantidad").toString());
             Map<String, Object> article =

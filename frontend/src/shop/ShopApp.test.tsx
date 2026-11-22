@@ -197,6 +197,17 @@ it('uses the business identity and refreshes it when a saved brand is announced'
 })
 
 it('asks for quantity before adding, accumulates decimal amounts and respects remaining stock', async () => {
+  const implementation = request.getMockImplementation()!
+  request.mockImplementation(async (path, options) =>
+    path.startsWith('/catalog')
+      ? {
+          items: [{ ...product, unidad: 'KILO' }],
+          total: 1,
+          categories: [],
+          store: { nombre: 'Comercio' },
+        }
+      : implementation(path, options),
+  )
   const user = userEvent.setup()
   render(<ShopApp />)
   const add = await screen.findByRole(
@@ -249,7 +260,7 @@ it('cancels the quantity dialog without changing the cart', async () => {
 })
 
 it('rounds fractional stock remaining before proposing the quantity', async () => {
-  const fractional = { ...product, stock: 0.3 }
+  const fractional = { ...product, unidad: 'KILO', stock: 0.3 }
   localStorage.setItem('alon-shop-cart', JSON.stringify([{ ...fractional, quantity: 0.1 }]))
   const implementation = request.getMockImplementation()!
   request.mockImplementation(async (path, options) =>

@@ -63,10 +63,15 @@ export function SalesPage({
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [generic, setGeneric] = useState<{
+    description: string
+    quantity: string
+    price: string
+  } | null>(null)
   const [cancelingSaleId, setCancelingSaleId] = useState<number | null>(null)
   const [lines, setLines] = useState<
     {
-      articleId: number
+      articleId: number | null
       label: string
       quantity: number
       unitPrice: number
@@ -76,6 +81,36 @@ export function SalesPage({
   const [searchVersion, setSearchVersion] = useState(0)
   const [quantity, setQuantity] = useState('1')
   const [discountPercent, setDiscountPercent] = useState('0')
+  const addGeneric = () => {
+    if (!generic || busy) return
+    const description = generic.description.trim()
+    const count = Number(generic.quantity)
+    const priceText = generic.price.trim().replace(',', '.')
+    const price = Number(priceText)
+    if (
+      !description ||
+      !Number.isSafeInteger(count) ||
+      count < 1 ||
+      count > 999999999999 ||
+      !/^\d{1,13}(?:\.\d{1,2})?$/.test(priceText) ||
+      price <= 0
+    ) {
+      setMessage('Ingresá una descripción, una cantidad entera y un precio unitario válido.')
+      return
+    }
+    setLines((current) => [
+      ...current,
+      {
+        articleId: null,
+        label: description,
+        quantity: count,
+        unitPrice: price,
+        discountPercent: 0,
+      },
+    ])
+    setGeneric({ description: '', quantity: '1', price: '' })
+    setMessage('')
+  }
   const saleFormRef = useRef<HTMLFormElement>(null)
   useTransactionEntry(saleFormRef, open, searchVersion)
   useEffect(() => {
@@ -181,10 +216,11 @@ export function SalesPage({
           date,
           saleType: selection.condition,
           paymentMethod: selection.paymentMethod,
-          lines: lines.map(({ articleId, quantity, discountPercent }) => ({
+          lines: lines.map(({ articleId, label, quantity, unitPrice, discountPercent }) => ({
             articleId,
             quantity,
             discountPercent,
+            ...(articleId === null ? { description: label, unitPrice } : {}),
           })),
         }),
       })
@@ -205,6 +241,7 @@ export function SalesPage({
       window.dispatchEvent(new Event('alon:refresh'))
       setMessage('Venta guardada correctamente con ' + lines.length + ' artículos.')
       setLines([])
+      setGeneric(null)
       setSearchVersion((current) => current + 1)
       formElement.reset()
       setOpen(false)
@@ -435,6 +472,52 @@ export function SalesPage({
                 Ingresar
               </button>
             </div>
+            <div>
+              <button
+                type="button"
+                className="secondary-button"
+                aria-expanded={generic !== null}
+                onClick={() =>
+                  setGeneric(generic ? null : { description: '', quantity: '1', price: '' })
+                }
+              >
+                Genérico
+              </button>
+            </div>
+            {generic && (
+              <div className="transaction-article-entry">
+                <label>
+                  Descripción del genérico
+                  <input
+                    type="text"
+                    maxLength={180}
+                    value={generic.description}
+                    onChange={(event) =>
+                      setGeneric({ ...generic, description: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Cantidad del genérico
+                  <input
+                    inputMode="numeric"
+                    value={generic.quantity}
+                    onChange={(event) => setGeneric({ ...generic, quantity: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Precio unitario del genérico
+                  <input
+                    inputMode="decimal"
+                    value={generic.price}
+                    onChange={(event) => setGeneric({ ...generic, price: event.target.value })}
+                  />
+                </label>
+                <button type="button" className="primary-button" onClick={addGeneric}>
+                  Agregar genérico
+                </button>
+              </div>
+            )}
             {lines.length > 0 && (
               <div className="purchase-lines">
                 <strong>Artículos de esta venta · {lines.length}</strong>

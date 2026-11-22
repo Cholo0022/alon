@@ -9,6 +9,7 @@ import ar.com.alon.purchases.dto.PurchaseLineInput;
 import ar.com.alon.security.RequestIdentity;
 import ar.com.alon.shared.audit.AuditLog;
 import ar.com.alon.shared.persistence.StoreJdbcSupport;
+import ar.com.alon.shared.validation.DecimalRules;
 import ar.com.alon.stock.StockRepository;
 import java.math.*;
 import java.sql.*;
@@ -119,6 +120,7 @@ public class PurchaseService extends StoreJdbcSupport {
             BigDecimal cost =
                     nonNegative(line.unitCost(), "El costo unitario no puede ser negativo.");
             Map<String, Object> article = this.stock.lockArticle(line.articleId());
+            DecimalRules.requireWholeUnits(article.get("unidad"), quantity);
             BigDecimal lineTotal = quantity.multiply(cost).setScale(2, RoundingMode.HALF_UP);
             subtotal = subtotal.add(lineTotal);
             totalQuantity = totalQuantity.add(quantity);
@@ -331,7 +333,8 @@ public class PurchaseService extends StoreJdbcSupport {
                             line.quantity(), "La cantidad comprada debe ser mayor a cero.");
             BigDecimal cost =
                     nonNegative(line.unitCost(), "El costo unitario no puede ser negativo.");
-            this.stock.lockArticle(line.articleId());
+            var article = this.stock.lockArticle(line.articleId());
+            DecimalRules.requireWholeUnits(article.get("unidad"), qty);
             BigDecimal lineTotal = qty.multiply(cost).setScale(2, RoundingMode.HALF_UP);
             subtotal = subtotal.add(lineTotal);
             BigDecimal[] previous = newLines.get(line.articleId());

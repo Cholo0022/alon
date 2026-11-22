@@ -68,7 +68,7 @@ public class StoreOrderService extends StoreJdbcSupport {
                         id);
         var lines =
                 jdbc.queryForList(
-                        "SELECT d.id,d.articulo_id,d.nombre_articulo,d.unidad,d.cantidad,d.precio_unitario,d.incluido,a.stock,a.tipo_producto,a.estado AS estado_articulo FROM pedido_tienda_detalle d JOIN articulos a ON a.id=d.articulo_id AND a.comercio_id=d.comercio_id WHERE d.comercio_id=? AND d.pedido_id=? ORDER BY d.articulo_id",
+                        "SELECT d.id,d.articulo_id,d.nombre_articulo,d.unidad,d.cantidad,d.precio_unitario,d.incluido,a.stock,a.unidad AS unidad_actual,a.tipo_producto,a.estado AS estado_articulo FROM pedido_tienda_detalle d JOIN articulos a ON a.id=d.articulo_id AND a.comercio_id=d.comercio_id WHERE d.comercio_id=? AND d.pedido_id=? ORDER BY d.articulo_id",
                         identity.storeId(),
                         id);
         order.put("lines", lines);
@@ -112,7 +112,7 @@ public class StoreOrderService extends StoreJdbcSupport {
         var before = detail(id);
         var line =
                 jdbc.queryForMap(
-                        "SELECT a.tipo_producto,d.cantidad FROM pedido_tienda_detalle d "
+                        "SELECT a.tipo_producto,a.unidad,d.cantidad FROM pedido_tienda_detalle d "
                                 + "JOIN articulos a ON a.id=d.articulo_id AND a.comercio_id=d.comercio_id "
                                 + "WHERE d.comercio_id=? AND d.pedido_id=? AND d.id=? AND d.incluido=TRUE",
                         identity.storeId(),
@@ -123,6 +123,7 @@ public class StoreOrderService extends StoreJdbcSupport {
                         quantity,
                         true,
                         "Ingresá una cantidad mayor que cero dentro del límite permitido.");
+        DecimalRules.requireWholeUnits(line.get("unidad"), normalized);
         if (java.util.Set.of("INDUMENTARIA", "CALZADO").contains(line.get("tipo_producto"))
                 && normalized.stripTrailingZeros().scale() > 0)
             throw new IllegalArgumentException("Ingresá una cantidad entera de prendas o pares.");

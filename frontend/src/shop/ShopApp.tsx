@@ -555,6 +555,8 @@ export default function ShopApp() {
                             Number.isFinite(n) &&
                             n > 0 &&
                             n <= 999999999 &&
+                            (String(p.unidad).trim().toUpperCase() !== 'UNIDAD' ||
+                              Number.isInteger(n)) &&
                             Math.abs(Math.round(n * 1000) - n * 1000) < 0.000001
                           )
                             setCart((v) =>

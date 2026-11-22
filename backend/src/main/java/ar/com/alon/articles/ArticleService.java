@@ -54,9 +54,15 @@ public class ArticleService extends StoreJdbcSupport {
             throw new IllegalArgumentException(
                     "Ya existe un artículo con ese nombre. Buscalo en el listado de artículos.");
         long categoryId = categoryFor(input, null);
+        String unit = value(input.unit()).isBlank() ? "UNIDAD" : input.unit().trim();
         BigDecimal stock =
                 DecimalRules.quantity(
                         input.initialStock(), false, "El stock inicial no puede ser negativo.");
+        BigDecimal minimumStock =
+                DecimalRules.quantity(
+                        input.minimumStock(), false, "El stock mínimo no puede ser negativo.");
+        DecimalRules.requireWholeUnits(unit, stock);
+        DecimalRules.requireWholeUnits(unit, minimumStock);
         BigDecimal cost = nonNegative(input.cost(), "El costo no puede ser negativo.");
         BigDecimal freight = BigDecimal.ZERO;
         BigDecimal freightPercent =
@@ -81,7 +87,7 @@ public class ArticleService extends StoreJdbcSupport {
                         name,
                         categoryId,
                         null,
-                        value(input.unit()).isBlank() ? "UNIDAD" : input.unit().trim(),
+                        unit,
                         cost,
                         freight,
                         freightPercent,
@@ -90,10 +96,7 @@ public class ArticleService extends StoreJdbcSupport {
                         input.publishOnWeb(),
                         salePrice,
                         stock,
-                        DecimalRules.quantity(
-                                input.minimumStock(),
-                                false,
-                                "El stock mínimo no puede ser negativo."));
+                        minimumStock);
         saveApparel(id, input);
         if (stock.signum() > 0)
             this.stock.addStockMovement(
@@ -600,13 +603,19 @@ public class ArticleService extends StoreJdbcSupport {
             throw new IllegalArgumentException("La cantidad no puede ser negativa.");
         BigDecimal newStock =
                 DecimalRules.quantity(requestedStock, false, "La cantidad no puede ser negativa.");
+        String unit = value(input.unit()).isBlank() ? "UNIDAD" : input.unit().trim();
+        BigDecimal minimumStock =
+                DecimalRules.quantity(
+                        input.minimumStock(), false, "El stock mínimo no puede ser negativo.");
+        DecimalRules.requireWholeUnits(unit, newStock);
+        DecimalRules.requireWholeUnits(unit, minimumStock);
         jdbc.update(
                 "UPDATE articulos SET codigo=?,nombre=?,rubro_id=?,proveedor_principal_id=?,unidad=?,costo=?,flete_unitario=?,flete_porcentaje=?,margen_porcentaje=?,redondeo_precio=?,cargar_web=?,precio_venta=?,stock_minimo=? WHERE id=? AND comercio_id=?",
                 code,
                 name,
                 categoryId,
                 supplierId,
-                value(input.unit()).isBlank() ? "UNIDAD" : input.unit().trim(),
+                unit,
                 cost,
                 freight,
                 freightPercent,
@@ -614,8 +623,7 @@ public class ArticleService extends StoreJdbcSupport {
                 input.roundPrice(),
                 input.publishOnWeb(),
                 price,
-                DecimalRules.quantity(
-                        input.minimumStock(), false, "El stock mínimo no puede ser negativo."),
+                minimumStock,
                 id,
                 identity.storeId());
         jdbc.update(

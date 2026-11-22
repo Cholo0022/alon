@@ -80,6 +80,20 @@ it('opens all articles on empty Enter, adds by keyboard repeatedly and saves onl
   )
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(screen.getByText('A1 · Martillo')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Genérico' }))
+  for (const [description, price] of [
+    ['Collar de perlas', '1250,50'],
+    ['Pulsera', '500'],
+  ]) {
+    fireEvent.change(screen.getByLabelText('Descripción del genérico'), {
+      target: { value: description },
+    })
+    fireEvent.change(screen.getByLabelText('Precio unitario del genérico'), {
+      target: { value: price },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar genérico' }))
+    expect(screen.getByText(description)).toBeTruthy()
+  }
   expect(
     request.mock.calls.some(
       ([url, options]) => url === '/api/v1/operations/sales' && options?.method === 'POST',
@@ -134,6 +148,14 @@ it('opens all articles on empty Enter, adds by keyboard repeatedly and saves onl
   expect(JSON.parse(String(call[1]?.body)).lines).toEqual([
     { articleId: 2, quantity: 2.5, discountPercent: 0 },
     { articleId: 1, quantity: 1, discountPercent: 0 },
+    {
+      articleId: null,
+      description: 'Collar de perlas',
+      quantity: 1,
+      unitPrice: 1250.5,
+      discountPercent: 0,
+    },
+    { articleId: null, description: 'Pulsera', quantity: 1, unitPrice: 500, discountPercent: 0 },
   ])
 })
 it('keeps an unavailable article out of the sale and returns focus on Escape', async () => {

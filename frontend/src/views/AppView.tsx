@@ -178,7 +178,7 @@ export function MainApp({
           </div>
         </header>
         <div className="page-wrap">
-          <LicenseExpiryNotice license={license} />
+          {user.rol !== 'SUPER' && <LicenseExpiryNotice license={license} />}
           {['SUPER', 'DUENO'].includes(user.rol) && permissions.includes('seguridad') && (
             <SecurityRequestsNotice onOpen={() => setActiveSection('seguridad')} />
           )}

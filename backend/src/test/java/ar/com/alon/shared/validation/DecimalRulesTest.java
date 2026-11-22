@@ -7,6 +7,14 @@ import org.junit.jupiter.api.Test;
 
 class DecimalRulesTest {
     @Test
+    void requiresWholeQuantitiesOnlyForUnits() {
+        DecimalRules.requireWholeUnits("UNIDAD", new BigDecimal("2.000"));
+        DecimalRules.requireWholeUnits("KILO", new BigDecimal("2.5"));
+        assertThatThrownBy(() -> DecimalRules.requireWholeUnits("UNIDAD", new BigDecimal("2.5")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void preservesFractionalStockAndRejectsSubprecisionQuantities() {
         assertThat(DecimalRules.quantity(new BigDecimal("1.234"), true, "cantidad"))
                 .isEqualByComparingTo("1.234");

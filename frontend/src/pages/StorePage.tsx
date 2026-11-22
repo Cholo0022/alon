@@ -9,6 +9,7 @@ type OrderLine = {
   id: number
   nombre_articulo: string
   cantidad: number
+  unidad_actual?: string
   precio_unitario: number
   incluido: boolean
   stock: number
@@ -48,6 +49,7 @@ export function StorePage() {
   const [selected, setSelected] = useState<number | null>(null)
   const [order, setOrder] = useState<Order | null>(null)
   const [quantityDraft, setQuantityDraft] = useState<{ lineId: number; value: string } | null>(null)
+  const [quantityError, setQuantityError] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
@@ -66,7 +68,7 @@ export function StorePage() {
     detailPanel.current?.focus({ preventScroll: true })
   }, [order])
   useEffect(() => {
-    if (selected === null) return
+    if (selected === null || busy) return
     let active = true
     const controller = new AbortController()
     void apiFetch('/api/v1/alon/store-orders/' + selected, { signal: controller.signal })
@@ -82,7 +84,7 @@ export function StorePage() {
       active = false
       controller.abort()
     }
-  }, [selected, revision])
+  }, [selected, revision, busy])
   useEffect(() => {
     const timer = window.setInterval(() => {
       window.dispatchEvent(new Event('alon:refresh'))
@@ -109,7 +111,7 @@ export function StorePage() {
           : {}),
       })
       if (!r.ok) {
-        const b = await r.json()
+        const b = await r.json().catch(() => ({}))
         throw new Error(b.error ?? 'No se pudo actualizar el pedido.')
       }
       if (suffix.endsWith('/quantity')) {
@@ -119,7 +121,9 @@ export function StorePage() {
       setRevision((n) => n + 1)
       window.dispatchEvent(new Event('alon:refresh'))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo actualizar el pedido.')
+      const message = e instanceof Error ? e.message : 'No se pudo actualizar el pedido.'
+      if (suffix.endsWith('/quantity')) setQuantityError(message)
+      else setError(message)
     } finally {
       setBusy(false)
     }
@@ -307,36 +311,63 @@ export function StorePage() {
                               <form
                                 onSubmit={(event) => {
                                   event.preventDefault()
+                                  const value = quantityDraft.value.trim().replace(',', '.')
+                                  if (
+                                    !/^\d{1,12}(?:\.\d{1,3})?$/.test(value) ||
+                                    Number(value) <= 0
+                                  ) {
+                                    setQuantityError(
+                                      'Ingresá una cantidad mayor que cero con hasta tres decimales.',
+                                    )
+                                    return
+                                  }
+                                  if (
+                                    (String(l.unidad_actual ?? l.unidad)
+                                      .trim()
+                                      .toUpperCase() === 'UNIDAD' ||
+                                      l.tipo_producto === 'INDUMENTARIA' ||
+                                      l.tipo_producto === 'CALZADO') &&
+                                    !Number.isInteger(Number(value))
+                                  ) {
+                                    setQuantityError('Ingresá una cantidad entera.')
+                                    return
+                                  }
+                                  setQuantityError('')
                                   void action('/lines/' + l.id + '/quantity', {
-                                    quantity: Number(quantityDraft.value),
+                                    quantity: Number(value),
                                   })
                                 }}
                               >
                                 <input
                                   aria-label={'Cantidad de ' + l.nombre_articulo}
-                                  type="number"
-                                  min={
-                                    l.tipo_producto === 'INDUMENTARIA' ||
-                                    l.tipo_producto === 'CALZADO'
-                                      ? 1
-                                      : 0.001
+                                  type="text"
+                                  inputMode="decimal"
+                                  aria-invalid={quantityError ? true : undefined}
+                                  aria-describedby={
+                                    quantityError ? 'store-quantity-error' : undefined
                                   }
-                                  step={
-                                    l.tipo_producto === 'INDUMENTARIA' ||
-                                    l.tipo_producto === 'CALZADO'
-                                      ? 1
-                                      : 0.001
-                                  }
-                                  max={999999999999.999}
-                                  required
                                   disabled={busy}
                                   value={quantityDraft.value}
-                                  onChange={(event) =>
+                                  onChange={(event) => {
+                                    setQuantityError('')
                                     setQuantityDraft({ lineId: l.id, value: event.target.value })
-                                  }
+                                  }}
                                 />
+                                {quantityError && (
+                                  <p
+                                    id="store-quantity-error"
+                                    className="entry-message"
+                                    role="alert"
+                                  >
+                                    {quantityError}
+                                  </p>
+                                )}
                                 <div className="row-actions">
-                                  <button className="secondary-button" disabled={busy}>
+                                  <button
+                                    type="submit"
+                                    className="secondary-button"
+                                    disabled={busy}
+                                  >
                                     Guardar cantidad
                                   </button>
                                   <button
@@ -384,9 +415,10 @@ export function StorePage() {
                                   type="button"
                                   className="secondary-button"
                                   disabled={busy || quantityDraft !== null}
-                                  onClick={() =>
+                                  onClick={() => {
+                                    setQuantityError('')
                                     setQuantityDraft({ lineId: l.id, value: String(l.cantidad) })
-                                  }
+                                  }}
                                 >
                                   Modificar cantidad
                                 </button>

@@ -7,6 +7,7 @@ import { apiFetch } from '../lib/http'
 
 vi.mock('../lib/http', () => ({ apiFetch: vi.fn() }))
 let quantity = 1
+let unit = 'UNIDAD'
 let cashOpen = true
 let customerComment = 'Es cliente web nuevo'
 const fetchMock = vi.mocked(apiFetch)
@@ -23,7 +24,7 @@ it.each([
 it('offers the customer WhatsApp chat in a separate tab', async () => {
   const user = userEvent.setup()
   render(<StorePage />)
-  await user.click(await screen.findByRole('button', { name: 'Ver pedido' }))
+  await user.click(await screen.findByRole('button', { name: 'Ver pedido' }, { timeout: 10_000 }))
   const link = await screen.findByRole('link', {
     name: 'Chatear por WhatsApp con Cliente de prueba',
   })
@@ -32,6 +33,7 @@ it('offers the customer WhatsApp chat in a separate tab', async () => {
 })
 beforeEach(() => {
   quantity = 1
+  unit = 'UNIDAD'
   cashOpen = true
   customerComment = 'Es cliente web nuevo'
   fetchMock.mockReset()
@@ -60,7 +62,7 @@ beforeEach(() => {
                 incluido: true,
                 stock: 5,
                 estado_articulo: 'ACTIVO',
-                unidad: 'UNIDAD',
+                unidad: unit,
               },
             ],
           }
@@ -144,19 +146,42 @@ it('requires a payment choice and submits it with the approval', async () => {
   )
 })
 
-it('saves the edited quantity and shows the updated order total', async () => {
+it.each([
+  ['3', 3, 600, 'UNIDAD'],
+  ['2,5', 2.5, 500, 'KILO'],
+])(
+  'saves quantity %s and shows the updated order total',
+  async (inputValue, saved, total, measure) => {
+    unit = measure
+    const user = userEvent.setup()
+    render(<StorePage />)
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }))
+    await user.click(await screen.findByRole('button', { name: 'Modificar cantidad' }))
+    const input = screen.getByRole('textbox', { name: /^Cantidad de / })
+    await user.clear(input)
+    await user.type(input, inputValue)
+    await user.click(screen.getByRole('button', { name: 'Guardar cantidad' }))
+    expect(await screen.findByText(saved + ' ' + measure)).toBeTruthy()
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/operations/store-orders/7/lines/1/quantity',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ quantity: saved }) }),
+    )
+    expect(screen.getByText(new RegExp('Total:.*' + total))).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Cerrar detalle' }))
+    await user.click(screen.getByRole('button', { name: 'Ver pedido' }))
+    expect(await screen.findByText(saved + ' ' + measure)).toBeTruthy()
+  },
+)
+
+it('rejects a fractional quantity for a product sold by unit', async () => {
   const user = userEvent.setup()
   render(<StorePage />)
   await user.click(await screen.findByRole('button', { name: 'Ver pedido' }))
   await user.click(await screen.findByRole('button', { name: 'Modificar cantidad' }))
-  const input = screen.getByRole('spinbutton')
+  const input = screen.getByRole('textbox', { name: /^Cantidad de / })
   await user.clear(input)
-  await user.type(input, '3')
+  await user.type(input, '2,5')
   await user.click(screen.getByRole('button', { name: 'Guardar cantidad' }))
-  expect(await screen.findByText('3 UNIDAD')).toBeTruthy()
-  expect(fetchMock).toHaveBeenCalledWith(
-    '/api/v1/operations/store-orders/7/lines/1/quantity',
-    expect.objectContaining({ method: 'POST', body: JSON.stringify({ quantity: 3 }) }),
-  )
-  expect(screen.getByText(/Total:.*600/)).toBeTruthy()
+  expect(screen.getByRole('alert').textContent).toBe('Ingresá una cantidad entera.')
+  expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/quantity'))).toBe(false)
 })

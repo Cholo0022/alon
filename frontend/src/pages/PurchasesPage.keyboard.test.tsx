@@ -65,7 +65,7 @@ it('keeps the supplier and document while repeatedly adding from the purchase pi
   const details = screen.getByRole('dialog', { name: 'Cantidad y precio de compra' })
   expect(screen.queryByText('A1 · Martillo')).toBeNull()
   const quantityInput = within(details).getByRole('spinbutton', { name: 'Cantidad' })
-  fireEvent.change(quantityInput, { target: { value: '3.5' } })
+  fireEvent.change(quantityInput, { target: { value: '3' } })
   fireEvent.keyDown(quantityInput, { key: 'Enter' })
   const costInput = within(details).getByRole('spinbutton', { name: 'Costo unitario' })
   expect(document.activeElement).toBe(costInput)
@@ -127,7 +127,7 @@ it('keeps the supplier and document while repeatedly adding from the purchase pi
     paymentMethod: 'EFECTIVO',
     documentNumber: 'F-100',
     lines: [
-      { articleId: 1, quantity: 3.5, unitCost: 80.25 },
+      { articleId: 1, quantity: 3, unitCost: 80.25 },
       { articleId: 2, quantity: 1, unitCost: 40 },
     ],
   })

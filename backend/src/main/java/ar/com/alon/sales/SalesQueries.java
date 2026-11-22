@@ -42,9 +42,11 @@ public class SalesQueries {
                 "lineas",
                 jdbc.queryForList(
                         """
-            SELECT d.renglon,a.codigo,a.nombre,d.cantidad,d.precio_unitario,d.descuento_pct,d.total_linea,a.unidad
+            SELECT d.renglon,COALESCE(a.codigo,'GENÉRICO') AS codigo,
+                   COALESCE(d.descripcion_generica,a.nombre) AS nombre,
+                   d.cantidad,d.precio_unitario,d.descuento_pct,d.total_linea,COALESCE(a.unidad,'UNIDAD') AS unidad
             FROM venta_detalle d JOIN ventas v ON v.id=d.venta_id
-            JOIN articulos a ON a.id=d.articulo_id AND a.comercio_id=v.comercio_id
+            LEFT JOIN articulos a ON a.id=d.articulo_id AND a.comercio_id=v.comercio_id
             WHERE d.venta_id=? AND v.comercio_id=? ORDER BY d.renglon
             """,
                         id,

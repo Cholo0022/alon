@@ -9,6 +9,14 @@ public final class DecimalRules {
     /** Impide instanciar esta clase de cálculos estáticos. */
     private DecimalRules() {}
 
+    /** Verifica que los artículos vendidos por unidad se manejen en cantidades enteras. */
+    public static void requireWholeUnits(Object unit, BigDecimal quantity) {
+        if ("UNIDAD".equalsIgnoreCase(String.valueOf(unit).trim())
+                && quantity.stripTrailingZeros().scale() > 0)
+            throw new IllegalArgumentException(
+                    "Ingresá una cantidad entera para el artículo por unidad.");
+    }
+
     /**
      * Valida cantidades de hasta tres decimales y quince dígitos, exigiendo valor positivo cuando
      * lo solicita la operación.
