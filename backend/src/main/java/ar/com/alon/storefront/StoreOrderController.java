@@ -42,8 +42,9 @@ public class StoreOrderController {
      * delegando la consulta al repositorio.
      */
     @GetMapping("/alon/store-orders")
-    public List<Map<String, Object>> storeOrders() {
-        return queries.storeOrders();
+    public List<Map<String, Object>> storeOrders(
+            @RequestParam(name = "status", required = false) String status) {
+        return queries.storeOrders(status);
     }
 
     /**
@@ -85,6 +86,17 @@ public class StoreOrderController {
                 "approveStoreOrder",
                 List.of(id, input),
                 () -> service.approve(id, input.paymentMethod()));
+    }
+
+    @PostMapping("/operations/store-orders/{id}/confirm")
+    public Map<String, Object> confirm(@PathVariable long id) {
+        return commands.execute("confirmStoreOrder", id, () -> service.confirm(id));
+    }
+
+    @PostMapping("/operations/store-orders/{id}/pay")
+    public Map<String, Object> pay(@PathVariable long id, @Valid @RequestBody Approval input) {
+        return commands.execute(
+                "payStoreOrder", List.of(id, input), () -> service.pay(id, input.paymentMethod()));
     }
 
     @PostMapping("/operations/store-orders/{id}/lines/{lineId}/quantity")

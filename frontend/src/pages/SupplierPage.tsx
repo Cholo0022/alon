@@ -1,3 +1,4 @@
+import { CompactName } from '../components/CompactName'
 import { DeleteRecordButton } from '../components/DeleteRecordButton'
 // Permite consultar proveedores y registrar los pagos de sus cuentas.
 import { useRef, useState, type FormEvent } from 'react'
@@ -218,9 +219,9 @@ export function SupplierList() {
                 {owedSuppliers.map((supplier) => (
                   <tr key={supplier.id || supplier.code}>
                     <td data-label="Proveedor" className="strong-cell">
-                      {supplier.name}
+                      <CompactName value={supplier.name} />
                     </td>
-                    <td data-label="Saldo pendiente" className="balance-due">
+                    <td data-label="Saldo pendiente" className="money-cell balance-due">
                       {currency.format(supplier.balance)}
                     </td>
                     <td data-label="Acción">
@@ -399,7 +400,7 @@ export function SupplierList() {
                     {supplier.code}
                   </td>
                   <td data-label="Proveedor" className="strong-cell">
-                    {supplier.name}
+                    <CompactName value={supplier.name} />
                   </td>
                   <td data-label="Especialidad">
                     <span className="category-chip">{supplier.specialty}</span>
@@ -412,7 +413,7 @@ export function SupplierList() {
                   </td>
                   <td
                     data-label="Saldo pendiente"
-                    className={supplier.balance > 0 ? 'balance-due' : ''}
+                    className={supplier.balance > 0 ? 'money-cell balance-due' : 'money-cell'}
                   >
                     {currency.format(supplier.balance)}
                   </td>

@@ -21,6 +21,7 @@ import {
   textValue,
   numberValue,
   formatDateDisplay,
+  compactListText,
   dateDisplayToIso,
 } from '../lib/format'
 import { type ApiRow } from '../hooks/useApiRows'
@@ -806,7 +807,7 @@ export function PurchasesPage({ draftScope }: { draftScope?: string }) {
                               }
                             />
                           </td>
-                          <td data-label="Subtotal">
+                          <td data-label="Subtotal" className="money-cell">
                             {currency.format(
                               Number.isFinite(line.quantity * line.unitCost)
                                 ? line.quantity * line.unitCost
@@ -889,7 +890,7 @@ export function PurchasesPage({ draftScope }: { draftScope?: string }) {
           },
           { key: 'tipo_documento', label: 'TIPO' },
           { key: 'fecha', label: 'FECHA', date: true },
-          { key: 'proveedor', label: 'PROVEEDOR' },
+          { key: 'proveedor', label: 'PROVEEDOR', partyName: true },
           { key: 'articulos', label: 'ARTÍCULOS' },
           { key: 'subtotal', label: 'SUBTOTAL', money: true },
           { key: 'gastos_adicionales', label: 'GASTOS EXTRA', money: true },
@@ -900,17 +901,13 @@ export function PurchasesPage({ draftScope }: { draftScope?: string }) {
             render: (row) => {
               const condition = textValue(row.condicion_pago)
               return condition === 'EFECTIVO'
-                ? 'CONTADO'
+                ? 'Ctdo'
                 : condition === 'EFECTIVO_CAJA' || condition === 'CONTADO'
-                  ? 'CONTADO DE CAJA'
-                  : condition.replaceAll('_', ' ')
+                  ? 'Ctdo caja'
+                  : compactListText(condition)
             },
           },
-          {
-            key: 'medio_pago',
-            label: 'MEDIO DE PAGO',
-            render: (row) => textValue(row.medio_pago).replaceAll('_', ' '),
-          },
+          { key: 'medio_pago', label: 'MEDIO DE PAGO' },
           { key: 'pagado', label: 'PAGADO', money: true },
           { key: 'saldo', label: 'SALDO', money: true },
         ]}
@@ -1076,7 +1073,7 @@ export function PurchaseReceipt({
               pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}"
               maxLength={10}
               required
-              defaultValue={formatDateDisplay(purchase.fecha)}
+              defaultValue={formatDateDisplay(purchase.fecha, 'numeric')}
             />
           </label>
           <div className="purchase-lines">
@@ -1193,8 +1190,10 @@ export function PurchaseReceipt({
                       {line.code} · {line.name}
                     </td>
                     <td data-label="Cantidad">{line.quantity}</td>
-                    <td data-label="Costo unitario">{currency.format(Number(line.unitCost))}</td>
-                    <td data-label="Subtotal">
+                    <td data-label="Costo unitario" className="money-cell">
+                      {currency.format(Number(line.unitCost))}
+                    </td>
+                    <td data-label="Subtotal" className="money-cell">
                       {currency.format(Number(line.quantity) * Number(line.unitCost))}
                     </td>
                   </tr>

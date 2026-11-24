@@ -37,15 +37,17 @@ type Order = {
   cash_open: boolean
 }
 /** Traduce el estado interno de un pedido a una etiqueta legible. */
-const statusLabel = (state: string) =>
-  state === 'CONFIRMADO'
-    ? 'Confirmado'
-    : state === 'CANCELADO'
-      ? 'Rechazado'
-      : 'Pendiente de confirmación'
+const orderStatuses: Record<string, string> = {
+  PENDIENTE_CONFIRMACION: 'Pendiente de confirmación',
+  PENDIENTE_PAGO: 'Confirmado · pendiente de pago',
+  CONFIRMADO: 'Pagado',
+  CANCELADO: 'Rechazado',
+}
+const statusLabel = (state: string) => orderStatuses[state] ?? state
 
-/** Presenta pedidos web y su detalle para quitar artículos, elegir cobro, confirmar la venta o cancelar el pedido. */
+/** Permite revisar los pedidos web, confirmar sus artículos y registrar el pago. */
 export function StorePage() {
+  const [status, setStatus] = useState('')
   const [selected, setSelected] = useState<number | null>(null)
   const [order, setOrder] = useState<Order | null>(null)
   const [quantityDraft, setQuantityDraft] = useState<{ lineId: number; value: string } | null>(null)
@@ -92,7 +94,7 @@ export function StorePage() {
     }, 20000)
     return () => clearInterval(timer)
   }, [])
-  /** Envía la acción elegida sobre el pedido, incluye el medio al aprobarlo y recarga el detalle y los contadores al completarse. */
+  /** Actualiza el pedido y recarga el detalle y los contadores. */
   const action = async (
     suffix: string,
     payload?: { quantity: number } | { paymentMethod: string },
@@ -129,18 +131,17 @@ export function StorePage() {
     }
   }
   const pending = order?.estado === 'PENDIENTE_CONFIRMACION'
+  const awaitingPayment = order?.estado === 'PENDIENTE_PAGO'
   const whatsAppUrl = order ? orderWhatsAppUrl(order.contacto ?? '') : null
   const included = order?.lines.filter((l) => Boolean(l.incluido)) ?? []
   const shortage = included.some(
     (l) => Number(l.cantidad) > Number(l.stock) || l.estado_articulo !== 'ACTIVO',
   )
   const approvalBlockers = [
-    ...(!order?.cash_open ? ['Abrí la caja de hoy desde Caja.'] : []),
     ...(!included.length ? ['El pedido no tiene artículos incluidos para vender.'] : []),
     ...(shortage
       ? ['Ajustá la cantidad al stock disponible o quitá los artículos inactivos o sin stock.']
       : []),
-    ...(!payment ? ['Seleccioná un medio de pago.'] : []),
   ]
   return (
     <div className="store-module">
@@ -148,8 +149,8 @@ export function StorePage() {
         <div>
           <h2>Tu tienda conectada</h2>
           <p>
-            Los pedidos llegan pendientes. Revisá los artículos y el medio de pago. Para confirmar
-            necesitás la caja del día abierta.
+            Confirmá el pedido para descontar el stock. Registrá el pago cuando lo recibas, con la
+            caja del día abierta.
           </p>
         </div>
         <a className="primary-button" href="/tienda" target="_blank" rel="noreferrer">
@@ -161,15 +162,25 @@ export function StorePage() {
           {error}
         </p>
       )}
+      <label className="store-payment-field">
+        Estado de los pedidos
+        <select value={status} onChange={(event) => setStatus(event.target.value)}>
+          <option value="">Todos</option>
+          <option value="PENDIENTE_CONFIRMACION">Pendientes de confirmación</option>
+          <option value="PENDIENTE_PAGO">Confirmados pendientes de pago</option>
+          <option value="CONFIRMADO">Pagados</option>
+          <option value="CANCELADO">Rechazados</option>
+        </select>
+      </label>
       <ApiTable
         title="Pedidos de la tienda online"
-        endpoint="/api/v1/alon/store-orders"
+        endpoint={'/api/v1/alon/store-orders' + (status ? '?status=' + status : '')}
         rowClassName={(row) =>
           row.estado === 'PENDIENTE_CONFIRMACION' ? 'store-order-pending' : undefined
         }
         columns={[
           { key: 'id', label: 'NÚMERO' },
-          { key: 'nombre_cliente', label: 'CLIENTE' },
+          { key: 'nombre_cliente', label: 'CLIENTE', partyName: true },
           { key: 'contacto', label: 'CONTACTO' },
           { key: 'comentario_cliente', label: 'CLIENTE WEB' },
           { key: 'total_estimado', label: 'TOTAL', money: true },
@@ -198,7 +209,6 @@ export function StorePage() {
             ),
           },
         ]}
-        note="Confirmar registra una venta de origen web y su cobro en caja, y descuenta el stock una sola vez. El comprobante es interno no fiscal."
       />
       {selected !== null && (
         <section
@@ -270,9 +280,9 @@ export function StorePage() {
                   stock.
                 </p>
               )}
-              {pending && !order.cash_open && (
+              {awaitingPayment && !order.cash_open && (
                 <p className="entry-message" role="status">
-                  La caja de hoy está cerrada. Abrila desde Caja antes de confirmar este pedido.
+                  La caja de hoy está cerrada. Abrila desde Caja antes de registrar el pago.
                 </p>
               )}
               {order.venta_id && (
@@ -389,8 +399,9 @@ export function StorePage() {
                           <td data-label="Stock actual">
                             <span
                               className={
-                                Number(l.stock) < Number(l.cantidad) ||
-                                l.estado_articulo !== 'ACTIVO'
+                                pending &&
+                                (Number(l.stock) < Number(l.cantidad) ||
+                                  l.estado_articulo !== 'ACTIVO')
                                   ? 'stock-low'
                                   : 'stock-ok'
                               }
@@ -399,10 +410,10 @@ export function StorePage() {
                               {l.estado_articulo !== 'ACTIVO' && ' · Inactivo'}
                             </span>
                           </td>
-                          <td data-label="Precio unitario">
+                          <td data-label="Precio unitario" className="money-cell">
                             {currency.format(Number(l.precio_unitario))}
                           </td>
-                          <td data-label="Subtotal">
+                          <td data-label="Subtotal" className="money-cell">
                             {currency.format(
                               Math.round(Number(l.cantidad) * Number(l.precio_unitario) * 100) /
                                 100,
@@ -440,7 +451,7 @@ export function StorePage() {
               )}
               {pending && approvalBlockers.length > 0 && (
                 <div id="store-approval-blockers" className="entry-message" role="status">
-                  <strong>Para habilitar Confirmar venta web:</strong>
+                  <strong>Para habilitar Confirmar pedido:</strong>
                   <ul>
                     {approvalBlockers.map((reason) => (
                       <li key={reason}>{reason}</li>
@@ -450,7 +461,7 @@ export function StorePage() {
               )}
               <div className="store-order-actions">
                 <strong>Total: {currency.format(Number(order.total_estimado))}</strong>
-                {pending && (
+                {awaitingPayment && (
                   <label className="store-payment-field">
                     Medio de pago
                     <select
@@ -468,39 +479,54 @@ export function StorePage() {
                     </select>
                   </label>
                 )}
-                {pending && (
+                {(pending || awaitingPayment) && (
                   <div className="row-actions">
                     <button
                       className="secondary-button"
                       disabled={busy}
                       onClick={() => {
-                        if (window.confirm('¿Rechazar este pedido? No se generará una venta.'))
+                        if (
+                          window.confirm(
+                            awaitingPayment
+                              ? '¿Rechazar este pedido y devolver los artículos al stock?'
+                              : '¿Rechazar este pedido?',
+                          )
+                        )
                           void action('/cancel')
                       }}
                     >
                       Rechazar pedido
                     </button>
-                    <button
-                      className="primary-button"
-                      disabled={busy || quantityDraft !== null || approvalBlockers.length > 0}
-                      aria-describedby={
-                        approvalBlockers.length ? 'store-approval-blockers' : undefined
-                      }
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            '¿Confirmar el pedido #' +
-                              order.id +
-                              ' con pago por ' +
-                              payment.replaceAll('_', ' ').toLowerCase() +
-                              '? Se registrará una venta web y su cobro en caja, y se descontará el stock.',
+                    {pending ? (
+                      <button
+                        className="primary-button"
+                        disabled={busy || quantityDraft !== null || approvalBlockers.length > 0}
+                        aria-describedby={
+                          approvalBlockers.length ? 'store-approval-blockers' : undefined
+                        }
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              '¿Confirmar el pedido y descontar sus artículos del stock?',
+                            )
                           )
-                        )
-                          void action('/approve', { paymentMethod: payment })
-                      }}
-                    >
-                      {busy ? 'Procesando…' : 'Confirmar venta web'}
-                    </button>
+                            void action('/confirm')
+                        }}
+                      >
+                        {busy ? 'Procesando.' : 'Confirmar pedido'}
+                      </button>
+                    ) : (
+                      <button
+                        className="primary-button"
+                        disabled={busy || !payment || !order.cash_open}
+                        onClick={() => {
+                          if (window.confirm('¿Registrar el pago en la caja de hoy?'))
+                            void action('/pay', { paymentMethod: payment })
+                        }}
+                      >
+                        {busy ? 'Procesando.' : 'Registrar pago'}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

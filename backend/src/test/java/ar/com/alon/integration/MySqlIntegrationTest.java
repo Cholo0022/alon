@@ -106,6 +106,7 @@ class MySqlIntegrationTest {
                                                     "gastos",
                                                     "venta_detalle",
                                                     "ventas",
+                                                    "venta_correlativos",
                                                     "compra_detalle",
                                                     "compras",
                                                     "pedido_tienda_detalle",
@@ -1617,6 +1618,94 @@ class MySqlIntegrationTest {
     }
 
     @Test
+    void webOrderConfirmsStockTodayAndChargesOnTheNextDay() {
+        jdbc.update("UPDATE articulos SET stock=2,costo=100 WHERE id=1");
+        var buyer = buyer();
+        long id =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        shop().checkout(
+                                                                        shopInput("2"),
+                                                                        buyer,
+                                                                        "split-web-order-123456"))
+                                        .get("id"))
+                        .longValue();
+        var orders = storeOrders();
+        var confirmed = transaction.execute(s -> orders.confirm(id));
+        assertThat(confirmed).containsEntry("estado", "PENDIENTE_PAGO");
+        assertThat(stock()).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ventas", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimientos_caja", Integer.class))
+                .isZero();
+        assertThatThrownBy(() -> transaction.execute(s -> orders.confirm(id)))
+                .isInstanceOf(BusinessConflict.class);
+        assertThatThrownBy(() -> transaction.execute(s -> orders.pay(id, "EFECTIVO")))
+                .isInstanceOf(BusinessConflict.class);
+
+        var tomorrow = Clock.offset(clock, Duration.ofDays(1));
+        var audit = new AuditLog(jdbc, identity, JsonMapper.builder().build());
+        var ledger = new ar.com.alon.cash.CashLedger(jdbc, identity, tomorrow);
+        var stockRepository = new ar.com.alon.stock.StockRepository(jdbc, identity, tomorrow);
+        var laterSales = new SalesService(jdbc, identity, tomorrow, audit, stockRepository, ledger);
+        var later =
+                new ar.com.alon.storefront.StoreOrderService(
+                        jdbc, identity, tomorrow, audit, laterSales, customers);
+        transaction.execute(
+                s -> cash.openCash(new CashOpenInput(LocalDate.now(tomorrow), BigDecimal.ZERO)));
+        jdbc.update("UPDATE articulos SET costo=150,estado='INACTIVO' WHERE id=1");
+        var result = transaction.execute(s -> later.pay(id, "TRANSFERENCIA"));
+        assertThat(result).containsEntry("estado", "CONFIRMADO");
+        assertThat(stock()).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimientos_stock", Integer.class))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimientos_caja", Integer.class))
+                .isEqualTo(1);
+        assertThat(
+                        jdbc.queryForObject(
+                                        "SELECT fecha FROM ventas WHERE id=?",
+                                        java.sql.Date.class,
+                                        result.get("venta_id"))
+                                .toLocalDate())
+                .isEqualTo(LocalDate.now(tomorrow));
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT costo_total FROM ventas WHERE id=?",
+                                BigDecimal.class,
+                                result.get("venta_id")))
+                .isEqualByComparingTo("200");
+        assertThatThrownBy(() -> transaction.execute(s -> later.pay(id, "TRANSFERENCIA")))
+                .isInstanceOf(BusinessConflict.class);
+    }
+
+    @Test
+    void rejectingConfirmedUnpaidOrderRestoresStockWithoutTouchingCash() {
+        jdbc.update("UPDATE articulos SET stock=2 WHERE id=1");
+        var buyer = buyer();
+        long id =
+                ((Number)
+                                transaction
+                                        .execute(
+                                                s ->
+                                                        shop().checkout(
+                                                                        shopInput("2"),
+                                                                        buyer,
+                                                                        "reject-web-order-123456"))
+                                        .get("id"))
+                        .longValue();
+        var orders = storeOrders();
+        transaction.execute(s -> orders.confirm(id));
+        transaction.execute(s -> orders.cancel(id));
+        assertThat(stock()).isEqualByComparingTo("2");
+        assertThat(orders.detail(id)).containsEntry("estado", "CANCELADO");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimientos_caja", Integer.class))
+                .isZero();
+        assertThatThrownBy(() -> transaction.execute(s -> orders.cancel(id)))
+                .isInstanceOf(BusinessConflict.class);
+    }
+
+    @Test
     void webApprovalRequiresPaymentAndTodaysOpenCashWithoutSideEffects() {
         jdbc.update("UPDATE articulos SET stock=10 WHERE id=1");
         var buyer = buyer();
@@ -1696,7 +1785,7 @@ class MySqlIntegrationTest {
         assertThat(sale.get("pedido_tienda_id")).isEqualTo(orderId);
         assertThat(sale.get("medio_pago")).isEqualTo(method);
         assertThat((BigDecimal) sale.get("total")).isEqualByComparingTo("400");
-        assertThat(String.valueOf(sale.get("numero"))).startsWith("VW-");
+        assertThat(sale.get("numero")).isEqualTo("1-" + LocalDate.now(clock).getYear());
         var movement =
                 jdbc.queryForMap(
                         "SELECT * FROM movimientos_caja WHERE referencia=?", sale.get("numero"));
@@ -1722,6 +1811,23 @@ class MySqlIntegrationTest {
                                 String.class,
                                 orderId))
                 .isEqualTo("CANCELADO");
+        var localSale =
+                transaction.execute(
+                        s ->
+                                sales.createSale(
+                                        new SaleInput(
+                                                1,
+                                                LocalDate.now(clock),
+                                                "CUENTA_CORRIENTE",
+                                                "CUENTA_CORRIENTE",
+                                                List.of(
+                                                        new SaleLine(
+                                                                null,
+                                                                d("1"),
+                                                                d("0"),
+                                                                "Artículo",
+                                                                d("10"))))));
+        assertThat(localSale.get("numero")).isEqualTo("2-" + LocalDate.now(clock).getYear());
     }
 
     @Test
@@ -1834,6 +1940,32 @@ class MySqlIntegrationTest {
         transaction.execute(status -> purchases.updatePurchase(id, input));
         assertThat(stock()).isEqualByComparingTo("5");
         assertThat(cost()).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void saleNumbersRestartEachYearAndRollbackWithTheSale() {
+        var lines = List.of(new SaleLine(null, d("1"), d("0"), "Artículo", d("10")));
+        var lastDay =
+                new SaleInput(
+                        1,
+                        LocalDate.of(2026, 12, 31),
+                        "CUENTA_CORRIENTE",
+                        "CUENTA_CORRIENTE",
+                        lines);
+        var firstDay =
+                new SaleInput(
+                        1, LocalDate.of(2027, 1, 1), "CUENTA_CORRIENTE", "CUENTA_CORRIENTE", lines);
+        var first = transaction.execute(s -> sales.createSale(lastDay));
+        assertThat(first.get("numero")).isEqualTo("1-2026");
+        transaction.executeWithoutResult(
+                s -> {
+                    assertThat(sales.createSale(lastDay).get("numero")).isEqualTo("2-2026");
+                    s.setRollbackOnly();
+                });
+        var second = transaction.execute(s -> sales.createSale(lastDay));
+        assertThat(second.get("numero")).isEqualTo("2-2026");
+        var nextYear = transaction.execute(s -> sales.createSale(firstDay));
+        assertThat(nextYear.get("numero")).isEqualTo("1-2027");
     }
 
     @Test

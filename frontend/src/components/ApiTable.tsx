@@ -1,23 +1,40 @@
 // Muestra datos del servidor en una tabla con páginas y formatos de importes y fechas.
 import { type ReactNode } from 'react'
 import {
+  compactListText,
   currency,
   formatDateDisplay,
   formatDateTimeDisplay,
   formatMonthDisplay,
 } from '../lib/format'
 import { useApiRows, rowCount, type ApiRow } from '../hooks/useApiRows'
+import { CompactName } from './CompactName'
+import { ListHeading } from './ListHeading'
 import { Pagination } from './Pagination'
 
 export type ApiColumn = {
   key: string
   className?: string
   label: string
+  partyName?: boolean
   money?: boolean
   date?: boolean
   dateTime?: boolean
   month?: boolean
   render?: (row: ApiRow) => ReactNode
+}
+
+function renderCell(column: ApiColumn, row: ApiRow) {
+  const value = row[column.key]
+  if (column.render) return column.render(row)
+  if (column.money) return currency.format(Number(value ?? 0))
+  if (column.dateTime) return formatDateTimeDisplay(value)
+  if (column.date) return formatDateDisplay(value)
+  if (column.month) return formatMonthDisplay(value)
+  if (column.partyName) return <CompactName value={value} />
+  if (['medio_pago', 'condicion_pago', 'tipo_venta', 'tipo_documento'].includes(column.key))
+    return compactListText(value)
+  return String(value ?? '—')
 }
 
 /** Consulta una página de registros y construye una tabla con formatos, estados de carga, paginación y selección opcional de filas. */
@@ -71,7 +88,7 @@ export function ApiTable({
                       .filter(Boolean)
                       .join(' ')}
                   >
-                    {column.label}
+                    <ListHeading label={column.label} />
                   </th>
                 ))}
               </tr>
@@ -89,7 +106,10 @@ export function ApiTable({
                   onKeyDown={
                     onRowClick
                       ? (event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
+                          if (
+                            event.target === event.currentTarget &&
+                            (event.key === 'Enter' || event.key === ' ')
+                          ) {
                             event.preventDefault()
                             onRowClick(row)
                           }
@@ -100,23 +120,13 @@ export function ApiTable({
                 >
                   {columns.map((column) => (
                     <td
-                      data-label={column.label}
+                      data-label={compactListText(column.label)}
                       key={column.key}
                       className={[column.money ? 'money-cell' : '', column.className ?? '']
                         .filter(Boolean)
                         .join(' ')}
                     >
-                      {column.render
-                        ? column.render(row)
-                        : column.money
-                          ? currency.format(Number(row[column.key] ?? 0))
-                          : column.dateTime
-                            ? formatDateTimeDisplay(row[column.key])
-                            : column.date
-                              ? formatDateDisplay(row[column.key])
-                              : column.month
-                                ? formatMonthDisplay(row[column.key])
-                                : String(row[column.key] ?? '—')}
+                      {renderCell(column, row)}
                     </td>
                   ))}
                 </tr>

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { formatDateDisplay } from '../lib/format'
+import { CompactName } from '../components/CompactName'
 import { apiFetch } from '../lib/http'
 import './platform-businesses.css'
 import { BusinessInstallationPanel } from './BusinessInstallationPanel'
@@ -544,7 +546,7 @@ export function PlatformBusinesses() {
               />
             </label>
           </div>
-          <div className="platform-table">
+          <div className="platform-table table-scroll">
             <h3>Listado de negocios ({filtered.length})</h3>
             <p>
               Inhabilitar conserva los datos. La baja definitiva elimina la base y la instalación;
@@ -580,12 +582,12 @@ export function PlatformBusinesses() {
                     installationAlert,
                   }) => (
                     <tr key={b.id}>
-                      <td>
-                        {b.nombre}
+                      <td data-label="Negocio">
+                        <CompactName value={b.nombre} />
                         <br />
                         {b.responsable}
                       </td>
-                      <td>
+                      <td data-label="Plan / estado">
                         {b.plan}
                         <br />
                         {states[b.estado]}
@@ -598,9 +600,11 @@ export function PlatformBusinesses() {
                           </p>
                         )}
                       </td>
-                      <td>{money(monthlyRate)}</td>
-                      <td>{monthLabel(latest)}</td>
-                      <td>
+                      <td data-label="Abono" className="money-cell">
+                        {money(monthlyRate)}
+                      </td>
+                      <td data-label="Período cubierto">{monthLabel(latest)}</td>
+                      <td data-label="Cobro y pendiente">
                         {periods.has(selectedMonth)
                           ? 'Cubierto'
                           : monthlyDue
@@ -609,12 +613,12 @@ export function PlatformBusinesses() {
                         {setupDue > 0 && <p>Configuración pendiente</p>}
                         {nextPending !== null && <p>Próximo pendiente {monthLabel(nextPending)}</p>}
                       </td>
-                      <td>
-                        {trialAlert && <p>Prueba {b.vencimiento}</p>}
+                      <td data-label="Atención">
+                        {trialAlert && <p>Prueba {formatDateDisplay(b.vencimiento)}</p>}
                         {installationAlert && <p>Revisar instalación</p>}
                         {b.estado === 'SUSPENDIDO' && <p>Inhabilitado</p>}
                       </td>
-                      <td>
+                      <td data-label="Acciones">
                         <button
                           type="button"
                           className="select-button"
@@ -1083,8 +1087,8 @@ export function PlatformBusinesses() {
                   .map((m) => (
                     <p key={m.id}>
                       {m.anulado ? 'ANULADO · ' : ''}
-                      {m.fecha} · {m.tipo === 'COBRO' ? 'Cobro' : 'Cargo'} · {money(m.importe)} ·{' '}
-                      {m.concepto}
+                      {formatDateDisplay(m.fecha)} · {m.tipo === 'COBRO' ? 'Cobro' : 'Cargo'} ·{' '}
+                      {money(m.importe)} · {m.concepto}
                     </p>
                   ))}
               </div>

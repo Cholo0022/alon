@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { ReceiptPdfPreview } from '../components/SalesReceiptPreview'
+import { formatDateDisplay, formatDateTimeDisplay } from '../lib/format'
 import { apiFetch } from '../lib/http'
 import { monthNumber, rateAt, type PlatformRate } from '../lib/platformBilling'
 
@@ -254,8 +255,9 @@ export function BusinessReceipts({
               Recibo #{receipt.id} · {receipt.estado}
             </strong>
             <p>
-              {receipt.fecha} · Desde {receipt.periodo_desde} · {receipt.meses} meses · Bonificación{' '}
-              {receipt.bonificacion}% · Total {money(receipt.total)}
+              {formatDateDisplay(receipt.fecha)} · Desde {formatDateDisplay(receipt.periodo_desde)}{' '}
+              · {receipt.meses} meses · Bonificación {receipt.bonificacion}% · Total{' '}
+              {money(receipt.total)}
             </p>
             {Number(receipt.cargo_configuracion) > 0 && (
               <p>Configuración por única vez: {money(receipt.cargo_configuracion)}</p>
@@ -322,8 +324,8 @@ function AuditEntries({ audit }: { audit: Audit[] }) {
       {!audit.length && <p>Todavía no hay cambios registrados.</p>}
       {audit.map((item, index) => (
         <p key={index}>
-          {item.fecha} · {item.accion} {item.detalle && '· ' + item.detalle} · Usuario{' '}
-          {item.usuario_id}
+          {formatDateTimeDisplay(item.fecha)} · {item.accion} {item.detalle && '· ' + item.detalle}{' '}
+          · Usuario {item.usuario_id}
         </p>
       ))}
     </>

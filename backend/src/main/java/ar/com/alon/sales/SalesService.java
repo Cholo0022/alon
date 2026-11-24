@@ -46,7 +46,7 @@ public class SalesService extends StoreJdbcSupport {
      */
     @Transactional
     public Map<String, Object> createSale(SaleInput input) {
-        return createSale(input, null, Map.of());
+        return createSale(input, null, Map.of(), Map.of());
     }
 
     /** Los precios del pedido revisado se conservan al confirmar su venta web. */
@@ -57,7 +57,10 @@ public class SalesService extends StoreJdbcSupport {
      */
     @Transactional
     public Map<String, Object> createWebSale(
-            SaleInput input, long orderId, Map<Long, BigDecimal> prices) {
+            SaleInput input,
+            long orderId,
+            Map<Long, BigDecimal> prices,
+            Map<Long, BigDecimal> reservedCosts) {
         identity.require("tienda");
         if (orderId <= 0
                 || input.lines().stream()
@@ -66,7 +69,7 @@ public class SalesService extends StoreJdbcSupport {
                                         line.articleId() == null
                                                 || !prices.containsKey(line.articleId())))
             throw new IllegalArgumentException("El detalle del pedido web no es válido.");
-        return createSale(input, orderId, prices);
+        return createSale(input, orderId, prices, reservedCosts);
     }
 
     /**
@@ -74,7 +77,10 @@ public class SalesService extends StoreJdbcSupport {
      * stock y caja o deuda dentro de una transacción.
      */
     private Map<String, Object> createSale(
-            SaleInput input, Long orderId, Map<Long, BigDecimal> prices) {
+            SaleInput input,
+            Long orderId,
+            Map<Long, BigDecimal> prices,
+            Map<Long, BigDecimal> reservedCosts) {
         assertBelongs("clientes", input.customerId());
         LocalDate date = input.date() == null ? LocalDate.now(clock) : input.date();
         assertAccountingPeriod(date);
@@ -108,12 +114,15 @@ public class SalesService extends StoreJdbcSupport {
                 BigDecimal lineTotal) {}
         java.util.ArrayList<PricedLine> lines = new java.util.ArrayList<>();
         java.util.Map<Long, BigDecimal> reservedStock = new java.util.HashMap<>();
-        input.lines().stream()
-                .map(SaleLine::articleId)
-                .filter(java.util.Objects::nonNull)
-                .distinct()
-                .sorted()
-                .forEach(this.stock::lockArticle);
+        boolean stockReserved = !reservedCosts.isEmpty();
+        if (!stockReserved) {
+            input.lines().stream()
+                    .map(SaleLine::articleId)
+                    .filter(java.util.Objects::nonNull)
+                    .distinct()
+                    .sorted()
+                    .forEach(this.stock::lockArticle);
+        }
         for (SaleLine line : input.lines()) {
             BigDecimal quantity =
                     positiveQuantity(line.quantity(), "La cantidad vendida debe ser mayor a cero.");
@@ -133,6 +142,11 @@ public class SalesService extends StoreJdbcSupport {
                         positive(
                                 line.unitPrice(),
                                 "Ingresá un precio mayor a cero para el artículo genérico.");
+            } else if (stockReserved) {
+                price =
+                        nonNegative(
+                                prices.get(line.articleId()), "El precio del pedido no es válido.");
+                cost = java.util.Objects.requireNonNull(reservedCosts.get(line.articleId()));
             } else {
                 Map<String, Object> article = this.stock.lockArticle(line.articleId());
                 DecimalRules.requireWholeUnits(article.get("unidad"), quantity);
@@ -199,11 +213,7 @@ public class SalesService extends StoreJdbcSupport {
         }
         Long cashId = null;
         if (!payment.equals("CUENTA_CORRIENTE")) cashId = cashLedger.requireOpenCash(date);
-        String number =
-                (orderId == null ? "V-" : "VW-")
-                        + date.toString().replace("-", "")
-                        + "-"
-                        + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String number = nextSaleNumber(identity.storeId(), date.getYear());
         long saleId =
                 insert(
                         "INSERT INTO ventas (comercio_id,numero,fecha,fecha_hora,cliente_id,tipo_venta,medio_pago,tipo_comprobante,subtotal,descuento,total,costo_total,origen,pedido_tienda_id) VALUES (?,?,?,?,?,?,?,'INTERNO_NO_FISCAL',?,?,?,?,?,?)",
@@ -233,7 +243,7 @@ public class SalesService extends StoreJdbcSupport {
                     line.cost(),
                     line.discountPercent(),
                     line.lineTotal());
-            if (line.articleId() == null) continue;
+            if (line.articleId() == null || stockReserved) continue;
             jdbc.update(
                     "UPDATE articulos SET stock=stock-? WHERE id=? AND comercio_id=?",
                     line.quantity(),
@@ -271,6 +281,22 @@ public class SalesService extends StoreJdbcSupport {
                 total,
                 "tipo_comprobante",
                 "INTERNO_NO_FISCAL");
+    }
+
+    private String nextSaleNumber(long storeId, int year) {
+        // El incremento bloquea este contador hasta que termina la transacción de la venta.
+        jdbc.update(
+                "INSERT INTO venta_correlativos (comercio_id, anio, ultimo) VALUES (?,?,1) "
+                        + "ON DUPLICATE KEY UPDATE ultimo=ultimo+1",
+                storeId,
+                year);
+        Long sequence =
+                jdbc.queryForObject(
+                        "SELECT ultimo FROM venta_correlativos WHERE comercio_id=? AND anio=? FOR UPDATE",
+                        Long.class,
+                        storeId,
+                        year);
+        return sequence + "-" + year;
     }
 
     /**

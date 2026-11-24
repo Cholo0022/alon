@@ -338,13 +338,15 @@ export function ArticleList({
                       </span>{' '}
                       <span className="muted-cell">{article.unit}</span>
                     </td>
-                    <td data-label="Costo">{canEditCosts ? currency.format(article.cost) : '—'}</td>
+                    <td data-label="Costo" className="money-cell">
+                      {canEditCosts ? currency.format(article.cost) : '—'}
+                    </td>
                     <td data-label="Flete">{article.freightPercent}% del costo</td>
                     <td data-label="Ganancia">
                       {canEditCosts ? article.margin + '%' : '—'}
                       {article.round ? ' · redondeo $10' : ''}
                     </td>
-                    <td data-label="Precio" className="strong-cell">
+                    <td data-label="Precio" className="money-cell strong-cell">
                       {article.priceVaries ? 'Desde ' : ''}
                       {currency.format(article.price)}
                     </td>

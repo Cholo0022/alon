@@ -8,7 +8,7 @@ import { SecurityRequestsNotice } from '../components/SecurityRequestsNotice'
 // Muestra el ingreso a Alon y, después de iniciar sesión, las secciones permitidas para cada usuario.
 import { useCallback, useEffect, useLayoutEffect, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
-import { currency, textValue } from '../lib/format'
+import { currency, formatDateDisplay, textValue } from '../lib/format'
 import { navigation, descriptions, type Section } from '../lib/navigation'
 import { type ApiRow } from '../hooks/useApiRows'
 import { ApiFeedback } from '../components/ApiFeedback'
@@ -155,12 +155,7 @@ export function MainApp({
             {brand.nombre} <span>/</span> <strong>{activeItem.label}</strong>
           </div>
           <div className="topbar-actions">
-            <span className="today-label">
-              {new Intl.DateTimeFormat('es-AR', {
-                dateStyle: 'full',
-                timeZone: 'America/Argentina/Buenos_Aires',
-              }).format(renderTime)}
-            </span>
+            <span className="today-label">{formatDateDisplay(renderTime.getTime())}</span>
             <span className="session-summary">
               <strong>Sesión iniciada</strong>
               <span>

@@ -17,18 +17,21 @@ function timestamp(value: unknown) {
   return Number.isFinite(date.getTime()) ? date : null
 }
 /** Muestra una fecha como día/mes/año; convierte instantes a la zona argentina y conserva las fechas de calendario. */
-export const formatDateDisplay = (value: unknown) => {
+export const formatDateDisplay = (value: unknown, year: '2-digit' | 'numeric' = '2-digit') => {
   const instant = timestamp(value)
   if (instant)
     return new Intl.DateTimeFormat('es-AR', {
       timeZone: businessZone,
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric',
+      year,
     }).format(instant)
   const raw = textValue(value)
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw)
-  return match ? `${match[3]}/${match[2]}/${match[1]}` : raw || '—'
+  const iso = /^(\d{4})-(\d{2})-(\d{2})(?:$|[ T])/.exec(raw)
+  const display = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw)
+  const fullYear = iso?.[1] ?? display?.[3]
+  if (!fullYear) return raw || '—'
+  return `${iso?.[3] ?? display?.[1]}/${iso?.[2] ?? display?.[2]}/${year === '2-digit' ? fullYear.slice(-2) : fullYear}`
 }
 /** Muestra fecha y hora en formato argentino, diferenciando instantes con zona de fechas y horas locales. */
 export const formatDateTimeDisplay = (value: unknown) => {
@@ -46,9 +49,7 @@ export const formatDateTimeDisplay = (value: unknown) => {
     )
   const raw = textValue(value)
   const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(raw)
-  return match
-    ? `${match[3]}/${match[2]}/${match[1]} - ${match[4]}:${match[5]}`
-    : formatDateDisplay(raw)
+  return match ? `${formatDateDisplay(raw)} - ${match[4]}:${match[5]}` : formatDateDisplay(raw)
 }
 /** Convierte un período año-mes en mes/año y conserva los valores que no coinciden con ese formato. */
 export const formatMonthDisplay = (value: unknown) => {
@@ -80,4 +81,24 @@ export const dateDisplayToIso = (value: unknown) => {
   )
     return null
   return `${match[3]}-${match[2]}-${match[1]}`
+}
+
+const listAbbreviations: Record<string, string> = {
+  'cuenta corriente': 'Cta. Cte.',
+  'contado de caja': 'Ctdo caja',
+  contado: 'Ctdo',
+  efectivo: 'Efvo.',
+  factura: 'fact',
+  remito: 'Rto.',
+}
+
+/** Acorta los términos comerciales de encabezados y valores de tablas. */
+export function compactListText(value: unknown) {
+  return (textValue(value) || '—')
+    .replace(/\b(?:EFECTIVO_CAJA|CONTADO_CAJA)\b/gi, 'Contado de caja')
+    .replace(/_/g, ' ')
+    .replace(
+      /\b(?:cuenta corriente|contado de caja|contado|efectivo|factura|remito)\b/gi,
+      (term) => listAbbreviations[term.toLowerCase()],
+    )
 }

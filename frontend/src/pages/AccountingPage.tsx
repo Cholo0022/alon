@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
-import { currency, todayLocal, formatDateDisplay } from '../lib/format'
+import {
+  compactListText,
+  currency,
+  todayLocal,
+  formatDateDisplay,
+  formatDateTimeDisplay,
+  formatMonthDisplay,
+} from '../lib/format'
+import { CompactName } from '../components/CompactName'
+import { ListHeading } from '../components/ListHeading'
 import { FiscalEditor, type FiscalRecord } from '../components/FiscalEditor'
 import { type FiscalTarget } from '../hooks/useAccountingOptions'
 import './accounting.css'
@@ -24,6 +33,17 @@ type Report = {
   alicuotas: Row[]
 }
 const flag = (value: unknown) => value === true || value === 1
+const moneyColumns = new Set([
+  'total',
+  'costo_total',
+  'importe',
+  'neto_gravado',
+  'iva_signado',
+  'total_signado',
+  'credito_computable',
+  'credito_computable_signado',
+  'neto_signado',
+])
 const metrics: [string, string][] = [
   ['ventas_registradas', 'Ventas confirmadas de gestión'],
   ['compras_registradas', 'Compras y remitos registrados'],
@@ -61,7 +81,9 @@ function Table({
           <thead>
             <tr>
               {columns.map(([key, title]) => (
-                <th key={key}>{title}</th>
+                <th key={key}>
+                  <ListHeading label={title} />
+                </th>
               ))}
               {onSelect && <th className="no-print">Acciones</th>}
             </tr>
@@ -69,31 +91,37 @@ function Table({
           <tbody>
             {rows.map((row, index) => (
               <tr key={String(row.id ?? index)}>
-                {columns.map(([key]) => (
-                  <td key={key}>
-                    {['fecha', 'periodo'].includes(key)
-                      ? formatDateDisplay(String(row[key] ?? ''))
-                      : [
-                            'total',
-                            'costo_total',
-                            'importe',
-                            'neto_gravado',
-                            'iva_signado',
-                            'total_signado',
-                            'credito_computable',
-                            'credito_computable_signado',
-                            'neto_signado',
-                          ].includes(key) && row[key] != null
-                        ? currency.format(Number(row[key]))
-                        : typeof row[key] === 'boolean'
-                          ? row[key]
-                            ? 'Sí'
-                            : 'No'
-                          : String(row[key] ?? '—')}
+                {columns.map(([key, title]) => (
+                  <td
+                    key={key}
+                    data-label={compactListText(title)}
+                    className={moneyColumns.has(key) ? 'money-cell' : undefined}
+                  >
+                    {key === 'tercero' ? (
+                      <CompactName value={row[key]} />
+                    ) : key === 'fecha' ? (
+                      formatDateDisplay(row[key])
+                    ) : key === 'fecha_hora' ? (
+                      formatDateTimeDisplay(row[key])
+                    ) : key === 'periodo' ? (
+                      formatMonthDisplay(row[key])
+                    ) : moneyColumns.has(key) && row[key] != null ? (
+                      currency.format(Number(row[key]))
+                    ) : typeof row[key] === 'boolean' ? (
+                      row[key] ? (
+                        'Sí'
+                      ) : (
+                        'No'
+                      )
+                    ) : ['tipo', 'tipo_documento', 'medio_pago'].includes(key) ? (
+                      compactListText(row[key])
+                    ) : (
+                      String(row[key] ?? '—')
+                    )}
                   </td>
                 ))}
                 {onSelect && (
-                  <td className="no-print">
+                  <td className="no-print" data-label="Acciones">
                     <button
                       type="button"
                       className="secondary-button"
@@ -536,7 +564,7 @@ export function AccountingPage({ canManage }: { canManage: boolean }) {
             {report.fuente === 'CIERRE'
               ? `Copia del cierre, revisión ${report.revision}`
               : 'Información actual'}{' '}
-            · Generado {new Date(report.generado_en).toLocaleString('es-AR')}
+            · Generado {formatDateTimeDisplay(report.generado_en)}
           </p>
           {archive && (
             <div className="notice no-print">
@@ -666,8 +694,8 @@ export function AccountingPage({ canManage }: { canManage: boolean }) {
         {history.length ? (
           history.map((row) => (
             <p key={String(row.id)}>
-              Revisión {String(row.revision)} · {String(row.cerrado_en)} · {String(row.responsable)}{' '}
-              · {String(row.motivo)}{' '}
+              Revisión {String(row.revision)} · {formatDateTimeDisplay(row.cerrado_en)} ·{' '}
+              {String(row.responsable)} · {String(row.motivo)}{' '}
               <button
                 type="button"
                 className="secondary-button"

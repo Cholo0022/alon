@@ -21,7 +21,7 @@ export type PurchaseDraft = {
 export const emptyPurchaseHeader = (): PurchaseHeader => ({
   documentType: 'REMITO',
   documentNumber: '',
-  date: formatDateDisplay(todayLocal()),
+  date: formatDateDisplay(todayLocal(), 'numeric'),
 })
 export const purchaseDraftKey = (scope: string) => 'alon:purchase-draft:v1:' + scope
 export function readPurchaseDraft(scope?: string): PurchaseDraft | null {

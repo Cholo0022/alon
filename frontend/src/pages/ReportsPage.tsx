@@ -41,7 +41,7 @@ const reports: { title: string; endpoint: string; columns: ApiColumn[] }[] = [
     endpoint: '/api/v1/alon/reports/top-customers',
     columns: [
       { key: 'codigo', label: 'CÓDIGO' },
-      { key: 'nombre', label: 'CLIENTE' },
+      { key: 'nombre', label: 'CLIENTE', partyName: true },
       { key: 'compras', label: 'COMPRAS' },
       { key: 'total_consumido', label: 'TOTAL CONSUMIDO', money: true },
       { key: 'saldo_pendiente', label: 'CUENTA CORRIENTE', money: true },
@@ -66,7 +66,7 @@ const reports: { title: string; endpoint: string; columns: ApiColumn[] }[] = [
     columns: [
       { key: 'codigo', label: 'CÓDIGO' },
       { key: 'articulo', label: 'ARTÍCULO' },
-      { key: 'proveedor', label: 'PROVEEDOR' },
+      { key: 'proveedor', label: 'PROVEEDOR', partyName: true },
       { key: 'compras', label: 'COMPRAS' },
       { key: 'unidades_compradas', label: 'UNIDADES' },
       { key: 'importe', label: 'IMPORTE', money: true },
@@ -77,7 +77,7 @@ const reports: { title: string; endpoint: string; columns: ApiColumn[] }[] = [
     endpoint: '/api/v1/alon/reports/supplier-balances',
     columns: [
       { key: 'codigo', label: 'CÓDIGO' },
-      { key: 'nombre', label: 'PROVEEDOR' },
+      { key: 'nombre', label: 'PROVEEDOR', partyName: true },
       { key: 'especialidad', label: 'ESPECIALIDAD' },
       { key: 'saldo_pendiente', label: 'SALDO PENDIENTE', money: true },
       { key: 'estado', label: 'ESTADO' },

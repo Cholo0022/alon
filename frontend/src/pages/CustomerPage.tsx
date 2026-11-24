@@ -1,3 +1,4 @@
+import { CompactName } from '../components/CompactName'
 import { DeleteRecordButton } from '../components/DeleteRecordButton'
 // Permite consultar clientes, editar sus datos y ver sus movimientos.
 import { useState } from 'react'
@@ -117,7 +118,7 @@ export function CustomerList() {
                 <th>CÓDIGO</th>
                 <th>CLIENTE</th>
                 <th>CONTACTO</th>
-                <th>CUENTA CORRIENTE</th>
+                <th>Cta. Cte.</th>
                 <th>LÍMITE DE CRÉDITO</th>
                 <th>ESTADO</th>
                 <th>ACCIONES</th>
@@ -130,7 +131,7 @@ export function CustomerList() {
                     {customer.code}
                   </td>
                   <td data-label="Cliente" className="strong-cell">
-                    {customer.name}
+                    <CompactName value={customer.name} />
                     {textValue(customer.raw.dni) && (
                       <small> · DNI {textValue(customer.raw.dni)}</small>
                     )}
@@ -142,12 +143,14 @@ export function CustomerList() {
                     </span>
                   </td>
                   <td
-                    data-label="Cuenta corriente"
-                    className={customer.currentAccount > 0 ? 'balance-due' : ''}
+                    data-label="Cta. Cte."
+                    className={customer.currentAccount > 0 ? 'money-cell balance-due' : 'money-cell'}
                   >
                     {currency.format(customer.currentAccount)}
                   </td>
-                  <td data-label="Límite de crédito">{currency.format(customer.creditLimit)}</td>
+                  <td data-label="Límite de crédito" className="money-cell">
+                    {currency.format(customer.creditLimit)}
+                  </td>
                   <td data-label="Estado">
                     <StatusPill active={customer.status === 'Activo'} />
                   </td>

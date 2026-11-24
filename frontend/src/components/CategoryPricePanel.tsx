@@ -149,8 +149,8 @@ export function CategoryPricePanel() {
                     {preview.sample.map((row) => (
                       <tr key={row.id}>
                         <td>{row.name}</td>
-                        <td>{currency.format(Number(row.previousPrice))}</td>
-                        <td>{currency.format(Number(row.newPrice))}</td>
+                        <td className="money-cell">{currency.format(Number(row.previousPrice))}</td>
+                        <td className="money-cell">{currency.format(Number(row.newPrice))}</td>
                       </tr>
                     ))}
                   </tbody>

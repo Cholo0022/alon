@@ -25,16 +25,21 @@ public class StoreOrderQueries {
     }
 
     /** Consulta pedidos web del comercio con estado, datos de cliente y total. */
-    public List<Map<String, Object>> storeOrders() {
+    public List<Map<String, Object>> storeOrders(String status) {
+        String filter = status == null ? "" : " AND p.estado = ?";
+        Object[] parameters =
+                status == null
+                        ? new Object[] {identity.storeId()}
+                        : new Object[] {identity.storeId(), status};
         return pages.query(
                 "p.nombre_cliente,p.contacto,p.detalle",
                 """
                 SELECT p.id,p.nombre_cliente,p.contacto,p.detalle,p.total_estimado,p.estado,p.creado_en,p.medio_pago,p.venta_id,
                 %s AS comentario_cliente
-                FROM pedidos_tienda p WHERE p.comercio_id = ? ORDER BY p.creado_en DESC,p.id DESC
+                FROM pedidos_tienda p WHERE p.comercio_id = ?%s ORDER BY p.creado_en DESC,p.id DESC
                 """
-                        .formatted(customerCommentSql("p")),
-                identity.storeId());
+                        .formatted(customerCommentSql("p"), filter),
+                parameters);
     }
 
     /** Solo una venta confirmada de otro pedido acredita una compra web previa. */

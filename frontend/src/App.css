@@ -79,13 +79,13 @@
 .store-copy strong,
 .user-copy strong {
   color: #353448;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 .store-copy small,
 .user-copy small {
   color: #9695a5;
-  font-size: 11px;
+  font-size: 13px;
 }
 .chevron {
   color: #a4a3b1;
@@ -95,7 +95,7 @@
   padding-left: 11px;
   margin: 0 0 8px;
   color: #a7a6b3;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 1.2px;
 }
@@ -156,11 +156,11 @@
 }
 .help-card span {
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13px;
   color: #39374c;
 }
 .help-card small {
-  font-size: 11px;
+  font-size: 13px;
   color: #8d8c9d;
 }
 .help-card button {
@@ -455,12 +455,12 @@
   margin-bottom: 3px;
 }
 .chart-message strong {
-  font-size: 11px;
+  font-size: 13px;
   color: #555468;
 }
 .chart-message small {
-  font-size: 10px;
-  color: #a1a0ae;
+  font-size: 12px;
+  color: #43566b;
 }
 .chart-days {
   position: absolute;
@@ -469,8 +469,8 @@
   right: 0;
   display: flex;
   justify-content: space-between;
-  color: #aaa9b5;
-  font-size: 9px;
+  color: #43566b;
+  font-size: 12px;
 }
 .quick-panel {
   padding-bottom: 8px;
@@ -1049,8 +1049,8 @@ tbody tr:hover {
 .searchable-options > span {
   display: block;
   padding: 10px;
-  color: #9998a8;
-  font-size: 10px;
+  color: #43566b;
+  font-size: 13px;
 }
 .entry-form .entry-checkbox-label {
   min-height: 36px;
@@ -1230,7 +1230,7 @@ tbody tr:hover {
   display: block;
   margin-bottom: 9px;
   color: #555468;
-  font-size: 11px;
+  font-size: 14px;
 }
 .purchase-lines table {
   min-width: 560px;
@@ -1251,8 +1251,8 @@ tbody tr:hover {
   justify-content: flex-end;
   gap: 10px;
   align-items: center;
-  color: #777688;
-  font-size: 11px;
+  color: #43566b;
+  font-size: 14px;
 }
 .purchase-total strong {
   color: #51499b;
@@ -2053,6 +2053,9 @@ button:disabled {
   min-width: 0;
   table-layout: fixed;
 }
+.table-scroll table:has(> tbody > tr > .money-cell) {
+  table-layout: auto;
+}
 .table-scroll th,
 .table-scroll td,
 .purchase-lines th,
@@ -2064,6 +2067,14 @@ button:disabled {
 .table-scroll th,
 .table-scroll td {
   padding: 10px 8px;
+}
+.table-scroll th:has(> .compact-heading) {
+  padding-inline: 4px;
+}
+.table-scroll th .compact-heading {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 .table-scroll td .article-actions {
   flex-wrap: wrap;
@@ -2174,7 +2185,7 @@ button:disabled {
   border-radius: 999px;
   background: #fff;
   color: #17324b;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.2;
   font-weight: 700;
   box-shadow: none;
@@ -2269,7 +2280,7 @@ button:disabled {
   gap: 10px 14px;
 }
 #root .entry-form label {
-  font-size: 13px;
+  font-size: 14px;
   gap: 5px;
 }
 #root .searchable-field {
@@ -2304,6 +2315,13 @@ button:disabled {
 .purchase-receipt-view {
   container: records / inline-size;
 }
+@media screen {
+  .accounting-section,
+  .platform-table {
+    min-width: 0;
+    container: records / inline-size;
+  }
+}
 .directory-toolbar,
 .directory-toolbar > div:first-child,
 .directory-filters {
@@ -2330,6 +2348,14 @@ button:disabled {
 .pagination {
   min-width: 0;
   max-width: 100%;
+  overflow-wrap: anywhere;
+}
+#root .table-scroll td.money-cell {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+#root .table-scroll td.money-cell::before {
+  white-space: normal;
   overflow-wrap: anywhere;
 }
 .pagination {
@@ -2411,7 +2437,7 @@ td.article-actions {
   flex-shrink: 1;
 }
 #root .row-actions button {
-  font-size: 12px;
+  font-size: 14px;
   flex: 0 1 auto;
 }
 .entry-heading,
@@ -2429,27 +2455,14 @@ td.article-actions {
 #root .purchase-receipt-view .entry-form {
   font-size: 12px;
 }
-#root .purchase-entry .entry-form label,
-#root .purchase-receipt-view .entry-form label {
-  font-size: 12px;
-}
-#root .purchases-table table,
-#root .purchase-lines table,
-#root .purchase-receipt-view table {
-  font-size: 12px;
-  table-layout: auto;
-}
 #root .purchases-table th,
 #root .purchases-table td {
   padding: 8px 5px;
-  white-space: nowrap;
-  overflow-wrap: normal;
 }
 #root .purchases-table th {
-  font-size: 10px;
+  font-size: 13px;
   letter-spacing: 0;
 }
-#root .purchases-table .money-cell,
 #root .purchase-lines td[data-label='Costo unitario'],
 #root .purchase-lines td[data-label='Subtotal'],
 #root .purchase-receipt-view td[data-label='Costo unitario'],
@@ -2471,14 +2484,6 @@ td.article-actions {
   font-variant-numeric: tabular-nums;
 }
 @container records (max-width: 900px) {
-  #root .purchases-table td {
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-  #root .purchases-table td.money-cell {
-    white-space: nowrap;
-    overflow-wrap: normal;
-  }
   .row-actions {
     width: 100%;
   }
@@ -2503,15 +2508,12 @@ td.article-actions {
 #root .table-scroll td .mono-cell,
 #root .table-scroll td .stock-low,
 #root .table-scroll td .stock-ok {
-  font-size: 11px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
 #root .purchases-table .document-column {
   width: calc(8ch + 12px);
   padding-inline: 5px;
-}
-#root .purchases-table th.document-column {
-  font-size: 9px;
 }
 .document-number {
   display: inline-block;
@@ -2523,9 +2525,36 @@ td.article-actions {
   text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
 }
+.compact-name {
+  cursor: help;
+}
+.compact-name:focus-visible,
 .document-number:focus {
   outline: 2px solid #006b73;
   outline-offset: 2px;
+}
+.table-scroll th.sale-number-column {
+  width: calc(10ch + 16px);
+  font-size: 14px;
+}
+.table-scroll th.sale-date-column {
+  width: calc(8ch + 16px);
+  font-size: 12px;
+}
+.sale-number,
+.sale-date {
+  display: inline-block;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.sale-number {
+  width: 10ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.sale-date {
+  font-size: 12px;
 }
 @container records (max-width: 900px) {
   #root .purchases-table td.document-column {
@@ -3075,11 +3104,11 @@ td.article-actions {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 28px;
+  height: auto;
   min-height: 28px;
   padding: 0 9px;
-  font-size: 12px;
-  line-height: 1;
+  font-size: 14px;
+  line-height: 1.2;
   white-space: nowrap;
 }
 .entry-panel,

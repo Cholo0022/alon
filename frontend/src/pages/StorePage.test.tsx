@@ -9,6 +9,7 @@ vi.mock('../lib/http', () => ({ apiFetch: vi.fn() }))
 let quantity = 1
 let unit = 'UNIDAD'
 let cashOpen = true
+let orderStatus = 'PENDIENTE_CONFIRMACION'
 let customerComment = 'Es cliente web nuevo'
 const fetchMock = vi.mocked(apiFetch)
 it.each([
@@ -24,6 +25,8 @@ it.each([
 it('offers the customer WhatsApp chat in a separate tab', async () => {
   const user = userEvent.setup()
   render(<StorePage />)
+  const listedName = await screen.findByTitle('Cliente de prueba', {}, { timeout: 10_000 })
+  expect(listedName.textContent).toBe('Cliente de')
   await user.click(await screen.findByRole('button', { name: 'Ver pedido' }, { timeout: 10_000 }))
   const link = await screen.findByRole('link', {
     name: 'Chatear por WhatsApp con Cliente de prueba',
@@ -35,9 +38,11 @@ beforeEach(() => {
   quantity = 1
   unit = 'UNIDAD'
   cashOpen = true
+  orderStatus = 'PENDIENTE_CONFIRMACION'
   customerComment = 'Es cliente web nuevo'
   fetchMock.mockReset()
   fetchMock.mockImplementation(async (url, options) => {
+    if (url.endsWith('/confirm')) orderStatus = 'PENDIENTE_PAGO'
     const savingQuantity = url.endsWith('/quantity')
     if (savingQuantity) quantity = JSON.parse(String(options?.body)).quantity
     return Response.json(
@@ -46,7 +51,7 @@ beforeEach(() => {
             id: 7,
             nombre_cliente: 'Cliente de prueba',
             contacto: '1100000000',
-            estado: 'PENDIENTE_CONFIRMACION',
+            estado: orderStatus,
             total_estimado: quantity * 200,
             creado_en: '2026-10-29 10:00:00',
             medio_pago: null,
@@ -68,7 +73,7 @@ beforeEach(() => {
           }
         : url.startsWith('/api/v1/operations/')
           ? { ok: true }
-          : [{ id: 7, nombre_cliente: 'Cliente de prueba', estado: 'PENDIENTE_CONFIRMACION' }],
+          : [{ id: 7, nombre_cliente: 'Cliente de prueba', estado: orderStatus }],
     )
   })
 })
@@ -89,22 +94,42 @@ it.each(['Es cliente web nuevo', 'Este cliente ya ha comprado en la web'])(
   },
 )
 
-it('blocks confirmation while the cash register is closed', async () => {
+it('confirms stock with closed cash and blocks payment until cash opens', async () => {
   cashOpen = false
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
   const user = userEvent.setup()
   render(<StorePage />)
-  await user.click(await screen.findByRole('button', { name: 'Ver pedido' }, { timeout: 10_000 }))
-  await screen.findByText(/La caja de hoy está cerrada/)
+  await user.click(await screen.findByRole('button', { name: 'Ver pedido' }))
+  const confirm = await screen.findByRole('button', { name: 'Confirmar pedido' })
+  expect(confirm.hasAttribute('disabled')).toBe(false)
+  expect(screen.queryByRole('combobox', { name: 'Medio de pago del pedido' })).toBeNull()
+  await user.click(confirm)
+  const pay = await screen.findByRole('button', { name: 'Registrar pago' })
   await user.selectOptions(
     screen.getByRole('combobox', { name: 'Medio de pago del pedido' }),
     'EFECTIVO',
   )
-  expect(screen.getByRole('button', { name: 'Confirmar venta web' }).hasAttribute('disabled')).toBe(
-    true,
+  expect(pay.hasAttribute('disabled')).toBe(true)
+  expect(fetchMock).toHaveBeenCalledWith('/api/v1/operations/store-orders/7/confirm', {
+    method: 'POST',
+  })
+  expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/pay'))).toBe(false)
+})
+
+it('requests the selected status from the paginated list', async () => {
+  const user = userEvent.setup()
+  render(<StorePage />)
+  await user.selectOptions(
+    screen.getByRole('combobox', { name: 'Estado de los pedidos' }),
+    'PENDIENTE_PAGO',
   )
-  expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/approve'))).toBe(false)
-  expect(screen.getByText('Abrí la caja de hoy desde Caja.')).toBeTruthy()
-  expect(screen.queryByText('Seleccioná un medio de pago.')).toBeNull()
+  await waitFor(() =>
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        url.includes('/store-orders?status=PENDIENTE_PAGO&page=0'),
+      ),
+    ).toBe(true),
+  )
 })
 
 it('moves to and focuses the selected order after its detail loads', async () => {
@@ -116,30 +141,31 @@ it('moves to and focuses the selected order after its detail loads', async () =>
   const user = userEvent.setup()
   render(<StorePage />)
   await user.click(await screen.findByRole('button', { name: 'Ver pedido' }, { timeout: 10_000 }))
-  await screen.findByRole('button', { name: 'Confirmar venta web' })
+  await screen.findByRole('button', { name: 'Confirmar pedido' })
   await waitFor(() => expect(scroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' }))
   expect(document.activeElement).toBe(screen.getByRole('region', { name: 'Pedido #7' }))
 })
 
-it('requires a payment choice and submits it with the approval', async () => {
+it('requires a payment choice before recording payment', async () => {
+  orderStatus = 'PENDIENTE_PAGO'
   vi.spyOn(window, 'confirm').mockReturnValue(true)
   const user = userEvent.setup()
   render(<StorePage />)
   await user.click(await screen.findByRole('button', { name: 'Ver pedido' }, { timeout: 10_000 }))
-  const approve = await screen.findByRole('button', { name: 'Confirmar venta web' })
+  const approve = await screen.findByRole('button', { name: 'Registrar pago' })
   expect(approve.hasAttribute('disabled')).toBe(true)
   await user.selectOptions(
     screen.getByRole('combobox', { name: 'Medio de pago del pedido' }),
     'TRANSFERENCIA',
   )
   expect(approve.hasAttribute('disabled')).toBe(false)
-  expect(screen.queryByText('Para habilitar Confirmar venta web:')).toBeNull()
+  expect(screen.queryByText('Para habilitar Confirmar pedido:')).toBeNull()
   await user.click(approve)
   await waitFor(() =>
     expect(
       fetchMock.mock.calls.some(
         ([url, options]) =>
-          url.endsWith('/approve') &&
+          url.endsWith('/pay') &&
           JSON.parse(String(options?.body)).paymentMethod === 'TRANSFERENCIA',
       ),
     ).toBe(true),

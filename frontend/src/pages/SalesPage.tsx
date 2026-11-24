@@ -7,7 +7,15 @@ import { useTransactionEntry } from '../hooks/useTransactionEntry'
 import { QuantityInput } from '../components/QuantityInput'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/http'
-import { currency, textValue, numberValue, todayLocal, dateDisplayToIso } from '../lib/format'
+import {
+  currency,
+  textValue,
+  numberValue,
+  todayLocal,
+  dateDisplayToIso,
+  formatDateDisplay,
+  formatDateTimeDisplay,
+} from '../lib/format'
 import { type ApiRow } from '../hooks/useApiRows'
 import { LookupField } from '../components/LookupField'
 import { DateTextInput } from '../components/Forms'
@@ -538,9 +546,11 @@ export function SalesPage({
                         <tr key={index}>
                           <td data-label="Artículo">{line.label}</td>
                           <td data-label="Cantidad">{line.quantity}</td>
-                          <td data-label="Precio unitario">{currency.format(line.unitPrice)}</td>
+                          <td data-label="Precio unitario" className="money-cell">
+                            {currency.format(line.unitPrice)}
+                          </td>
                           <td data-label="Descuento">{line.discountPercent}%</td>
-                          <td data-label="Subtotal">
+                          <td data-label="Subtotal" className="money-cell">
                             {currency.format(
                               line.quantity * line.unitPrice * (1 - line.discountPercent / 100),
                             )}
@@ -610,9 +620,27 @@ export function SalesPage({
         title="Ventas de hoy"
         endpoint={'/api/v1/alon/sales?date=' + todayLocal() + '&size=200'}
         columns={[
-          { key: 'numero', label: 'NÚMERO' },
-          { key: 'fecha_hora', label: 'FECHA Y HORA', dateTime: true },
-          { key: 'cliente', label: 'CLIENTE' },
+          {
+            key: 'numero',
+            label: 'NÚMERO',
+            className: 'sale-number-column',
+            render: (row) => (
+              <span className="sale-number" title={textValue(row.numero)} tabIndex={0}>
+                {textValue(row.numero)}
+              </span>
+            ),
+          },
+          {
+            key: 'fecha',
+            label: 'FECHA',
+            className: 'sale-date-column',
+            render: (row) => (
+              <span className="sale-date" title={formatDateTimeDisplay(row.fecha_hora ?? row.fecha)}>
+                {formatDateDisplay(row.fecha ?? row.fecha_hora)}
+              </span>
+            ),
+          },
+          { key: 'cliente', label: 'CLIENTE', partyName: true },
           { key: 'tipo_venta', label: 'TIPO' },
           { key: 'medio_pago', label: 'MEDIO DE PAGO' },
           {

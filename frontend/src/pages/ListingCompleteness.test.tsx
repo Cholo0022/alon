@@ -45,12 +45,12 @@ it('loads debtors independently of the first supplier page and paginates their r
   await screen.findByText('350 proveedores')
   expect(await screen.findByText('101 proveedores con saldo pendiente')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Ver proveedores a los que debo' }))
-  expect(await screen.findByText('Proveedor con deuda 0')).toBeTruthy()
+  expect((await screen.findByTitle('Proveedor con deuda 0')).textContent).toBe('Proveedor ')
   const debtPagination = screen.getByRole('navigation', {
     name: 'Páginas de proveedores con deuda',
   })
   fireEvent.click(within(debtPagination).getByRole('button', { name: 'Siguiente' }))
-  await screen.findByText('Proveedor última página')
+  expect((await screen.findByTitle('Proveedor última página')).textContent).toBe('Proveedor ')
   expect(
     (within(debtPagination).getByRole('button', { name: 'Siguiente' }) as HTMLButtonElement)
       .disabled,

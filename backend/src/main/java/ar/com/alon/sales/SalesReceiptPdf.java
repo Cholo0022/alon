@@ -175,7 +175,7 @@ public final class SalesReceiptPdf {
                             + value(data.get("numero"))
                             + "   |   Fecha: "
                             + LocalDate.parse(value(data.get("fecha")).substring(0, 10))
-                                    .format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                                    .format(DateTimeFormatter.ofPattern("dd/MM/yy")),
                     9,
                     false);
             paragraph("Cliente: " + value(data.get("cliente")), 9, false);
@@ -219,7 +219,7 @@ public final class SalesReceiptPdf {
 
         private void renderServiceReceipt() throws IOException {
             serviceHeader();
-            var date = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            var date = DateTimeFormatter.ofPattern("dd/MM/yy");
             var month = DateTimeFormatter.ofPattern("MM/yyyy");
             LocalDate start = LocalDate.parse(value(data.get("periodo_desde")));
             int months = ((Number) data.get("meses")).intValue();

@@ -112,7 +112,7 @@ export function DateTextInput({ name, defaultValue }: { name: string; defaultVal
       maxLength={10}
       title="Usá el formato dd/mm/aaaa"
       required
-      defaultValue={formatDateDisplay(defaultValue ?? todayLocal())}
+      defaultValue={formatDateDisplay(defaultValue ?? todayLocal(), 'numeric')}
     />
   )
 }
@@ -680,17 +680,17 @@ export function LocalEntryPanel({
           </strong>
           <div>
             <span>
-              Efectivo inicial <b>{currency.format(numberValue(cashSummary.saldo_inicial))}</b>
+              Efvo. inicial <b>{currency.format(numberValue(cashSummary.saldo_inicial))}</b>
             </span>
             <span>
-              Ventas en efectivo <b>{currency.format(numberValue(cashSummary.ventas_efectivo))}</b>
+              Ventas en Efvo. <b>{currency.format(numberValue(cashSummary.ventas_efectivo))}</b>
             </span>
             <span>
               Ventas por Mercado Pago{' '}
               <b>{currency.format(numberValue(cashSummary.ventas_mercado_pago))}</b>
             </span>
             <span>
-              Pagos/gastos en efectivo{' '}
+              Pagos/gastos en Efvo.{' '}
               <b>{currency.format(numberValue(cashSummary.egresos_efectivo))}</b>
             </span>
             <span>
@@ -698,7 +698,7 @@ export function LocalEntryPanel({
               <b>{currency.format(numberValue(cashSummary.egresos_mercado_pago))}</b>
             </span>
             <span>
-              Efectivo que debe haber{' '}
+              Efvo. que debe haber{' '}
               <b>{currency.format(numberValue(cashSummary.efectivo_esperado))}</b>
             </span>
             <span>
@@ -716,17 +716,17 @@ export function LocalEntryPanel({
           </strong>
           <div>
             <span>
-              Efectivo inicial <b>{currency.format(numberValue(cashReport.saldo_inicial))}</b>
+              Efvo. inicial <b>{currency.format(numberValue(cashReport.saldo_inicial))}</b>
             </span>
             <span>
-              Ventas en efectivo <b>{currency.format(numberValue(cashReport.ventas_efectivo))}</b>
+              Ventas en Efvo. <b>{currency.format(numberValue(cashReport.ventas_efectivo))}</b>
             </span>
             <span>
               Ventas por Mercado Pago{' '}
               <b>{currency.format(numberValue(cashReport.ventas_mercado_pago))}</b>
             </span>
             <span>
-              Pagos/gastos en efectivo{' '}
+              Pagos/gastos en Efvo.{' '}
               <b>{currency.format(numberValue(cashReport.egresos_efectivo))}</b>
             </span>
             <span>
@@ -734,7 +734,7 @@ export function LocalEntryPanel({
               <b>{currency.format(numberValue(cashReport.egresos_mercado_pago))}</b>
             </span>
             <span>
-              Efectivo que debe haber{' '}
+              Efvo. que debe haber{' '}
               <b>{currency.format(numberValue(cashReport.efectivo_esperado))}</b>
             </span>
             <span>
@@ -742,7 +742,7 @@ export function LocalEntryPanel({
               <b>{currency.format(numberValue(cashReport.mercado_pago_esperado))}</b>
             </span>
             <span>
-              Diferencia de efectivo <b>{currency.format(numberValue(cashReport.diferencia))}</b>
+              Diferencia de Efvo. <b>{currency.format(numberValue(cashReport.diferencia))}</b>
             </span>
           </div>
         </div>
